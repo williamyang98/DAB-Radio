@@ -70,8 +70,8 @@ void app_thread(
 
         for (int i = 0; i < block_size; i++) {
             auto& v = buf_rd[i];
-            const float I = static_cast<float>(v.real() - 128);
-            const float Q = static_cast<float>(v.imag() - 128);
+            const float I = static_cast<float>(v.real()) - 127.5f;
+            const float Q = static_cast<float>(v.imag()) - 127.5f;
             buf_rd_raw[i] = std::complex<float>(I, Q);
         }
 
@@ -267,8 +267,8 @@ int main(int argc, char** argv)
 
                 for (int i = 0; i < block_size; i++) {
                     auto& v = buf_rd[i];
-                    const float I = static_cast<float>(v.real() - 128);
-                    const float Q = static_cast<float>(v.imag() - 128);
+                    const float I = static_cast<float>(v.real()) - 127.5f;
+                    const float Q = static_cast<float>(v.imag()) - 127.5f;
                     buf_rd_raw[i] = std::complex<float>(I, Q);
                 }
 
@@ -355,7 +355,13 @@ int main(int argc, char** argv)
                 ImGui::Text("State: Waiting null");
                 break;
             case OFDM_Demodulator::State::READING_OFDM_FRAME:
-                ImGui::Text("State: Reading samples");
+                ImGui::Text("State: Reading data symbol");
+                break;
+            case OFDM_Demodulator::State::READING_NULL_SYMBOL:
+                ImGui::Text("State: Reading null symbol");
+                break;
+            default:
+                ImGui::Text("State: Unknown");
                 break;
             }
             ImGui::Text("Fine freq: %.3f", ofdm_demod.freq_fine_offset);
@@ -364,6 +370,7 @@ int main(int argc, char** argv)
                 ofdm_demod.curr_ofdm_symbol,
                 ofdm_demod.params.nb_frame_symbols);
             ImGui::Text("Frames read: %d", ofdm_demod.total_frames_read);
+            ImGui::Text("Frames desynced: %d", ofdm_demod.total_frames_desync);
 
             ImGui::End();
         }
