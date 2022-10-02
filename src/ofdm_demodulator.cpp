@@ -16,6 +16,7 @@ OFDM_Demodulator::OFDM_Demodulator(
     fft_cfg = kiss_fft_alloc(params.nb_fft ,false , 0, 0);
 
     total_frames_read = 0;
+    total_frames_desync = 0;
 
     ofdm_magnitude_avg = new float[params.nb_fft];
     for (int i = 0; i < params.nb_fft; i++) {
@@ -279,7 +280,7 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
         const int M = params.nb_data_carriers/2;
         const int N_fft = params.nb_fft;
 
-        // -N/2 <= x <= 1
+        // -N/2 <= x <= -1
         for (int i = 0; i < M; i++) {
             const int j = (N_fft-M+i) % N_fft;
             // arg(z1*~z0) = arg(z1)+arg(~z0) = arg(z1)-arg(z0)
@@ -493,19 +494,30 @@ int OFDM_Demodulator::FindNullSync(
         return nb_read;
     }
 
-    // linearise the PRS estimate
-    for (int i = 0; i < params.nb_fft; i++) {
-        const int j = (null_search.prs_index + i) % null_search.length;
-        null_search_prs.buf[i] = null_search.buf[j];
+    // linearise the PRS estimate and apply PLL
+    {
+        float dt = 0.0f;
+        const float Ts = 1.0f/2.048e6;
+        for (int i = 0; i < params.nb_fft; i++) {
+            const int j = (null_search.prs_index + i) % null_search.length;
+            const auto pll = std::complex<float>(
+                std::cosf(dt),
+                std::sinf(dt)
+            );
+            null_search_prs.buf[i] = null_search.buf[j] * pll;
+            dt += 2.0f * (float)M_PI * freq_fine_offset * Ts;
+        }
     }
 
     // for the PRS we calculate the impulse response for fine time frame synchronisation
     kiss_fft(fft_cfg, 
         (kiss_fft_cpx*)null_search_prs.buf, 
         (kiss_fft_cpx*)prs_fft_actual);
+        
     for (int i = 0; i < params.nb_fft; i++) {
         prs_fft_actual[i] = prs_fft_actual[i] * prs_fft_reference[i];
     }
+
     kiss_fft(fft_cfg, 
         (kiss_fft_cpx*)prs_fft_actual, 
         (kiss_fft_cpx*)prs_fft_actual);
@@ -517,12 +529,10 @@ int OFDM_Demodulator::FindNullSync(
     }
 
     // calculate if we have a valid impulse response
-    // if the peak is at least 30dB above the mean, then we use that as the offset
+    // if the peak is at least X dB above the mean, then we use that as the offset
     float impulse_avg = 0.0f;
-
     float impulse_max_value = prs_impulse_response[0];
     int impulse_max_index = 0;
-
     for (int i = 0; i < params.nb_fft; i++) {
         const float v = prs_impulse_response[i];
         impulse_avg += v;
@@ -545,6 +555,7 @@ int OFDM_Demodulator::FindNullSync(
         is_found_prs = false;
         is_null_start_found = false;
         is_null_end_found = false;
+        total_frames_desync++;
         return 0;
     }
 

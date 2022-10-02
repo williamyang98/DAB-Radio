@@ -168,7 +168,7 @@ void get_DAB_PRS_reference(const int transmission_mode,
         buf[nb_fft+k] = std::conj(prs);
     }
 
-    // 0 < f < F/2
+    // 0 < f <= F/2
     for (int k = 1; k <= k_max; k++) {
         auto& e = p_table[p_table_index];
         const int h = H_TABLE[e.i][k-e.k_min];
@@ -182,6 +182,5 @@ void get_DAB_PRS_reference(const int transmission_mode,
         }
         // 0th bin of fft is the DC value which is 0
         buf[k] = std::conj(prs);
-
     }
 }

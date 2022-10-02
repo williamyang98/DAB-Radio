@@ -27,6 +27,7 @@ public:
     State state;
 
     int total_frames_read;
+    int total_frames_desync;
 
     // store the average spectrum of ofdm symbols
     float* ofdm_magnitude_avg;
