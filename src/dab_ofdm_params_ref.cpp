@@ -13,7 +13,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_fft = 2048;
             p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
             p.nb_data_carriers = 1536;
-            p.nb_guard_carriers_left = (p.nb_fft-p.nb_data_carriers)/2;
             p.freq_carrier_spacing = 1000;
         }
         break;
@@ -25,7 +24,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_fft = 1024;
             p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
             p.nb_data_carriers = 768;
-            p.nb_guard_carriers_left = (p.nb_fft-p.nb_data_carriers)/2;
             p.freq_carrier_spacing = 2000;
         }
         break;
@@ -37,7 +35,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_fft = 512;
             p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
             p.nb_data_carriers = 384;
-            p.nb_guard_carriers_left = (p.nb_fft-p.nb_data_carriers)/2;
             p.freq_carrier_spacing = 4000;
         }
         break;
@@ -50,7 +47,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_fft = 256;
             p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
             p.nb_data_carriers = 192;
-            p.nb_guard_carriers_left = (p.nb_fft-p.nb_data_carriers)/2;
             p.freq_carrier_spacing = 8000;
         }
     default:

@@ -9,7 +9,6 @@ struct OFDM_Params
 
     int nb_fft;
     int nb_data_carriers;
-    int nb_guard_carriers_left;
 
     int freq_carrier_spacing;
 };
