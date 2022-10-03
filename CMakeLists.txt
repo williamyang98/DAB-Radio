@@ -25,6 +25,14 @@ include_directories(view_data src/ src/getopt/)
 set_target_properties(view_data PROPERTIES CXX_STANDARD 17)
 target_link_libraries(view_data PUBLIC imgui implot unofficial::kissfft::kissfft)
 
+add_executable(read_data 
+    ${SRC_FILES}
+    src/read_data.cpp
+    src/getopt/getopt.c)
+include_directories(read_data src/ src/getopt/)
+set_target_properties(read_data PROPERTIES CXX_STANDARD 17)
+target_link_libraries(read_data PUBLIC unofficial::kissfft::kissfft)
+
 add_executable(view_ofdm_sample 
     src/view_ofdm_sample.cpp
     src/getopt/getopt.c)
@@ -34,5 +42,6 @@ target_link_libraries(view_ofdm_sample PUBLIC imgui implot unofficial::kissfft::
 
 if (WIN32)
 target_compile_options(view_data        PRIVATE "/MP")
+target_compile_options(read_data        PRIVATE "/MP")
 target_compile_options(view_ofdm_sample PRIVATE "/MP")
 endif(WIN32)
