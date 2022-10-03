@@ -1,7 +1,10 @@
 #pragma once
 #include <complex>
+#include <stdint.h>
 
 #include "ofdm_params.h"
+#include "reconstruction_buffer.h"
+#include "circular_buffer.h"
 
 // forward declare kissfft config
 typedef struct kiss_fft_state* kiss_fft_cfg;
@@ -22,13 +25,29 @@ public:
         int ofdm_end_index;
     };
 public:
+    // parameters of the OFDM signal
     const struct OFDM_Params params;
+    // parameters of the OFDM demodulator
+    struct {
+        struct {
+            float update_beta = 0.95f;
+            int nb_samples = 100;
+            int nb_decimate = 5;
+        } signal_l1;
+        float fine_freq_update_beta = 0.1f;
+        struct {
+            float thresh_null_start = 0.35f;
+            float thresh_null_end = 0.75f;
+        } null_l1_search;
+        float impulse_peak_threshold_db = 20.0f;
+        float data_sym_magnitude_update_beta = 0.1f;
+    } cfg;
+
     kiss_fft_cfg fft_cfg;
     State state;
-
+    // statistics
     int total_frames_read;
     int total_frames_desync;
-
     // store the average spectrum of ofdm symbols
     float* ofdm_magnitude_avg;
 
@@ -38,10 +57,7 @@ public:
     bool is_update_fine_freq;
 
     // ofdm symbol processing
-    struct {
-        std::complex<float>* buf;
-        int capacity;
-    } ofdm_sym_wrap;
+    ReconstructionBuffer<std::complex<float>>* ofdm_sym_wrap_buf;
     // pll for ofdm
     std::complex<float>* ofdm_sym_pll_buf;
     // fft buffers for processing ofdm symbols
@@ -50,12 +66,10 @@ public:
     std::complex<float>* last_sym_fft_buf;
     int curr_ofdm_symbol;
     float* ofdm_frame_data;
+    uint8_t* ofdm_frame_bits;
 
     // null symbol processing
-    struct {
-        std::complex<float>* buf;
-        int capacity;
-    } null_sym_wrap;
+    ReconstructionBuffer<std::complex<float>>* null_sym_wrap_buf;
     // pll for null symbol
     std::complex<float>* null_sym_pll_buf;
     // fft buffer for extracing TII (transmitter identification information)
@@ -68,19 +82,10 @@ public:
     // store samples for backtrack in circular buffer
     // we might find that our inital estimate of null symbol end if off
     // if it is ahead of the actual null symbol end, then we need to backtrack
-    struct {
-        std::complex<float>* buf;
-        int length;
-        int index;
-        int prs_index;
-        int capacity;
-    } null_search;
+    CircularBuffer<std::complex<float>>* null_search_buf;
+    int null_search_prs_index;
     // linearise circular buffer to store PRS
-    struct {
-        std::complex<float>* buf;
-        int length;
-        int capacity;
-    } null_search_prs;
+    ReconstructionBuffer<std::complex<float>>* null_prs_linearise_buf;
     // fine time frame synchronisation using PRS
     std::complex<float>* prs_fft_reference;
     std::complex<float>* prs_fft_actual;
@@ -91,8 +96,6 @@ public:
     bool is_null_start_found;
     bool is_null_end_found;
     float signal_l1_average;
-    float signal_l1_beta;
-    int signal_l1_nb_samples;
 
 
 public:
@@ -112,4 +115,7 @@ private:
     void ProcessNullSymbol(std::complex<float>* sym);
     float CalculateL1Average(std::complex<float>* block, const int N);
     void UpdateMagnitudeAverage(std::complex<float>* Y);
+    float ApplyPLL(
+        const std::complex<float>* x, std::complex<float>* y, 
+        const int N, const float dt0=0.0f);
 };

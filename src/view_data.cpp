@@ -149,7 +149,7 @@ int main(int argc, char** argv)
     get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
 
     auto ofdm_demod = OFDM_Demodulator(ofdm_params, ofdm_prs_ref);
-    delete ofdm_prs_ref;
+    delete [] ofdm_prs_ref;
 
     bool is_running = !is_step_mode;
     auto proc_thread = new std::thread(
@@ -258,24 +258,6 @@ int main(int argc, char** argv)
 
         {
             ImGui::Begin("Sampling buffer");
-            if (ImGui::Button("Read block")) {
-                auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
-                if (nb_read != block_size) {
-                    fprintf(stderr, "Failed to read in data\n");
-                    return 1;
-                }
-
-                for (int i = 0; i < block_size; i++) {
-                    auto& v = buf_rd[i];
-                    const float I = static_cast<float>(v.real()) - 127.5f;
-                    const float Q = static_cast<float>(v.imag()) - 127.5f;
-                    buf_rd_raw[i] = std::complex<float>(I, Q);
-                }
-
-                ofdm_demod.ProcessBlock(buf_rd_raw, block_size);
-                state = ofdm_demod.GetState();
-            }
-
             if (ImPlot::BeginPlot("Block")) {
                 auto buf = reinterpret_cast<float*>(buf_rd_raw);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
@@ -299,12 +281,28 @@ int main(int argc, char** argv)
             if (ImPlot::BeginPlot("DQPSK data")) {
                 const int total_carriers = ofdm_demod.params.nb_data_carriers;
                 const int buffer_offset = symbol_index*total_carriers;
-                auto buf = &ofdm_demod.ofdm_frame_data[buffer_offset];
+
                 ImPlot::SetupAxisLimits(ImAxis_Y1, -4, +4, ImPlotCond_Once);
-                ImPlot::PlotScatter("Delta-Phase", buf, total_carriers);
-                for (int i = 0; i < 3; i++) {
-                    ImPlot::DragLineY(i, &dqsk_decision_boundaries[i], ImVec4(1,0,0,1), 1.0f);
+                ImPlot::SetupAxis(ImAxis_Y2, NULL, ImPlotAxisFlags_Opposite);
+                ImPlot::SetupAxisLimits(ImAxis_Y2, -1, 4, ImPlotCond_Once);
+                static double y_axis_ticks[4] = {0,1,2,3};
+                ImPlot::SetupAxisTicks(ImAxis_Y2, y_axis_ticks, 4);
+                {
+                    auto buf = &ofdm_demod.ofdm_frame_data[buffer_offset];
+                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
+                    ImPlot::PlotScatter("Raw", buf, total_carriers);
+                    for (int i = 0; i < 3; i++) {
+                        ImPlot::DragLineY(i, &dqsk_decision_boundaries[i], ImVec4(1,0,0,1), 1.0f);
+                    }
                 }
+
+                {
+                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
+                    auto buf = &ofdm_demod.ofdm_frame_bits[buffer_offset];
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 3.0f, ImVec4(1.0f, 0.4f, 0.0f, 1.0f), 2.0f);
+                    ImPlot::PlotScatter("Predicted", buf, total_carriers);
+                }
+
                 ImPlot::EndPlot();
             }
             ImGui::End();
@@ -364,7 +362,7 @@ int main(int argc, char** argv)
                 ImGui::Text("State: Unknown");
                 break;
             }
-            ImGui::Text("Fine freq: %.3f", ofdm_demod.freq_fine_offset);
+            ImGui::Text("Fine freq: %.2f Hz", ofdm_demod.freq_fine_offset);
             ImGui::Text("Signal level: %.2f", ofdm_demod.signal_l1_average);
             ImGui::Text("Symbols read: %d/%d", 
                 ofdm_demod.curr_ofdm_symbol,
