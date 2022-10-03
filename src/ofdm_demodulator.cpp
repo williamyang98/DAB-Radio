@@ -484,7 +484,10 @@ int OFDM_Demodulator::FindNullSync(
     // if the max index is early, then we offset by a negative amount into the circular buffer
     // if the max index is late, then we offset by a positive amount into the circular buffer
     const int offset = impulse_max_index - params.nb_cyclic_prefix;
-    const int actual_prs_index = (null_search_prs_index + offset);
+
+    // NOTE: We add the capacity as well onto the actual_prs_index
+    // This is because the offset can cause the resulting adjusted index to be negative
+    const int actual_prs_index = (null_search_prs_index + offset + null_search_buf->Capacity());
     null_prs_linearise_buf->SetLength(params.nb_symbol_period - offset);
 
     for (int i = 0; i < null_prs_linearise_buf->Length(); i++) {
