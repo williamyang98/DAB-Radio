@@ -262,7 +262,6 @@ int main(int argc, char** argv)
                 auto buf = reinterpret_cast<float*>(buf_rd_raw);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
                 ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-                ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
                 ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
                 ImPlot::EndPlot();
             }
@@ -372,8 +371,6 @@ int main(int argc, char** argv)
 
             ImGui::End();
         }
-
-        ImGui::End();
 
         // Rendering
         ImGui::Render();
