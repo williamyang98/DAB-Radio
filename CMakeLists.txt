@@ -53,6 +53,13 @@ include_directories(view_ofdm_sample src/)
 set_target_properties(view_ofdm_sample PROPERTIES CXX_STANDARD 17)
 target_link_libraries(view_ofdm_sample PUBLIC getopt imgui implot unofficial::kissfft::kissfft)
 
+add_executable(process_frames
+    src/process_frames.cpp
+    src/viterbi_decoder.cpp)
+include_directories(process_frames src/)
+set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
+target_link_libraries(process_frames PUBLIC getopt)
+
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(getopt               PRIVATE "/MP")
@@ -61,4 +68,5 @@ target_compile_options(view_data            PRIVATE "/MP")
 target_compile_options(read_data            PRIVATE "/MP")
 target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(view_ofdm_sample     PRIVATE "/MP")
+target_compile_options(process_frames       PRIVATE "/MP")
 endif(WIN32)
