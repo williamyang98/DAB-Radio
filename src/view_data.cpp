@@ -22,8 +22,11 @@
 
 #include <complex>
 #include "ofdm_demodulator.h"
+#include "ofdm_symbol_mapper.h"
+
 #include "dab_ofdm_params_ref.h"
 #include "dab_prs_ref.h"
+#include "dab_mapper_ref.h"
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
@@ -53,32 +56,103 @@ static void glfw_window_focus_callback(GLFWwindow* window, int focused)
     is_main_window_focused = focused;
 }
 
-static auto state = OFDM_Demodulator::State::WAITING_NULL;
+void RenderSourceBuffer(std::complex<float>* buf_raw, const int block_size);
+void RenderOFDMDemodulator(OFDM_Demodulator* demod, OFDM_Symbol_Mapper* mapper);
 
-void app_thread(
-    FILE* fp_in, OFDM_Demodulator* demod, 
-    std::complex<uint8_t>* buf_rd, std::complex<float>* buf_rd_raw,
-    bool* is_running,
-    const int block_size) {
-
-    while (*is_running) {
-        auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
-        if (nb_read != block_size) {
-            fprintf(stderr, "Failed to read in data\n");
-            break;
-        }
-
-        for (int i = 0; i < block_size; i++) {
-            auto& v = buf_rd[i];
-            const float I = static_cast<float>(v.real()) - 127.5f;
-            const float Q = static_cast<float>(v.imag()) - 127.5f;
-            buf_rd_raw[i] = std::complex<float>(I, Q);
-        }
-
-        demod->ProcessBlock(buf_rd_raw, block_size);
-        state = demod->GetState();
+class App: public OFDM_Demodulator_Callback
+{
+private:
+    OFDM_Demodulator* demod;
+    OFDM_Symbol_Mapper* mapper;
+    OFDM_Demodulator::State demod_state;
+    bool is_running = true;
+public:
+    bool is_wait_step = false;
+    bool flag_step = false;
+    bool flag_apply_rd_offset = false;
+    bool flag_dump_frame = false;
+    bool is_always_dump_frame = false;
+public:
+    App(OFDM_Demodulator* _demod, OFDM_Symbol_Mapper* _mapper)
+    : demod(_demod), mapper(_mapper) {
+        demod_state = OFDM_Demodulator::State::WAITING_NULL;
+        demod->SetCallback(this);
     }
-}
+    void Run(FILE* fp_in, std::complex<uint8_t>* buf_rd, std::complex<float>* buf_rd_raw, const int block_size) {
+        is_running = true;
+        while (is_running) {
+
+            while (!(flag_step) && (is_wait_step)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            }
+            flag_step = false;
+
+            // NOTE: forcefully induce a single byte desync
+            // This is required when the receiver is overloaded and something causes a single byte to be dropped
+            // This causes the IQ values to become desynced and produce improper values
+            // Inducing another single byte dropout will correct the stream
+            if (flag_apply_rd_offset) {
+                uint8_t dummy = 0x00;
+                auto nb_read = fread(&dummy, sizeof(uint8_t), 1, fp_in);
+                flag_apply_rd_offset = false;
+            }
+
+            auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
+            if (nb_read != block_size) {
+                fprintf(stderr, "Failed to read in data\n");
+                break;
+            }
+
+            for (int i = 0; i < block_size; i++) {
+                auto& v = buf_rd[i];
+                const float I = static_cast<float>(v.real()) - 127.5f;
+                const float Q = static_cast<float>(v.imag()) - 127.5f;
+                buf_rd_raw[i] = std::complex<float>(I, Q);
+            }
+
+            demod->ProcessBlock(buf_rd_raw, block_size);
+            demod_state = demod->GetState();
+        }
+    }
+    void Stop() {
+        is_running = false;
+    }
+    inline OFDM_Demodulator::State GetDemodulatorState() const { return demod_state; }
+
+    virtual void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
+        assert(mapper->GetTotalCarriers() == nb_carriers);
+        assert(mapper->GetTotalSymbols() == nb_symbols);
+        mapper->ProcessRawFrame(phases);
+        if (flag_dump_frame || is_always_dump_frame) {
+            const auto buf = mapper->GetOutputBuffer();
+            const auto N = mapper->GetOutputBufferSize();
+            OutputBuffer(buf, N);
+            flag_dump_frame = false;
+        }
+    }
+private:
+    void OutputBuffer(const uint8_t* buf, const int N) {
+        fwrite(buf, sizeof(uint8_t), N, stdout);
+        // for (int i = 0; i < N; i++) {
+        //     for (int j = 0; j < 8; j++) {
+        //         printf("%d, ", (buf[i] & (1u<<j)) != 0);
+        //     }
+        // }
+        // for (int i = 0; i < nb_carriers*nb_symbols; i+=4) {
+        //     uint8_t b = 0x00;
+        //     b |= (phases[i+0]) << 0;
+        //     b |= (phases[i+1]) << 2;
+        //     b |= (phases[i+2]) << 4;
+        //     b |= (phases[i+3]) << 6;
+        //     fputc(b, stdout);
+        // }
+        // for (int i = 0; i < nb_carriers*nb_symbols; i++) {
+        //     uint8_t b = phases[i];
+        //     printf("%d, ", (b & 0b01) >> 0);
+        //     printf("%d, ", (b & 0b10) >> 1);
+        // }
+    }
+};
 
 void usage() {
     fprintf(stderr, 
@@ -143,20 +217,29 @@ int main(int argc, char** argv)
     auto buf_rd_raw = new std::complex<float>[block_size];
 
     _setmode(_fileno(fp_in), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
     
     const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
     auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
     get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
+    auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
+    get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
 
     auto ofdm_demod = OFDM_Demodulator(ofdm_params, ofdm_prs_ref);
-    delete [] ofdm_prs_ref;
+    // due to differential encoding, the PRS doesn't count 
+    auto ofdm_mapper = OFDM_Symbol_Mapper(
+        ofdm_mapper_ref, ofdm_params.nb_data_carriers, 
+        ofdm_params.nb_frame_symbols-1);
 
-    bool is_running = !is_step_mode;
-    auto proc_thread = new std::thread(
-        app_thread, 
-        fp_in, &ofdm_demod, 
-        buf_rd, buf_rd_raw, 
-        &is_running, block_size);
+    delete [] ofdm_prs_ref;
+    delete [] ofdm_mapper_ref;
+
+    auto app = App(&ofdm_demod, &ofdm_mapper);
+    app.is_wait_step = is_step_mode;
+    auto app_runner = [&fp_in, &app, &buf_rd, &buf_rd_raw, block_size]() {
+        app.Run(fp_in, buf_rd, buf_rd_raw, block_size);
+    };
+    auto proc_thread = new std::thread(app_runner);
 
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -256,118 +339,26 @@ int main(int argc, char** argv)
 
         ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
+        RenderSourceBuffer(buf_rd_raw, block_size);
+        RenderOFDMDemodulator(&ofdm_demod, &ofdm_mapper);
         {
-            ImGui::Begin("Sampling buffer");
-            if (ImPlot::BeginPlot("Block")) {
-                auto buf = reinterpret_cast<float*>(buf_rd_raw);
-                ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
-                ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-                ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-                ImPlot::EndPlot();
+            ImGui::Begin("Input controls");
+            if (ImGui::Button("Offset input stream")) {
+                app.flag_apply_rd_offset = true;
             }
-            ImGui::End();
-        }
-
-        {
-            ImGui::Begin("DQPSK data");
-            const int total_symbols = ofdm_demod.params.nb_frame_symbols;
-            static int symbol_index = 0;
-
-            ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_symbols-2);
-
-            static double dqsk_decision_boundaries[3] = {-3.1415/2, 0, 3.1415/2};
-
-            if (ImPlot::BeginPlot("DQPSK data")) {
-                const int total_carriers = ofdm_demod.params.nb_data_carriers;
-                const int buffer_offset = symbol_index*total_carriers;
-
-                ImPlot::SetupAxisLimits(ImAxis_Y1, -4, +4, ImPlotCond_Once);
-                ImPlot::SetupAxis(ImAxis_Y2, NULL, ImPlotAxisFlags_Opposite);
-                ImPlot::SetupAxisLimits(ImAxis_Y2, -1, 4, ImPlotCond_Once);
-                static double y_axis_ticks[4] = {0,1,2,3};
-                ImPlot::SetupAxisTicks(ImAxis_Y2, y_axis_ticks, 4);
-                {
-                    auto buf = &ofdm_demod.ofdm_frame_data[buffer_offset];
-                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
-                    ImPlot::PlotScatter("Raw", buf, total_carriers);
-                    for (int i = 0; i < 3; i++) {
-                        ImPlot::DragLineY(i, &dqsk_decision_boundaries[i], ImVec4(1,0,0,1), 1.0f);
-                    }
+            ImGui::Checkbox("Enable stepping", &app.is_wait_step);
+            if (app.is_wait_step) {
+                if (ImGui::Button("Step")) {
+                    app.flag_step = true;
                 }
+            }             
 
-                {
-                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
-                    auto buf = &ofdm_demod.ofdm_frame_bits[buffer_offset];
-                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 3.0f, ImVec4(1.0f, 0.4f, 0.0f, 1.0f), 2.0f);
-                    ImPlot::PlotScatter("Predicted", buf, total_carriers);
+            ImGui::Checkbox("Enable continuous frame dump", &app.is_always_dump_frame);
+            if (!app.is_always_dump_frame) {
+                if (ImGui::Button("Dump next block")) {
+                    app.flag_dump_frame = true;
                 }
-
-                ImPlot::EndPlot();
-            }
-            ImGui::End();
-        }
-
-        {
-            ImGui::Begin("Impulse response");
-            if (ImPlot::BeginPlot("Impulse response")) {
-                auto buf = ofdm_demod.prs_impulse_response;
-                const int N = ofdm_demod.params.nb_fft;
-                ImPlot::SetupAxisLimits(ImAxis_Y1, 60, 150, ImPlotCond_Once);
-                ImPlot::PlotLine("Impulse response", buf, N);
-                ImPlot::EndPlot();
-            }
-            ImGui::End();
-        }
-
-        {
-            ImGui::Begin("Null symbol spectrum");
-            if (ImPlot::BeginPlot("Null symbol")) {
-                auto buf = ofdm_demod.null_sym_data;
-                const int N = ofdm_demod.params.nb_fft;
-                ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
-                ImPlot::PlotLine("Null symbol", buf, N);
-                ImPlot::EndPlot();
-            }
-            ImGui::End();
-        }
-
-        {
-            ImGui::Begin("Data symbol spectrum");
-            if (ImPlot::BeginPlot("Data symbol spectrum")) {
-                auto buf = ofdm_demod.ofdm_magnitude_avg;
-                const int N = ofdm_demod.params.nb_fft;
-                ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
-                ImPlot::PlotLine("Data symbol", buf, N);
-                ImPlot::EndPlot();
-            }
-            ImGui::End();
-        }
-
-        {
-            ImGui::Begin("Controls/Stats");
-
-            ImGui::Checkbox("Force fine freq", &ofdm_demod.is_update_fine_freq);
-            switch (state) {
-            case OFDM_Demodulator::State::WAITING_NULL:
-                ImGui::Text("State: Waiting null");
-                break;
-            case OFDM_Demodulator::State::READING_OFDM_FRAME:
-                ImGui::Text("State: Reading data symbol");
-                break;
-            case OFDM_Demodulator::State::READING_NULL_SYMBOL:
-                ImGui::Text("State: Reading null symbol");
-                break;
-            default:
-                ImGui::Text("State: Unknown");
-                break;
-            }
-            ImGui::Text("Fine freq: %.2f Hz", ofdm_demod.freq_fine_offset);
-            ImGui::Text("Signal level: %.2f", ofdm_demod.signal_l1_average);
-            ImGui::Text("Symbols read: %d/%d", 
-                ofdm_demod.curr_ofdm_symbol,
-                ofdm_demod.params.nb_frame_symbols);
-            ImGui::Text("Frames read: %d", ofdm_demod.total_frames_read);
-            ImGui::Text("Frames desynced: %d", ofdm_demod.total_frames_desync);
+            } 
 
             ImGui::End();
         }
@@ -407,8 +398,132 @@ int main(int argc, char** argv)
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    is_running = false;
+    app.Stop();
     proc_thread->join();
 
     return 0;
+}
+
+void RenderSourceBuffer(std::complex<float>* buf_raw, const int block_size)
+{
+    static double x = 0.0f;
+    ImGui::Begin("Sampling buffer");
+    if (ImPlot::BeginPlot("Block")) {
+        auto buf = reinterpret_cast<float*>(buf_raw);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
+        ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+        ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+        ImPlot::EndPlot();
+    }
+    ImGui::End();
+}
+
+void RenderOFDMDemodulator(OFDM_Demodulator* demod, OFDM_Symbol_Mapper* mapper)
+{
+    const auto params = demod->GetOFDMParams();
+    {
+        ImGui::Begin("DQPSK data");
+        const int total_symbols = params.nb_frame_symbols;
+        static int symbol_index = 0;
+
+        ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_symbols-2);
+
+        static double dqsk_decision_boundaries[3] = {-3.1415/2, 0, 3.1415/2};
+        auto phase_buf = demod->GetFrameDataPhases();
+        auto mapper_buf = demod->GetFrameDataPhasesPred();
+
+        if (ImPlot::BeginPlot("DQPSK data")) {
+            const int total_carriers = params.nb_data_carriers;
+            const int buffer_offset = symbol_index*total_carriers;
+
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -4, +4, ImPlotCond_Once);
+            ImPlot::SetupAxis(ImAxis_Y2, NULL, ImPlotAxisFlags_Opposite);
+            ImPlot::SetupAxisLimits(ImAxis_Y2, -1, 4, ImPlotCond_Once);
+            static double y_axis_ticks[4] = {0,1,2,3};
+            ImPlot::SetupAxisTicks(ImAxis_Y2, y_axis_ticks, 4);
+            {
+                auto buf = &phase_buf[buffer_offset];
+                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
+                ImPlot::PlotScatter("Raw", buf, total_carriers);
+                for (int i = 0; i < 3; i++) {
+                    ImPlot::DragLineY(i, &dqsk_decision_boundaries[i], ImVec4(1,0,0,1), 1.0f);
+                }
+            }
+
+            {
+                auto buf = &mapper_buf[buffer_offset];
+                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
+                ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 3.0f, ImVec4(1.0f, 0.4f, 0.0f, 1.0f), 2.0f);
+                ImPlot::PlotScatter("Predicted", buf, total_carriers);
+            }
+
+            ImPlot::EndPlot();
+        }
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Impulse response");
+        if (ImPlot::BeginPlot("Impulse response")) {
+            auto buf = demod->GetImpulseResponse();
+            const int N = params.nb_fft;
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 60, 150, ImPlotCond_Once);
+            ImPlot::PlotLine("Impulse response", buf, N);
+            ImPlot::EndPlot();
+        }
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Null symbol spectrum");
+        if (ImPlot::BeginPlot("Null symbol")) {
+            auto buf = demod->GetNullSymbolMagnitude();
+            const int N = params.nb_fft;
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
+            ImPlot::PlotLine("Null symbol", buf, N);
+            ImPlot::EndPlot();
+        }
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Data symbol spectrum");
+        if (ImPlot::BeginPlot("Data symbol spectrum")) {
+            auto buf = demod->GetFrameMagnitudeAverage();
+            const int N = params.nb_fft;
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
+            ImPlot::PlotLine("Data symbol", buf, N);
+            ImPlot::EndPlot();
+        }
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Controls/Stats");
+
+        ImGui::Checkbox("Force fine freq", &(demod->GetIsUpdateFineFrequency()));
+        switch (demod->GetState()) {
+        case OFDM_Demodulator::State::WAITING_NULL:
+            ImGui::Text("State: Waiting null");
+            break;
+        case OFDM_Demodulator::State::READING_OFDM_FRAME:
+            ImGui::Text("State: Reading data symbol");
+            break;
+        case OFDM_Demodulator::State::READING_NULL_SYMBOL:
+            ImGui::Text("State: Reading null symbol");
+            break;
+        default:
+            ImGui::Text("State: Unknown");
+            break;
+        }
+        ImGui::Text("Fine freq: %.2f Hz", demod->GetFineFrequencyOffset());
+        ImGui::Text("Signal level: %.2f", demod->GetSignalAverage());
+        ImGui::Text("Symbols read: %d/%d", 
+            demod->GetCurrentOFDMSymbol(),
+            params.nb_frame_symbols);
+        ImGui::Text("Frames read: %d", demod->GetTotalFramesRead());
+        ImGui::Text("Frames desynced: %d", demod->GetTotalFramesDesync());
+
+        ImGui::End();
+    }
 }
