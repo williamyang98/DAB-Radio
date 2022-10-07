@@ -9,26 +9,16 @@
 // forward declare kissfft config
 typedef struct kiss_fft_state* kiss_fft_cfg;
 
+class OFDM_Demodulator_Callback 
+{
+public:
+    virtual void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) = 0;
+};
+
 class OFDM_Demodulator 
 {
 public:
-    enum State {
-        WAITING_NULL,
-        READING_OFDM_FRAME,
-        READING_NULL_SYMBOL
-    };
-    struct ProcessResult {
-        bool is_processing;
-        bool is_sync_found;
-        int sync_index;
-        bool is_ofdm_finished;
-        int ofdm_end_index;
-    };
-public:
-    // parameters of the OFDM signal
-    const struct OFDM_Params params;
-    // parameters of the OFDM demodulator
-    struct {
+    struct Config {
         struct {
             float update_beta = 0.95f;
             int nb_samples = 100;
@@ -41,8 +31,17 @@ public:
         } null_l1_search;
         float impulse_peak_threshold_db = 20.0f;
         float data_sym_magnitude_update_beta = 0.1f;
-    } cfg;
-
+    };
+    enum State {
+        WAITING_NULL,
+        READING_OFDM_FRAME,
+        READING_NULL_SYMBOL
+    };
+private:
+    // parameters of the OFDM signal
+    const struct OFDM_Params params;
+    // parameters of the OFDM demodulator
+    Config cfg;
     kiss_fft_cfg fft_cfg;
     State state;
     // statistics
@@ -65,8 +64,8 @@ public:
     std::complex<float>* curr_sym_fft_buf;
     std::complex<float>* last_sym_fft_buf;
     int curr_ofdm_symbol;
-    float* ofdm_frame_data;
-    uint8_t* ofdm_frame_bits;
+    float* ofdm_frame_raw;
+    uint8_t* ofdm_frame_pred;
 
     // null symbol processing
     ReconstructionBuffer<std::complex<float>>* null_sym_wrap_buf;
@@ -96,15 +95,28 @@ public:
     bool is_null_start_found;
     bool is_null_end_found;
     float signal_l1_average;
-
-
+private:
+    OFDM_Demodulator_Callback* callback = NULL;
 public:
     OFDM_Demodulator(
         const struct OFDM_Params _ofdm_params,
         const std::complex<float>* _ofdm_prs_ref);
     ~OFDM_Demodulator();
     void ProcessBlock(std::complex<float>* block, const int N);
-    inline State GetState(void) { return state; }
+    inline State GetState(void) const { return state; }
+    inline float GetFineFrequencyOffset(void) const { return freq_fine_offset; }
+    inline int GetTotalFramesRead(void) const { return total_frames_read; }
+    inline int GetTotalFramesDesync(void) const { return total_frames_desync; }
+    inline OFDM_Params GetOFDMParams(void) const { return params; }
+    inline bool& GetIsUpdateFineFrequency(void) { return is_update_fine_freq; }
+    inline float* GetNullSymbolMagnitude(void) { return null_sym_data; }
+    inline float* GetFrameMagnitudeAverage(void) { return ofdm_magnitude_avg; }
+    inline float* GetFrameDataPhases(void) { return ofdm_frame_raw; }
+    inline uint8_t* GetFrameDataPhasesPred(void) { return ofdm_frame_pred; }
+    inline float* GetImpulseResponse(void) { return prs_impulse_response; }
+    inline float GetSignalAverage(void) { return signal_l1_average; }
+    inline int GetCurrentOFDMSymbol(void) const { return curr_ofdm_symbol; }
+    inline void SetCallback(OFDM_Demodulator_Callback* _callback) { callback = _callback; }
 private:
     void ProcessBlockWithoutUpdate(std::complex<float>* block, const int N);
     void UpdateSignalAverage(std::complex<float>* block, const int N);

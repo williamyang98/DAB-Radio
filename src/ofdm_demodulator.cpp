@@ -39,9 +39,10 @@ OFDM_Demodulator::OFDM_Demodulator(
     last_sym_fft_buf = new std::complex<float>[params.nb_fft];
     // digital data passed to decoders
     {
-        const int N = params.nb_data_carriers*params.nb_frame_symbols;
-        ofdm_frame_data = new float[N];
-        ofdm_frame_bits = new uint8_t[N];
+        // we have one less symbol due to the differential encoding between symbols
+        const int N = params.nb_data_carriers*(params.nb_frame_symbols-1);
+        ofdm_frame_raw = new float[N];
+        ofdm_frame_pred = new uint8_t[N];
     }
     curr_ofdm_symbol = 0;
 
@@ -85,8 +86,10 @@ OFDM_Demodulator::OFDM_Demodulator(
     signal_l1_average = 0.0f;
 
     // copy the prs fft reference
+    // when we are doing our time domain correlation by multiplying in frequency domain
+    // we need to multiply it by the conjugate
     for (int i = 0; i < params.nb_fft; i++) {
-        prs_fft_reference[i] = _ofdm_prs_ref[i];
+        prs_fft_reference[i] = std::conj(_ofdm_prs_ref[i]);
     }
 
     // initial state 
@@ -105,8 +108,8 @@ OFDM_Demodulator::~OFDM_Demodulator()
     delete [] ofdm_sym_pll_buf;
     delete [] curr_sym_fft_buf;
     delete [] last_sym_fft_buf;
-    delete [] ofdm_frame_data;
-    delete [] ofdm_frame_bits;
+    delete [] ofdm_frame_raw;
+    delete [] ofdm_frame_pred;
 
     // null symbol buffers
     delete null_sym_wrap_buf;
@@ -158,6 +161,11 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
                 const int nb_read = ReadOFDMSymbols(buf, N_remain);
                 curr_index += nb_read;
                 if (curr_ofdm_symbol == params.nb_frame_symbols) {
+                    if (callback) {
+                        // we ignore the PRS since that is just a reference
+                        // differential encoding means we have one less symbol that contains data
+                        callback->OnOFDMFrame(ofdm_frame_pred, params.nb_data_carriers, params.nb_frame_symbols-1);
+                    }
                     state = State::READING_NULL_SYMBOL;
                     total_frames_read++;
 
@@ -200,31 +208,20 @@ int OFDM_Demodulator::ReadOFDMSymbols(
     std::complex<float>* block, const int N)
 {
     const int M = params.nb_symbol_period;
+    // we need wrap around
+    if (!ofdm_sym_wrap_buf->IsEmpty() || (N < M)) {
+        const int nb_read = ofdm_sym_wrap_buf->ConsumeBuffer(block, N);
 
-    int curr_index = 0;
-    while ((curr_index < N) && (curr_ofdm_symbol < params.nb_frame_symbols)) 
-    {
-        const int N_remain = N-curr_index;
-        auto* rd_buf = &block[curr_index];
-
-        // we need wrap around
-        if (!ofdm_sym_wrap_buf->IsEmpty() || (N_remain < M)) {
-            const int nb_read = ofdm_sym_wrap_buf->ConsumeBuffer(rd_buf, N_remain);
-            curr_index += nb_read;
-
-            if (ofdm_sym_wrap_buf->IsFull()) {
-                ProcessOFDMSymbol(ofdm_sym_wrap_buf->GetData());
-                ofdm_sym_wrap_buf->Reset();
-            }
-            continue;
+        if (ofdm_sym_wrap_buf->IsFull()) {
+            ProcessOFDMSymbol(ofdm_sym_wrap_buf->GetData());
+            ofdm_sym_wrap_buf->Reset();
         }
-
-        // we have enough samples to read the whole symbol
-        ProcessOFDMSymbol(rd_buf);
-        curr_index += M;
+        return nb_read;
     }
 
-    return curr_index;
+    // we have enough samples to read the whole symbol
+    ProcessOFDMSymbol(block);
+    return M;
 }
 
 void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym) 
@@ -250,6 +247,10 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
         const int M = params.nb_data_carriers/2;
         const int N_fft = params.nb_fft;
 
+        const int offset = curr_dqsk_index*params.nb_data_carriers;
+        auto* ofdm_raw = &ofdm_frame_raw[offset];
+        auto* ofdm_pred = &ofdm_frame_pred[offset];
+
         // conversion of phase-delta to value between 0 to 4
         static auto map_phase = [](float x) {
             // y = (x*4/pi + 3) / 2
@@ -269,9 +270,8 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
                 phase_delta_vec.imag(),
                 phase_delta_vec.real());
 
-            const int k = curr_dqsk_index*params.nb_data_carriers+i;
-            ofdm_frame_data[k] = phase_delta;
-            ofdm_frame_bits[k] = map_phase(phase_delta);
+            ofdm_raw[i] = phase_delta;
+            ofdm_pred[i] = map_phase(phase_delta);
         }
 
         // 1 <= x <= N/2
@@ -286,10 +286,8 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
             const float phase_delta = std::atan2f(
                 phase_delta_vec.imag(),
                 phase_delta_vec.real());
-
-            const int k = curr_dqsk_index*params.nb_data_carriers+i+M;
-            ofdm_frame_data[k] = phase_delta;
-            ofdm_frame_bits[k] = map_phase(phase_delta);
+            ofdm_raw[i+M] = phase_delta;
+            ofdm_pred[i+M] = map_phase(phase_delta);
         }
     }
     // swap fft buffers
@@ -358,8 +356,10 @@ void OFDM_Demodulator::ProcessNullSymbol(std::complex<float>* sym)
     kiss_fft(fft_cfg, 
         (kiss_fft_cpx*)null_sym_pll_buf, 
         (kiss_fft_cpx*)null_sym_fft_buf);
-    
-    UpdateMagnitudeAverage(null_sym_fft_buf);
+
+    // NOTE:Ignore the magnitude contribution of the NULL symbol
+    // This is not representative of the data symbol spectrum    
+    // UpdateMagnitudeAverage(null_sym_fft_buf);
     
     for (int i = 0; i < params.nb_fft; i++) {
         const int j = (i + params.nb_fft/2) % params.nb_fft;
@@ -441,6 +441,8 @@ int OFDM_Demodulator::FindNullSync(
     for (int i = 0; i < params.nb_fft; i++) {
         const auto& v = prs_fft_actual[i];
         const float A = 20.0f*std::log10(std::abs(v));
+        // NOTE: flip the buffer since we are using fft for ifft
+        // this causes the time domain result to be reversed
         prs_impulse_response[params.nb_fft-i-1] = A;
     }
 
