@@ -162,6 +162,7 @@ void usage() {
         "\t    If no file is provided then stdin is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-S toggle step mode (default: false)]\n"
+        "\t[-D toggle frame output (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -171,10 +172,11 @@ int main(int argc, char** argv)
     int block_size = 8192;
     int transmission_mode = 1;
     bool is_step_mode = false;
+    bool is_frame_output = false;
     char* rd_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "b:i:M:Sh")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:M:SDh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
@@ -195,6 +197,9 @@ int main(int argc, char** argv)
             break;
         case 'S':
             is_step_mode = true;
+            break;
+        case 'D':
+            is_frame_output = true;
             break;
         case 'h':
         default:
@@ -236,6 +241,7 @@ int main(int argc, char** argv)
 
     auto app = App(&ofdm_demod, &ofdm_mapper);
     app.is_wait_step = is_step_mode;
+    app.is_always_dump_frame = is_frame_output;
     auto app_runner = [&fp_in, &app, &buf_rd, &buf_rd_raw, block_size]() {
         app.Run(fp_in, buf_rd, buf_rd_raw, block_size);
     };
