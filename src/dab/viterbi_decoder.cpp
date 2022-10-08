@@ -29,13 +29,15 @@ Trellis::Trellis(const uint8_t* _conv_codes_octal, const int nb_codes, const int
         transition.SetBuffers(L, &transition_buffers[i*L*2]);
     }
 
+    const uint8_t mask = (1u << (constraint_length-1)) - 1;
+
     // generate the trellis
     for (int curr_state = 0; curr_state < nb_states; curr_state++) {
         auto& t = transition_table[curr_state];
         for (uint8_t x = 0; x < 2; x++) {
             auto& transition_res = t.input[x];
             const uint8_t reg = (static_cast<uint8_t>(curr_state) << 1) | x;
-            const uint8_t next_state = reg & 0b00111111;
+            const uint8_t next_state = reg & mask;
             transition_res.next_state = next_state;
             for (int i = 0; i < L; i++) {
                 const uint8_t output = COUNT_TABLE[reg & conv_codes[i]] % 2;
