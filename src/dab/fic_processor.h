@@ -88,4 +88,20 @@ private:
     void ProcessFIG_Type_0_Ext_24(
         const FIG_Header_Type_0 header, 
         const uint8_t* buf, const uint8_t N, const int cif_index);
+    void ProcessFIG_Type_0_Ext_5(
+        const FIG_Header_Type_0 header, 
+        const uint8_t* buf, const uint8_t N, const int cif_index);
+    // handle fig 1/X
+    void ProcessFIG_Type_1_Ext_0(
+        const FIG_Header_Type_1 header, 
+        const uint8_t* buf, const uint8_t N, const int cif_index);
+    void ProcessFIG_Type_1_Ext_1(
+        const FIG_Header_Type_1 header, 
+        const uint8_t* buf, const uint8_t N, const int cif_index);
+    void ProcessFIG_Type_1_Ext_5(
+        const FIG_Header_Type_1 header, 
+        const uint8_t* buf, const uint8_t N, const int cif_index);
+    void ProcessFIG_Type_1_Ext_4(
+        const FIG_Header_Type_1 header, 
+        const uint8_t* buf, const uint8_t N, const int cif_index);
 };

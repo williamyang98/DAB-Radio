@@ -305,7 +305,11 @@ void FIC_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N, const
     case 21: ProcessFIG_Type_0_Ext_21(header, field_buf, nb_field_bytes, cif_index); break;
     // OE Services for service following?
     case 24: ProcessFIG_Type_0_Ext_24(header, field_buf, nb_field_bytes, cif_index); break;
+    // Service component language 
+    case 5 : ProcessFIG_Type_0_Ext_5 (header, field_buf, nb_field_bytes, cif_index); break;
     default:
+        LOG_MESSAGE("[%d] fig 0/%u Unsupported\n", 
+            cif_index, extension);
         break;
     }
 }
@@ -313,23 +317,44 @@ void FIC_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N, const
 void FIC_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N, const int cif_index) {
     const uint8_t descriptor = buf[0];
 
-    const uint8_t charset   = (descriptor & 0b11110000) >> 4;
-    const uint8_t rfu       = (descriptor & 0b00001000) >> 3;
+    FIG_Header_Type_1 header;
+    header.charset          = (descriptor & 0b11110000) >> 4;
+    header.rfu              = (descriptor & 0b00001000) >> 3;
     const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
-    // LOG_MESSAGE("fig 1/%d L=%d\n", extension, N);
+    const uint8_t* field_buf = &buf[1];
+    const uint8_t nb_field_bytes = N-1;
+
+    switch (extension) 
+    {
+    // Ensemble label
+    case 0: ProcessFIG_Type_1_Ext_0(header, field_buf, nb_field_bytes, cif_index); break;
+    // Short form service identifier label
+    case 1: ProcessFIG_Type_1_Ext_1(header, field_buf, nb_field_bytes, cif_index); break;
+    // Long form service identifier label
+    case 5: ProcessFIG_Type_1_Ext_5(header, field_buf, nb_field_bytes, cif_index); break;
+    // Service component label (non primary)
+    case 4: ProcessFIG_Type_1_Ext_4(header, field_buf, nb_field_bytes, cif_index); break;
+    default:
+        LOG_MESSAGE("[%d] fig 1/%u L=%u Unsupported\n", cif_index, extension, nb_field_bytes);
+        break;
+    }
 }
 
 void FIC_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N, const int cif_index)
 {
     const uint8_t descriptor = buf[0];
 
-    const uint8_t toggle_flag   = (descriptor & 0b10000000) >> 7;
-    const uint8_t segment_index = (descriptor & 0b01110000) >> 4;
-    const uint8_t rfu           = (descriptor & 0b00001000) >> 3;
-    const uint8_t extension     = (descriptor & 0b00000111) >> 0;
+    FIG_Header_Type_2 header;
+    header.toggle_flag      = (descriptor & 0b10000000) >> 7;
+    header.segment_index    = (descriptor & 0b01110000) >> 4;
+    header.rfu              = (descriptor & 0b00001000) >> 3;
+    const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
-    // LOG_MESSAGE("fig 2/%d L=%d\n", extension, N);
+    const uint8_t* field_buf = &buf[1];
+    const uint8_t nb_field_bytes = N-1;
+
+    LOG_MESSAGE("[%d] fig 2/%u L=%u Unsupported\n", cif_index, extension, nb_field_bytes);
 }
 
 void FIC_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N, const int cif_index)
@@ -343,7 +368,7 @@ void FIC_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N, const
     const uint8_t lef               = (descriptor & 0b00001000) >> 3;
     const uint8_t short_CA_sys_id   = (descriptor & 0b00000111) >> 0;
 
-    // LOG_MESSAGE("fig 6 L=%d\n", N);
+    LOG_MESSAGE("fig 6 L=%d Unsupported\n", N);
 }
 
 void FIC_Processor::ProcessFIG_Type_0_Ext_1(
@@ -1388,4 +1413,196 @@ void FIC_Processor::ProcessFIG_Type_0_Ext_24(
         }
         curr_byte += (nb_header_bytes + nb_EId_list_bytes);
     }
+}
+
+void FIC_Processor::ProcessFIG_Type_0_Ext_5(
+    const FIG_Header_Type_0 header, 
+    const uint8_t* buf, const uint8_t N, const int cif_index)
+{
+    int curr_byte = 0;
+    while (curr_byte < N) {
+        const int nb_remain_bytes = N-curr_byte;
+        auto* b = &buf[curr_byte];
+
+        const uint8_t LS =  (b[0] & 0b10000000) >> 7;
+        const int nb_length_bytes = LS ? 3 : 2;
+
+        if (nb_length_bytes > nb_remain_bytes) {
+            LOG_ERROR("[%d] fig 0/5 LS=%u Insufficient length for contents (%d/%d)\n",
+                cif_index, 
+                LS, 
+                nb_length_bytes, nb_remain_bytes);
+            return;
+        }
+
+        // short form
+        if (!LS) {
+            const uint8_t Rfu =             (b[0] & 0b01000000) >> 6;
+            const uint8_t subchannel_id =   (b[0] & 0b00111111) >> 0;
+            const uint8_t language = b[1];
+            LOG_MESSAGE("[%d] fig 0/5 LS=%u Rfu=%u subchannel_id=%-2u language=%u\n",
+                cif_index,
+                LS, 
+                Rfu, subchannel_id, language);
+        // long form
+        } else {
+            const uint8_t Rfa =             (b[0] & 0b01110000) >> 4;
+            const uint16_t SCId =            
+                      (static_cast<uint16_t>(b[0] & 0b00001111) << 8) |
+                                           ((b[1] & 0b11111111) >> 0);
+            const uint8_t language = b[2];
+            LOG_MESSAGE("[%d] fig 0/5 LS=%u Rfa=%u SCId=%u language=%u\n",
+                cif_index,
+                LS, 
+                Rfa, SCId, language);
+        }
+
+        curr_byte += nb_length_bytes;
+    }
+}
+
+void FIC_Processor::ProcessFIG_Type_1_Ext_0(
+    const FIG_Header_Type_1 header, 
+    const uint8_t* buf, const uint8_t N, const int cif_index)
+{
+
+    const int nb_eid_bytes = 2;
+    const int nb_char_bytes = 16;
+    const int nb_flag_bytes = 2;
+    const int nb_expected_bytes = nb_eid_bytes + nb_char_bytes + nb_flag_bytes;
+
+    if (N != nb_expected_bytes) {
+        LOG_ERROR("[%d] fig 1/0 Expected %d bytes got %d bytes\n",
+            cif_index, nb_expected_bytes, N);
+        return;
+    }
+
+    EnsembleIdentifier eid;
+    eid.ProcessBuffer(buf);
+
+    auto* char_buf = &buf[nb_eid_bytes];
+    // flag field is used for determining which characters can be removed
+    // when we are abbreviating the label
+    const int flag_index = nb_eid_bytes + nb_char_bytes;
+    const uint16_t flag_field = (static_cast<uint16_t>(buf[18]) << 8) | buf[19];
+    
+    LOG_MESSAGE("[%d] fig 1/0 country_id=%u ensemble_ref=%-4u flag=%04X chars=%.*s\n",
+        cif_index,
+        eid.country_id, eid.ensemble_reference,
+        flag_field,
+        nb_char_bytes, char_buf);
+}
+
+void FIC_Processor::ProcessFIG_Type_1_Ext_1(
+    const FIG_Header_Type_1 header, 
+    const uint8_t* buf, const uint8_t N, const int cif_index)
+{
+    const int nb_sid_bytes = 2;
+    const int nb_char_bytes = 16;
+    const int nb_flag_bytes = 2;
+    const int nb_expected_bytes = nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
+
+    if (N != nb_expected_bytes) {
+        LOG_ERROR("[%d] fig 1/1 Expected %d bytes got %d bytes\n",
+            cif_index, nb_expected_bytes, N);
+        return;
+    }
+
+    ServiceIdentifier sid;
+    sid.ProcessShortForm(buf);
+
+    auto* char_buf = &buf[nb_sid_bytes];
+    const int flag_index = nb_sid_bytes + nb_char_bytes;
+    const uint16_t flag_field = 
+        (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
+                               buf[flag_index+1];
+    
+    LOG_MESSAGE("[%d] fig 1/1 country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
+        cif_index,
+        sid.country_id, sid.service_reference, sid.ecc,
+        flag_field,
+        nb_char_bytes, char_buf);
+}
+
+void FIC_Processor::ProcessFIG_Type_1_Ext_5(
+    const FIG_Header_Type_1 header, 
+    const uint8_t* buf, const uint8_t N, const int cif_index)
+{
+    const int nb_sid_bytes = 4;
+    const int nb_char_bytes = 16;
+    const int nb_flag_bytes = 2;
+
+    const int nb_expected_bytes = nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
+    if (N != nb_expected_bytes) {
+        LOG_ERROR("[%d] fig 1/5 Expected %d bytes got %d bytes\n",
+            cif_index, nb_expected_bytes, N);
+        return;
+    }
+
+    ServiceIdentifier sid;
+    sid.ProcessLongForm(buf);
+
+    auto* char_buf = &buf[nb_sid_bytes];
+    const int flag_index = nb_sid_bytes + nb_char_bytes;
+    const uint16_t flag_field = 
+        (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
+                               buf[flag_index+1];
+    
+    LOG_MESSAGE("[%d] fig 1/5 country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
+        cif_index,
+        sid.country_id, sid.service_reference, sid.ecc,
+        flag_field,
+        nb_char_bytes, char_buf);
+}
+
+void FIC_Processor::ProcessFIG_Type_1_Ext_4(
+    const FIG_Header_Type_1 header, 
+    const uint8_t* buf, const uint8_t N, const int cif_index)
+{
+    const int nb_header_bytes = 1;
+    const int nb_char_bytes = 16;
+    const int nb_flag_bytes = 2;
+
+    if (N < nb_header_bytes) {
+        LOG_ERROR("[%d] fig 1/4 Expected at least %d byte for header got %d bytes\n",
+            cif_index, nb_header_bytes, N);
+        return;
+    }
+
+    const uint8_t descriptor = buf[0];
+    const uint8_t pd =    (descriptor & 0b10000000) >> 7;
+    const uint8_t Rfa =   (descriptor & 0b01110000) >> 4;
+    const uint8_t SCIdS = (descriptor & 0b00001111) >> 0;
+
+    const int nb_sid_bytes = pd ? 4 : 2;
+    const int nb_expected_bytes = nb_header_bytes + nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
+
+    if (N != nb_expected_bytes) {
+        LOG_ERROR("[%d] fig 1/4 Expected %d bytes got %d bytes\n",
+            cif_index, nb_expected_bytes, N);
+        return;
+    }
+
+    ServiceIdentifier sid;
+    if (!pd) {
+        sid.ProcessShortForm(&buf[nb_header_bytes]);
+    } else {
+        sid.ProcessLongForm(&buf[nb_header_bytes]);
+    }
+
+    // iterated backwards
+    auto* char_buf = &buf[nb_header_bytes+nb_sid_bytes];
+
+    const int flag_index = nb_header_bytes + nb_sid_bytes + nb_char_bytes;
+    const uint16_t flag_field = 
+        (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
+                               buf[flag_index+1];
+    
+    LOG_MESSAGE("[%d] fig 1/5 SCIdS=%u country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
+        cif_index,
+        SCIdS,
+        sid.country_id, sid.service_reference, sid.ecc,
+        flag_field,
+        nb_char_bytes, char_buf);
+
 }
