@@ -252,9 +252,16 @@ uint32_t ServiceComponentUpdater::GetServiceReference() {
 }
 
 bool ServiceComponentUpdater::IsComplete() {
-    const bool b0 = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
-    const bool b1 = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
-    return b0 || b1;
+    // Can only determine completeness if we know the transport mode
+    if (!(dirty_field & SERVICE_COMPONENT_FLAG_TRANSPORT_MODE)) {
+        return false;
+    }
+    const bool audio_complete = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
+    const bool data_complete  = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
+    if (data->transport_mode == TransportMode::STREAM_MODE_AUDIO) {
+        return audio_complete;
+    } 
+    return data_complete;
 }
 
 // Subchannel form
@@ -302,9 +309,13 @@ UpdateResult SubchannelUpdater::SetFECScheme(const fec_scheme_t fec_scheme) {
 }
 
 bool SubchannelUpdater::IsComplete() {
-    const bool b0 = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
-    const bool b1 = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_UEP) == SUBCHANNEL_FLAG_REQUIRED_UEP;
-    return b0 || b1;
+    // Cant tell if it is complete since it depends on subchannel protection type
+    if (!(dirty_field & SUBCHANNEL_FLAG_UEP)) {
+        return false;
+    }
+    const bool eep = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
+    const bool uep = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_UEP) == SUBCHANNEL_FLAG_REQUIRED_UEP;
+    return data->is_uep ? uep : eep;
 }
 
 // link service form
