@@ -26,7 +26,11 @@ target_link_libraries(ofdm_core PRIVATE unofficial::kissfft::kissfft)
 set(DAB_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dab)
 add_library(dab_core STATIC
     ${DAB_CORE_DIR}/viterbi_decoder.cpp
-    ${DAB_CORE_DIR}/fic_processor.cpp)
+    ${DAB_CORE_DIR}/fic_decoder.cpp
+    ${DAB_CORE_DIR}/fig_processor.cpp
+    ${DAB_CORE_DIR}/radio_fig_handler.cpp
+    ${DAB_CORE_DIR}/dab_database.cpp
+    ${DAB_CORE_DIR}/dab_database_updater.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 
