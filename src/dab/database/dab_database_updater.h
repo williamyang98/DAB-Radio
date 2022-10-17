@@ -2,16 +2,22 @@
 
 #include <stdint.h>
 
-#include "dab_database_entities.h"
-#include "dab_database_types.h"
+#include "dab_database.h"
 
 #include <map>
 #include <vector>
 
-class DAB_Database;
-
-// Updater entities can call the parent
-// 
+// The topology of the updater classes is as follows
+// Parent:  Stores the database (which stores its entities)
+//          Stores lookup tables that associates database entities to their updater (child)
+//          Keeps track of the global status of the database (how many entities are completed)
+// Child:   Stores a reference to their database entity
+//          Keeps track of which fields were updated
+//          Determines if there are enough provided fields for an entity to be complete
+//          Detects if there are conflicting field values
+//          Reports to the parent when it is complete
+// Here is the relationship between the updater parent/child, and the database entity:
+//          Parent updater <-- one to many --> Child updater <-- one to one --> Database entity
 class UpdaterParent 
 {
 public:
@@ -21,13 +27,14 @@ public:
     virtual void SignalConflict() = 0;
 };
 
-// An updater basically acts like a web form
-// Keeps track of which fields were modified/set
-// Acts as a setter wrapper around the core data (which it stores as a pointer)
-// This is done so the fields can be tracked
-// If a field is updated more than once, a equality check is done
-// This is to alert us if a field in the data was given two conflicting values
-class UpdaterBase 
+// Think of this like a web form
+// Acts as a setter wrapper around the database entity (which it stores as a pointer)
+//      Keeps track of which fields were modified/set
+//      This is done so the fields can be tracked
+// If a field is updated more than once, check if the new value conflicts with old value
+// If a set of declare fields isn't valid report a conflict
+//      I.e. Audio service requires different fields to data service
+class UpdaterChild 
 {
 protected:
     UpdaterParent* parent = NULL;
@@ -44,7 +51,7 @@ public:
     // override with completion requirements
     virtual bool IsComplete() = 0;
 protected:
-    // Update internal state and transmit signals to parent
+    // Update internal state and report state to parent
     void OnConflict() {
         total_conflicts++;
         parent->SignalConflict();
@@ -58,14 +65,16 @@ protected:
     }
 };
 
+// When we set a field, return what the database did with it
 enum UpdateResult { SUCCESS, CONFLICT, NO_CHANGE };
 
-class EnsembleUpdater: public UpdaterBase 
+// All the updater to database entity associations
+// NOTE: Most or all of the updaters keep track of changed fields with a dirty field
+class EnsembleUpdater: public UpdaterChild 
 {
 private:
     Ensemble* data;
     uint8_t dirty_field = 0x00;
-    int total_conflicts = 0;
 public:
     EnsembleUpdater(Ensemble* _data): data(_data) {}
     UpdateResult SetReference(const ensemble_id_t reference);
@@ -79,7 +88,7 @@ public:
     virtual bool IsComplete();
 };
 
-class ServiceUpdater: public UpdaterBase 
+class ServiceUpdater: public UpdaterChild 
 {
 private:
     Service* data;
@@ -95,7 +104,7 @@ public:
     virtual bool IsComplete();
 };
 
-class ServiceComponentUpdater: public UpdaterBase 
+class ServiceComponentUpdater: public UpdaterChild 
 {
 private:   
     ServiceComponent* data;
@@ -112,7 +121,7 @@ public:
     virtual bool IsComplete();
 };
 
-class SubchannelUpdater: public UpdaterBase 
+class SubchannelUpdater: public UpdaterChild 
 {
 private:
     Subchannel* data;
@@ -128,7 +137,7 @@ public:
     virtual bool IsComplete();
 };
 
-class LinkServiceUpdater: public UpdaterBase 
+class LinkServiceUpdater: public UpdaterChild 
 {
 private:
     LinkService* data;
@@ -143,7 +152,7 @@ public:
     virtual bool IsComplete();
 };
 
-class FM_ServiceUpdater: public UpdaterBase 
+class FM_ServiceUpdater: public UpdaterChild 
 {
 private:
     FM_Service* data;
@@ -156,7 +165,7 @@ public:
     virtual bool IsComplete();
 };
 
-class DRM_ServiceUpdater: public UpdaterBase 
+class DRM_ServiceUpdater: public UpdaterChild 
 {
 private:
     DRM_Service* data;
@@ -169,7 +178,7 @@ public:
     virtual bool IsComplete();
 };
 
-class AMSS_ServiceUpdater: public UpdaterBase 
+class AMSS_ServiceUpdater: public UpdaterChild 
 {
 private:
     AMSS_Service* data;
@@ -181,7 +190,7 @@ public:
     virtual bool IsComplete();
 };
 
-class OtherEnsembleUpdater: public UpdaterBase 
+class OtherEnsembleUpdater: public UpdaterChild 
 {
 private:
     OtherEnsemble* data;
@@ -209,7 +218,7 @@ private:
     // db is not owned by updater 
     DAB_Database* db;  
     // keep reference to all updaters for global conflict/completion check
-    std::vector<UpdaterBase*> all_updaters;
+    std::vector<UpdaterChild*> all_updaters;
     EnsembleUpdater ensemble_updater;
     // to get the ids for each updater, we get the ids from the database
     std::map<service_id_t, ServiceUpdater> service_updaters;
@@ -240,5 +249,5 @@ public:
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
     // TODO: remove this is for debugging
-    inline std::vector<UpdaterBase*>& GetUpdaters() { return all_updaters; }
+    inline std::vector<UpdaterChild*>& GetUpdaters() { return all_updaters; }
 };

@@ -1,12 +1,13 @@
 #pragma once
 
 #include <stdint.h>
-#include "CRC.h"
 #include <functional>
 
 class Trellis;
 class ViterbiDecoder;
 class AdditiveScrambler;
+template <typename T>
+class CRC_Calculator;
 
 // Decodes the convolutionally encoded, scrambled and CRC16 group of FIGs
 class FIC_Decoder 
@@ -19,8 +20,7 @@ private:
     Trellis* trellis;
     ViterbiDecoder* vitdec;
     AdditiveScrambler* scrambler;
-    const uint16_t crc16_poly;
-    CRC::Table<crcpp_uint16, 16>* crc16_table;
+    CRC_Calculator<uint16_t>* crc16_calc;
     Callback* callback = NULL;
 public:
     FIC_Decoder();

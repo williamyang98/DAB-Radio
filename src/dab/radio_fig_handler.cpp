@@ -1,8 +1,8 @@
 #include "radio_fig_handler.h"
-#include "dab_database_updater.h"
+#include "database/dab_database_updater.h"
 
-#include "subchannel_protection_table.h"
-#include "modified_julian_date.h"
+#include "constants/subchannel_protection_table.h"
+#include "algorithms/modified_julian_date.h"
 
 #include <stdio.h>
 

@@ -1,9 +1,10 @@
 #pragma once
 
-#include "fig_handler_interface.h"
+#include "fic/fig_handler_interface.h"
 
 class DAB_Database_Updater;
 
+// Connects the FIG processor to the DAB database updater
 class Radio_FIG_Handler: public FIG_Handler_Interface
 {
 private:

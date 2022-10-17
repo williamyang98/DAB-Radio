@@ -1,19 +1,24 @@
 #include "fic_decoder.h"
 
-#include "viterbi_decoder.h"
-#include "additive_scrambler.h"
-#include "puncture_codes.h"
+#include "../algorithms/viterbi_decoder.h"
+#include "../algorithms/additive_scrambler.h"
+// #include "../algorithms/CRC.h"
+#include "../algorithms/crc.h"
+#include "../constants/puncture_codes.h"
 
 FIC_Decoder::FIC_Decoder()
-: crc16_poly(0x1021)
 {
-    const auto crc16_params = CRC::Parameters<crcpp_uint16, 16>{
-        crc16_poly, 0xFFFF, 0x0000, false, false };
-    crc16_table = new CRC::Table<crcpp_uint16, 16>(crc16_params);
+    {
+        const uint16_t crc16_poly = 0x1021;
+        crc16_calc = new CRC_Calculator<uint16_t>(crc16_poly);
+        crc16_calc->SetInitialValue(0xFFFF);    // initial value all 1s
+        crc16_calc->SetFinalXORValue(0xFFFF);   // transmitted crc is 1s complemented
+    }
+
 
     // const uint8_t CONV_CODES[L] = {133,171,145,133};
     // const uint8_t CONV_CODES[L] = {155, 117, 123, 155};
-    // NOTE: above is in octal form
+    // NOTE: above is in octal form, we want it to be in binary form
     // 155 = 1 5 5 = 001 101 101 = 0110 1101
     // const uint8_t CONV_CODES[L] = {0b01011011, 0b01111001, 0b01100101, 0b01011011};
     const int L = 4;
@@ -28,7 +33,8 @@ FIC_Decoder::FIC_Decoder()
 }
 
 FIC_Decoder::~FIC_Decoder() {
-    delete crc16_table;
+    // delete crc16_table;
+    delete crc16_calc;
     delete trellis;
     delete vitdec;
     delete scrambler;
@@ -123,15 +129,16 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
         uint16_t crc16_rx = 0u;
         crc16_rx |= static_cast<uint16_t>(fib_buf[nb_data_bytes]) << 8;
         crc16_rx |= fib_buf[nb_data_bytes+1];
-        // crc16 is inverted at transmission
-        crc16_rx ^= 0xFFFF;
 
-        const uint16_t crc16_pred = CRC::Calculate(fib_buf, nb_data_bytes, *crc16_table);
+        const uint16_t crc16_pred = crc16_calc->Process(fib_buf, nb_data_bytes);
         const bool is_valid = crc16_rx == crc16_pred;
         // LOG_MESSAGE("%04x/%04x (%d)\n", crc16_rx, crc16_pred, is_valid);
         if (is_valid && callback) {
             // LOG_MESSAGE("[%d] FIG group start (%d)\n", cif_index, i);
+            // fprintf(stderr, "crc16: pred=%04X got=%04X\n", crc16_pred, crc16_rx);
             callback->OnDecodeFIBGroup(fib_buf, nb_fib_bytes, cif_index);
+        } else {
+            // fprintf(stderr, "crc16: pred=%04X got=%04X\n", crc16_pred, crc16_rx);
         }
     }
 

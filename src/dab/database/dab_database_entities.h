@@ -8,18 +8,18 @@
 #include "dab_database_types.h"
 
 // Types
-enum TransportMode : uint8_t {    
+enum TransportMode : uint8_t {    // Value passed in 2bit field
     STREAM_MODE_AUDIO = 0b00,
     STREAM_MODE_DATA = 0b01,
     PACKET_MODE_DATA = 0b11
 };
 
-enum AudioServiceType {    
+enum AudioServiceType {     // Value passed in 6bit field 
     DAB,                    // 0
     DAB_PLUS,               // 63
 };
 
-enum DataServiceType {     
+enum DataServiceType {      // Value passed in 6bit field
     TRANSPARENT_CHANNEL,    // 5
     MPEG2,                  // 24
     MOT,                    // 60 (Multimedia Object Transfer)
