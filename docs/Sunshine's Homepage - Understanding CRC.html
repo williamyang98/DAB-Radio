@@ -1,0 +1,1830 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="description" content="Sunshine2k's private homepage about programming - CRC" />
+ <meta name="author" content="Sunshine2k" />
+ <meta name="keywords" content="Programming, Coding, Algorithms, CRC, Cyclic Redundancy Check, Tutorial, C#, Dotnet, Silverlight, Bastian Molkenthin" />
+ <title>Sunshine's Homepage - Understanding CRC</title>
+<style type="text/css">
+
+body {
+  	font-family: Verdana, Arial, Helvetica, sans-serif;
+  	font-size: 12px;
+	line-height: 18px;
+}
+
+p {
+  	line-height: 20px;
+}
+
+a {
+	text-decoration : none;
+}
+
+h1 {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 22px;
+	font-weight: bold;
+}
+
+h2 {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 20px;
+	font-weight: bold;
+}
+
+h3 {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+.articleHeadLine {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	font-weight: bold;
+	line-height: 26px;
+	color: #FFFFFF;
+	
+	margin-left:auto;
+	margin-right:auto;
+	text-align: center;
+	background-color: #FFCC66;
+	box-shadow: rgb(50,50,50) 1px 1px 2px,
+			  rgb(150,150,150) 4px 4px 4px;
+	border-radius: 5px;
+}
+
+.backtotop {
+	font-size: 9px; 
+	float: right; 
+	margin: 0;
+}
+
+div.codetable { 
+	font: 9pt Consolas, "Courier New", Courier, monospace;
+	font-style: normal;
+	font-weight: normal;
+	font-variant: normal;
+	border: dashed blue 1px;
+	background-color: rgb(255, 250, 250);
+	padding: 2px;
+	line-height: 10px;  
+}
+
+.codetable > span {
+  	font: 9pt Consolas, "Courier New", Courier, monospace;
+}
+
+.codetable > span.codekw {
+  	color: #0000CC;
+}
+
+.codetable > span.codecomment {
+  	color: #006600;	
+}
+
+div.formula {
+	font-size: small; 
+	font-weight: 500;
+	font-family: "Courier New", Courier, monospace;
+	width: 500px; 
+	padding-left: 10px;
+	border: groove thin #788CD3; 
+	border-radius: 6px;
+	box-shadow: #938C8C 1px 1px 2px;
+	background-color: rgb(255, 250, 250);
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+/* Info / warnings / caution boxes */
+div.infobox1 {
+	background-color: #FFE5B2;
+	border-radius: 6px;
+	padding: 0px 5px 5px 5px;
+	border: groove thin #FEE994; 
+	box-shadow: #938C8C 1px 1px 2px;
+}
+
+div.infobox1 > p.infobox1caption {
+	font-weight: bold;
+	color: #737373;
+	font-style: italic;
+	margin:2px;
+}
+
+div.infobox1 > hr
+{
+	color: #FFFFFF;
+	background-color: #FFFFFF;
+}
+
+div.infobox1 > p {
+	margin-top:6px;
+	margin-bottom:0px;
+	font-size: 11px;
+}
+
+span.redtext {
+	color: #FF0000;
+}
+
+span.bluetext {
+	color: #0000EE;
+}
+
+span.graytext {
+	color: #556677;
+}
+
+span.lightgraytext {
+	color: #CCCCCC;
+}
+
+span.greentext {
+	color: #02C102;
+}
+
+span.orangetext {
+	color: #F79C07;
+}
+
+span.purpletext {
+	color: #CB07F7;
+}
+
+span.powderbluetext {
+	color: #4AABA9;
+}
+
+/* END Info / warnings / caution boxes */
+
+/* Variant 2 information blocks */
+
+div.infoblock {
+	display: inline-block; 
+	width:5%; 
+	height:70px; 
+	font-weight: bold; 
+	text-shadow: rgb(50,50,50) 1px 1px 2px, rgb(150,150,150) 4px 4px 4px; 
+	font-size:50px; 
+	vertical-align:top; 
+	text-align:center; 
+	padding-top:30px
+}
+
+/* END Variant 2 information blocks  */
+
+footer > p {
+  	text-align: center;
+}
+
+.simplelist li {
+	line-height: 20px;
+}
+
+div.yellowcircle {
+	background: #FF9900; 
+	width: 8px; 
+	height: 8px; 
+	border-radius: 8px; 
+	vertical-align: baseline; 
+	display: inline-block
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<div class="articleHeadLine">
+Understanding and implementing CRC (Cyclic Redundancy Check) calculation
+</div>
+
+<div id="maincontentdiv" style="margin-left: 1%; margin-right: 2%">
+	
+<br>
+
+<h1>Table of Contents</h1>
+<div>
+ <ul>
+   <li>1. <a href="#ch1">Foreword &amp; Outline</a></li>
+   <li>2. <a href="#ch2">Introduction to CRC</a>
+    <ul>
+	 <li>2.1 <a href="#ch21">CRC verification</a></li>
+   	</ul>
+   </li>
+   <li>3. <a href="#ch3">Concept of the CRC shift register</a></li>
+   <li>4. <a href="#ch4">Implementing CRC-8 algorithms</a>
+    <ul>
+     <li>4.1 <a href="#ch41">Simple CRC-8 shift register implementation for one byte input data</a></li>
+     <li>4.2 <a href="#ch42">Modified CRC-8 bitwise implementation for one byte input data</a></li>
+     <li>4.3 <a href="#ch43">General CRC-8 bitwise implementation</a></li>
+     <li>4.4 <a href="#ch44">Improved CRC-8 byte-by-byte algorithm (lookup table based)</a></li>
+    </ul>
+   </li>
+   <li>5. <a href="#ch5">Extending to CRC-16</a></li>
+   <li>6. <a href="#ch6">Extending to CRC-32</a></li>
+   <li>7. <a href="#ch7">CRC algorithm specification</a>
+    <ul>
+     <li>7.1 <a href="#ch71">CRC parametrization</a></li>
+     <li>7.2 <a href="#ch72">Representation of generator polyonomials</a>
+	  <ul>
+	   <li>7.2.1 <a href="#ch721">Choosing a generator polyonomial</a></li>
+	  </ul>
+	 </li>
+	 <li>7.3 <a href="#ch73">Reciprocal polyonomials</a></li>
+      <ul>
+       <li>7.3.1 <a href="#ch731">Reversed CRC lookup table and calculation of reciprocal CRC</a></li>
+      </ul>
+    </ul>
+   </li>
+   <li>8. <a href="#ch8">Additional remarks (points worth to know)</a>
+    <ul>
+     <li>8.1 <a href="#ch81">Basic mathematical view of CRC</a></li>
+     <li>8.2 <a href="#ch82">Background to CRC verification</a></li>
+     <li>8.3 <a href="#ch83">CRC-1 is the same as a parity bit</a></li>
+     <li>8.4 <a href="#ch84">Why is addition is the same as subtraction in CRC arithmetic?</a></li>
+     <li>8.5 <a href="#ch85">Why does multiplication with x<sup>n</sup> append n zeros?</a></li>
+	 <li>8.6 <a href="#ch86">When using an initial value other than zero in the shift register, the result is incorrect.</a></li>
+    </ul>
+   <li>9. <a href="#ch9">Conclusion &amp; References</a></li>
+ </ul>
+</div>
+
+
+<br>
+<div class="yellowcircle"> </div>
+ <span style="vertical-align: baseline; font-weight:bold">
+  <a href="../../../coding/silverlight/crc/crc_silverlight.html">View Online CRC Silverlight application now!</a></span>
+
+<br>
+<div class="yellowcircle"> </div>
+ <span style="vertical-align: baseline; font-weight:bold">
+  <a href="../../../coding/javascript/crc/crc_js.html">View Online CRC Javascript application now!</a></span>
+
+<br>
+<div class="yellowcircle"> </div>
+ <span style="vertical-align: baseline; font-weight:bold">
+  <a href="http://www.sunshine2k.de/Files/crc.zip">Download C# source code</a>
+  <span class="SmallFont">(37 kb)</span>
+ </span>
+<br>
+
+<p>Article updated March 2019 (for details, <a href="#updates">click here to see the changelog</a>).</p>
+
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h1  id="ch1">1. Foreword &amp; Outline</h1>
+<p>
+This article is the result of the fact that I found finally time to deal with CRC. 
+After reading Wikipedia and some other articles, I had the feeling to not really understand <i>completely in depth</i>.<br>
+Therefore I decided to write this article, trying to cover all topics I had difficulties with. And this in exactly the same order I concerned myself with CRC. Please note that this article is not indented to be a full comprehensive CRC guide explaining all details - it should be used as an additional, practical oriented note to all general explanations on the web.<br><br>
+Here's the outline:</p>
+
+<ul class="simplelist">
+ <li>At first, the general idea and functionality of CRC is discussed.</li>
+ <li>Subsequently, some examples are calculated by hand to get familiar with the process of CRC calculation.</li>
+ <li> Based on those observations, implementations of CRC calculation are presented step by step, from naive ones till more efficient algorithms. Here the emphasis lies on the target to really get the point of the code compared to the manual calculation. Here an exemplary CRC-8 polynomial is used.</li>
+ <li>Afterwards, the achieved knowledge is expanded to CRC-16 and CRC-32 calculation, followed by some CRC theory and maybe a FAQ section.</li>
+</ul>
+
+
+<!--
+	************************************************************
+	* Introduction
+	************************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p><br>
+<h1  id="ch2">2. Introduction</h1>
+<p>
+CRC (<i>Cyclic Redundancy Check</i>) is a checksum algorithm to detect inconsistency of data, e.g. bit errors during data transmission. A checksum, calculated by CRC, is attached to the data to help the receiver to detect such errors. Refer also to <a href="#ref1">[1]</a> for a short or to <a href="#ref4">[4]</a> for a very detailed CRC introduction.<br><br>
+CRC is based on division. The actual input data is interpreted as one long binary bit stream (divident) which is divided by another fixed binary number (divisor). The remainder of this division is the checksum value.<br>
+However, reality is a bit more complicated. The binary numbers (divident and divisor) are not treated as normal integer values, but as binary polyonimals where the actual bits are used as coefficients.
+</p>
+
+<div class="infobox1">
+	<p>For example, the input data 0x25 = 0010 0101 is taken as 0*x<sup>7</sup> + 0*x<sup>6</sup> + 1*x<sup>5</sup> + 0*x<sup>4</sup> + 0*x<sup>3</sup> + 1*x<sup>2</sup> + 0*x<sup>1</sup> + 1*x<sup>0</sup>.</p>
+</div>
+
+<div style="float: right; margin-left: 50px; margin-top: 10px">
+	<table style="border: dashed blue 1px">
+		<tr>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">XOR</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">0</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">1</td>
+		</tr>
+		<tr>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">0</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">0</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">1</td>
+		</tr> 
+		<tr>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">1</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">1</td>
+			<td style="width: 40px; border: dotted black 1px; font-size: smaller; text-align: center">0</td>
+		</tr>
+	</table>
+	<p style="font-size: smaller; margin-top: 0px; margin-bottom: 0px; text-align: center">XOR truth table</p>
+</div>
+
+<p>
+Division of polynomials differs from integer division. Without going into detail, the underlying used aritmetic for CRC calculation is based on the XOR (Exclusive-OR) operation (we'll come to an example soon!).<br>
+- The divident is the complete input data (interpreted as binary stream).<br>
+- The divisor, also called <i>generator polynomial</i>, is statically defined by the used CRC algorithm. CRC-<i>n</i> using a fixed defined generator polynom with (n+1) bits.<br>
+- The CRC checksum value is defined as divident % divisor.<br><br>
+For manual calculation, <i>n</i> zero bits are appended to the input data before actual CRC calculation (polynomial division) is computed. Let's perform an example CRC computation:
+</p>
+
+<div class="infobox1" style="clear: both" >
+<p class="infobox1caption">Example:</p><hr>
+<p>
+Input data is the byte 0xC2 = b<span class="redtext">11000010</span>.<br>
+As generator polynomial (=divisor), let's use b<span class="bluetext">100011101</span>.<br>
+The divisor has 9 bits (therefore this is a CRC-8 polynomial), so append <span class="graytext">8 zero bits</span> to the input pattern .<br>
+Align the leading '1' of the divisor with the first '1' of the divident and perform a step-by-step school-like division, using XOR operation for each bit:
+</p>
+
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;"><span class="lightgraytext">ABCDEFGHIJKLMNOP</span>
+<span class="redtext">11000010</span><span class="graytext">00000000</span>
+<span class="bluetext">100011101</span>
+---------
+010011001
+ 100011101
+ ----------
+ 000101111
+    100011101           (*)
+    ---------
+    001100101
+      100011101
+      ---------
+      010001001
+       100011101
+       ---------
+       0<span class="greentext">00001111</span> = 0x0F
+<span class="lightgraytext">ABCDEFGHIJKLMNOP</span>
+</p>
+
+<p>The actual CRC value is 0x0F.<br>
+</div>
+
+<p>
+Useful observations:</p>
+<ul>
+<li>In each step, the leading '1' of the divisor is always aligned with the first '1' of the divident. This implies that the divisor does not move only 1 bit right per step, but sometimes also several steps (e.g. like in line (*).</li>
+<li>The algorithms stops if the divisor zeroed out each bit of the actual input data (without padding bytes): The input data ranges from column A to H including. In the last step, column H and all prior columns contain 0, so the algorithm stops.</li>
+<li>The remainder (= CRC) is the value 'below' the <span class="graytext">padding zero bits</span> (column I to P). Because we added n padding bytes, the actual CRC value has also n bits.</li>
+<li>Only the remainder in each step is of interest, the actual division result (quotient) is therefore not tracked at all.</li>
+</ul>
+
+
+<!--
+	************************************************************
+	* CRC Verification
+	************************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch21">2.1 CRC Verification</h3>
+
+<p>
+The remainder is the CRC value which is transmitted along with the input data to the receiver. The receiver can either verify the received data by computing the CRC and compare the calculated CRC value with the received one. Or, more commonly used, the CRC value is directly appened to the actual data. Then the receiver computes the CRC over the whole data (input with CRC value appended): If the CRC value is 0, then most likely no bit error occured during transmission. Let's do verification according the latter case:
+</p>
+
+
+<div class="infobox1" style="clear: both" >
+<p class="infobox1caption">Example verification:</p><hr>
+<p>The actual transmission data (input data + CRC) would be b<span class="redtext">11000010</span><span class="greentext">00001111</span> Note that we have used an 8bit CRC, so the actual CRC value is also 8bit long. The generator polynomial is statically defined by the used CRC algorithm and so it's known by the receiver.</p>
+
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;"><span class="lightgraytext">ABCDEFGHIJKLMNOP</span>
+<span class="redtext">11000010</span><span class="greentext">00001111</span>
+<span class="bluetext">100011101</span>.......
+---------.......
+010011001.......
+ <span class="bluetext">100011101</span>.....
+ ---------......
+ 000101111......
+    <span class="bluetext">100011101</span>..
+    ---------...
+    001100100...
+      <span class="bluetext">100011101</span>
+      ---------.
+      010001110.
+       <span class="bluetext">100011101</span>
+       ---------
+       000000000 -> Remainder is 0, data ok!
+<span class="lightgraytext">ABCDEFGHIJKLMNOP</span>
+</p>
+</div>
+
+
+<!--
+	************************************************************
+	* Concept of the CRC shift register
+	************************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2  id="ch3">3. Concept of the CRC shift register</h2>
+<p>
+So we have seen how to calculate the CRC checksum value manually, but how can it be implemented?<br>
+The input data stream is generally quite long (more than 1 bit) so it's not possible to perform a simple division like "Input data % generator polynomial". The computation has to be performed step-by-step and here the concept of a shift register comes into play.<br><br>
+A shift register has a fixed width and can shift it's content by one bit, removing the bit at the right or left border and shift in a new bit at the freed position. CRC uses a left shift register: When shifted, the most significant bit pops out the register, the bit at position MSB-1 moves one position left to postion MSB, the bit at position MSB-2 to MSB-1 and so on. The bit position of the least significant bit is free: here the next bit of the input stream is shifted in.</p>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;">        MSB                  LSB
+        --- --- --- --   -- ---
+   &lt;-- |   |   |   |....    |   | &lt;-- (shift in input message bits)
+        --- --- --- --   -- ---
+</p>
+<p>
+The process of CRC calculation using a shift register is as follow:
+</p>
+<ol>
+	<li>Initialize the register with 0.</li>
+	<li>Shift in the input stream bit by bit. If the popped out MSB is a '1', XOR the register value with the generator polynomial.</li>
+	<li>If all input bits are handled, the CRC shift register contains the CRC value.</li>
+</ol>
+
+<p>Let's visualize the procedure with the example data from above</p>
+<div class="infobox1" style="clear: both" >
+<p class="infobox1caption">CRC-8 Shift Register Example: Input data = 0xC2 = b11000010 (with 8 zero bits appended: b1100001000000000), Polynomial = b100011101</p><hr>
+
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; line-height: 13pt; white-space:pre-wrap;">1. CRC-8 register initialized with 0.
+         --- --- --- --- --- --- --- ---
+        | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |  &lt;-- b1100001000000000
+         --- --- --- --- --- --- --- --- 
+    
+2. Left-Shift register by one position. MSB is 0, so nothing do happen, shift in next byte of input stream.
+         --- --- --- --- --- --- --- ---
+        | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |  &lt;-- b100001000000000
+         --- --- --- --- --- --- --- --- 
+
+3. Repeat those steps. All steps are left out until there is a 1 in the MSB (nothing interesting happens), then the state looks like:
+         --- --- --- --- --- --- --- ---
+        | 1 | 1 | 0 | 0 | 0 | 0 | 1 | 0 |  &lt;-- b00000000
+         --- --- --- --- --- --- --- ---
+
+4. Left-Shift register. MSB 1 pops out:
+         --- --- --- --- --- --- --- ---
+   1 &lt;- | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |  &lt;-- b0000000
+         --- --- --- --- --- --- --- ---
+  So XOR the CRC register (with popped out MSB) b110000100 with polynomial b100011101 = b010011001 = 0x99. The MSB is discarded, so the new CRC register value is 010011001:
+         --- --- --- --- --- --- --- ---
+        | 1 | 0 | 0 | 1 | 1 | 0 | 0 | 1 |  &lt;-- b0000000
+         --- --- --- --- --- --- --- ---
+
+5. Left-Shift register. MSB 1 pops out: b100110010 ^ b100011101 = b000101111 = 0x2F:
+         --- --- --- --- --- --- --- ---
+        | 0 | 0 | 1 | 0 | 1 | 1 | 1 | 1 |  &lt;-- b000000
+         --- --- --- --- --- --- --- ---
+         
+6. Left-shift register until a 1 is in the MSB position:
+         --- --- --- --- --- --- --- ---
+        | 1 | 0 | 1 | 1 | 1 | 1 | 0 | 0 |   &lt;-- b0000
+         --- --- --- --- --- --- --- ---
+         
+7. Left-Shift register. MSB 1 pops out: b101111000 ^ b100011101 = b001100101 = 0x65:
+         --- --- --- --- --- --- --- ---
+        | 0 | 1 | 1 | 0 | 0 | 1 | 0 | 1 |   &lt;-- b000
+         --- --- --- --- --- --- --- ---
+
+8. Left-shift register until a 1 is in the MSB position:
+         --- --- --- --- --- --- --- ---
+        | 1 | 1 | 0 | 0 | 1 | 0 | 1 | 0 |   &lt;-- b00
+         --- --- --- --- --- --- --- ---
+
+9. Left-Shift register. MSB 1 pops out: b110010100 ^ b100011101 = b010001001 = 0x89:
+         --- --- --- --- --- --- --- ---
+        | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 1 |   &lt;-- b0
+         --- --- --- --- --- --- --- ---
+
+10. Left-Shift register. MSB 1 pops out: b10001001 ^ b100011101 = b000001111 = 0x0F:
+         --- --- --- --- --- --- --- ---
+        | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 |   &lt;-- <i>&lt;empty&gt;</i>
+         --- --- --- --- --- --- --- ---
+         
+All input bits are processed, the algorithm stops. The shift register contains now the CRC value which is 0x0F.
+</p>
+</div>
+
+
+
+
+
+<!--
+	************************************************************
+	* Simple CRC-8 implementation for one byte input data
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch4">4. Implementing CRC-8 algorithms</h2>
+<p>
+This chapter handles different algorithms and their implementations in C# for calculating CRC-8 checksum values. It starts with simple algorithms for limited input data and ends with efficient table-based implementations.
+</p>
+
+
+<!--
+	************************************************************
+	* Simple CRC-8 shift register implementation for one byte input data
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch41">4.1 Simple CRC-8 shift register implementation for one byte input data</h3>
+<p>
+Let's start with an implementation of a CRC-8 algorithm for solely one byte input data. The implementation will stay very closely to the shift register process from the example above.<br><br>
+A CRC-8 algorithm uses actually a 9bit generator polynom, but it would be cumbersome to track such an unaligned value in an algorithm. Fortunately, as described in the previous chapter, the most significant bit can be discarded. First, it is always 1. Second, because the divisor is always aligned in such a manner that this leading '1' alignes with the next '1' of the divident, the XOR result for this bit is always 0.<br>
+This means we leave out the MSB '1', so we can use the generator polyonimal b<span class="bluetext"><span style="text-decoration: line-through;">1</span>00011101</span> = 0x1D as the example polynomial from now on.<br><br>
+
+Let's start with an implementation which is as close as possible to the shift register approach:</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">byte</span> Compute_CRC8_Simple_OneByte_ShiftReg(<span class="codekw">byte</span> byteVal)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const</span> <span class="codekw">byte</span> generator = 0x1D;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> crc = 0; <span class="codecomment">/* init crc register with 0 */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* append 8 zero bits to the input <span class="codekw">byte</span>  */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span>[] inputstream = <span class="codekw">new</span> <span class="codekw">byte</span>[] { byteVal, 0x00 };<br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* handle each bit of input stream by iterating over each bit of each input <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in inputstream)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 7; i >= 0; i--)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* check <span class="codekw">if</span> MSB is set */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & 0x80) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {   &nbsp;&nbsp;<span class="codecomment">/* MSB set, shift it out of the register */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)(crc &lt;&lt; 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* shift in next bit of input stream:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * If it's 1, set LSB of crc to 1.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * If it's 0, set LSB of crc to 0. */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = ((<span class="codekw">byte</span>)(b & (1 &lt;&lt; i)) != 0) ? (<span class="codekw">byte</span>)(crc | 0x01) : (<span class="codekw">byte</span>)(crc & 0xFE);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* Perform the 'division' by XORing the crc register with the generator polynomial */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)(crc ^ generator);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {   &nbsp;&nbsp;<span class="codecomment">/* MSB not set, shift it out and shift in next bit of input stream. Same as above, just no division */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)(crc &lt;&lt; 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = ((<span class="codekw">byte</span>)(b & (1 &lt;&lt; i)) != 0) ? (<span class="codekw">byte</span>)(crc | 0x01) : (<span class="codekw">byte</span>)(crc & 0xFE);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+<br>
+
+<!--
+	************************************************************
+	* Modified CRC-8 bitwise implementation for one byte input data
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch42">4.2 Modified CRC-8 bitwise implementation for one byte input data</h3>
+<p>
+Well, above implementation looks complicated! How can it be simplified?
+<ul>
+ <li>The first 8 left-shifts are useless because the CRC value is initialized with 0 so no XOR operation is performed. This means we can initialize the CRC value directly with the input byte.</li>
+ <li>So only '0' are left in the input stream (the appended zeros). They do not have to be explcitely shifted-in, as the C# leftshift operator &lt;&lt; fills in the LSB with '0' by default.</li>
+ <li>This implies that the inputstream array is not required anymore.</li>
+</ul>
+
+<p>Applying these simplifications result in following implementation (much better, isn't it?):</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">byte</span> Compute_CRC8_Simple_OneByte(<span class="codekw">byte</span> byteVal)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const byte</span> generator = 0x1D;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> crc = byteVal; <span class="codecomment">/* init crc directly with input byte instead of 0, avoid useless 8 bitshifts until input byte is in crc register */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 8; i++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc &amp; 0x80) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {   <span class="codecomment">/* most significant bit set, shift crc register and perform XOR operation, taking not-saved 9th set bit into account */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)((crc &lt;&lt; 1) ^ generator);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {   <span class="codecomment">/* most significant bit not set, go to next bit */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+
+<p>
+To illustrate how the algorithmus is working, the example from above (input byte 0xC2, generator polynomial 0x1D) is repeated - this time showing the intermediate values of each step of implementation <i>Compute_CRC8_Simple_OneByte</i>.	
+</p>
+
+<div class="infobox1" style="clear: both" >
+<p class="infobox1caption">Step-by-step visualization of simple CRC-8 algorithmus:</p><hr>
+<table style="font-size: 9pt; font-family: Courier New, Courier, monospace;">
+ <tr>
+ 	<td style="width: 200px">1100001000000000</td><td>crc = 0xC2</td>
+ </tr>
+ <tr>
+ 	<td><span class="lightgraytext">1</span>00011101</td><td>i = 0: 0xC2 = b11000010 -&gt; MSB set:</td>
+ </tr>
+ <tr>
+ 	<td>---------</td><td> </td>
+ </tr>
+ <tr>
+ 	<td><span class="lightgraytext">0</span>10011001</td>
+ 	<td>i = 0: crc = (crc &lt;&lt; 1) ^ generator = (0xC2 &lt;&lt; 1) ^ 0x1D = 0x184 ^ 0x1D = 0x99.	
+ 	</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;<span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 1: 0x99 = b10011001 -&gt; MSB set:</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;---------</td><td> </td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;<span class="lightgraytext">0</span>00101111</td>
+ 	<td>i = 1: crc = (0x99 &lt;&lt; 1) ^ 0x1D = 0x132 ^ 0x1D = 0x2F</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 2: 0x2F = b00101111 -&gt; MSB not set: crc = (0x2F &lt;&lt; 1) = 0x5E</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 3: 0x5E = b01011110 -&gt; MSB not set: crc = (0x5E &lt;&lt; 1) = 0xBC</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 4: 0xBC = b10111100 -&gt; MSB set:</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp; ---------</td><td> </td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp; <span class="lightgraytext">0</span>01100101</td>
+ 	<td>i = 4: crc = (0xBC &lt;&lt; 1) ^ 0x1D = 0x178 ^ 0x1D = 0x65</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 5: 0x65 = b01100101 -&gt; MSB not set: crc = (0x65 &lt;&lt; 1) = 0xCA</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 6: 0xCA = b11001010 -&gt; MSB set:</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ---------</td><td> </td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="lightgraytext">0</span>10001001</td>
+ 	<td>i = 6: crc = (0xCA &lt;&lt; 1) ^ 0x1D = 0x194 ^ 0x1D = 0x89</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="lightgraytext">1</span>00011101</td>
+ 	<td>i = 7: 0x89 = b10001001 -&gt; MSB set:</td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ---------</td><td> </td>
+ </tr>
+ <tr>
+ 	<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="lightgraytext">0</span>00001111</td>
+ 	<td>i = 7: crc = (0x89 &lt;&lt; 1) ^ 0x1D = 0x112 ^ 0x1D = <b>0x0F</b></td>
+ </tr>  
+</table>
+</div>
+
+
+<p>
+The fact that the crc value is left-shifted by one _before_ it's 'xored' with the divisor should become clear: it's due to the already discussed reason that the MSB bit of the generator polynomial is not stored / not used by the algorithm as well as it's result.
+</p>
+
+
+
+
+
+
+<!--
+	************************************************************
+	* General CRC-8 bitwise implementation
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch43">4.3 General CRC-8 bitwise implementation</h3>
+<p>
+Till now only one byte was used as input data, so let's see what happens if the input data is extended to a byte array.<br>
+The first function <i>Compute_CRC8_Simple_OneByte_ShiftReg()</i> could easily be adapted (only the input parameter would be a byte array at which a 0x00 byte is appended), but what about <i>Compute_CRC8_Simple_OneByte()</i>?<br>
+The interesting point is at the border between two bytes: If one byte is completely processed, how is the subsequent byte incorporated into the calculation process? Again, let's start with a simple example (even more manual CRC-calculation action!):  
+</p>
+
+<div class="infobox1">
+<p class="infobox1caption">Example for two byte input data {<span class="powderbluetext">0x01</span>, <span class="redtext">0x02</span>} with polynomial 0x1D</p><hr>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;"><span class="powderbluetext">00000001</span><span class="redtext">00000010</span>00000000
+       100011101
+       ---------
+       <span class="purpletext">000011111</span>0000
+           100011101
+           ---------
+           0111011010
+            100011101
+            ---------
+            0110001110
+             100011101
+             ---------
+             0100100110
+              100011101
+              ---------
+              0001110110 = 0x76
+</p>
+</div>
+
+<p>
+Actually the algorithm handles one byte at a time, and does not consider the next byte until the current one is completely processed.<br> Refering to <i>Compute_CRC8_Simple_OneByte</i>, the value <i>crc</i> is set to 0x01 and the input looks like <span class="powderbluetext">00000001</span>00000000... 
+So let's see the state when the first byte is completely processed:
+<span style="font-size: 9pt; font-family: Courier New, Courier, monospace;white-space:pre-wrap; line-height: 8px">
+<span class="powderbluetext">00000001</span>0000000000000000
+       100011101
+       ---------
+       <span class="bluetext">000011101</span>
+</span>
+Compare this to our manual approach where we have the second byte 0x02 already 'in range':
+<span style="font-size: 9pt; font-family: Courier New, Courier, monospace;white-space:pre-wrap; line-height: 8px">
+<span class="powderbluetext">00000001</span><span class="redtext">000000<b>1</b>0</span>00000000
+       100011101
+       ---------
+       <span class="purpletext">000011111</span>
+</span>
+So obviously the next byte has to be XORed with the current CRC value: <span class="bluetext">000011101</span> ^ <span class="redtext">00000010</span> = <span class="purpletext">000011111</span> and the algorithm then continues with the 'new' <i>xored</i> value.<br>
+With this knowledge we can easily extend our algorithm to work with an input byte array of arbitrary length:
+</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">byte</span> Compute_CRC8_Simple(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const</span> <span class="codekw">byte</span> generator = 0x1D;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> crc = 0; <span class="codecomment">/* start with 0 so first <span class="codekw">byte</span> can be 'xored' in */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp; foreach (<span class="codekw">byte</span> currByte in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc ^= currByte; <span class="codecomment">/* XOR-in the next input <span class="codekw">byte</span> */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 8; i++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & 0x80) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)((crc &lt;&lt; 1) ^ generator);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+
+
+
+<!--
+	************************************************************
+	* Improved CRC-8 byte-by-byte algorithm (lookup table based)
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch44">4.4 Improved CRC-8 byte-by-byte algorithm (lookup table based)</h3>
+<p>
+So far the algorithm is quite inefficient as it works bit by bit. For larger input data, this could be quite slow. But how can our CRC-8 algorithm be accelerated?<br>
+The divident is the current crc byte value - and a byte can only take 256 different values. The polynomial (= divisor) is fixed. Why not precompute the division for each possible byte by the fixed polynomial and store these result in a lookup table? This is possible as the remainder is always the same for the same divident and divisor! Then the input stream can be processed byte by byte instead of bit by bit.<br>
+Let's use our common example to demonstrate the process manually:
+</p>
+
+<div class="infobox1">
+<p class="infobox1caption">Process for bytewise CRC-8 using input data {<span class="powderbluetext">0x01</span>, <span class="redtext">0x02</span>} and polynomial 0x1D</p><hr>
+<p>
+1. Init crc = 0x00.<br>
+2. <i>'Xor-in'</i> next input byte <span class="powderbluetext">0x01</span>: 0x00 ^ 0x01 = 0x01.<br>
+3. Calculate CRC-8 of 0x01 using precomputed lookup table: table[0x01] = crc = 0x1D.<br>
+4. <i>'Xor-in'</i> next input byte <span class="redtext">0x02</span>: 0x1D ^ 0x02 = 0x1F.<br>
+5. Calculate CRC-8 of 0x1F: using precomputed lookup table: table[0x1F] = crc = 0x76.<br>
+</p>
+</div>
+
+<p>
+For step 3 and 5, the lookup table is used instead of bit by bit processing - that makes the actual speedup.<br>
+Here an implementation for calculating the 256-element lookup table:
+</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static void</span> CalulateTable_CRC8()<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const byte</span> generator = 0x1D;<br>
+&nbsp;&nbsp;&nbsp; crctable = <span class="codekw">new</span> <span class="codekw">byte</span>[256];<br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* iterate over all <span class="codekw">byte</span> values 0 - 255 */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> divident = 0; divident &lt; 256; divident++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> currByte = (<span class="codekw">byte</span>)divident;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* calculate the CRC-8 value <span class="codekw">for</span> current <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">byte</span> bit = 0; bit &lt; 8; bit++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((currByte & 0x80) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; currByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; currByte ^= generator;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; currByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* store CRC value in lookup table */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crctable[divident] = currByte;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}
+</div>
+
+<p>
+Then improved CRC-8 algorithm using the lookup table is as follow:
+</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">byte</span> Compute_CRC8(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> crc = 0;<br>
+&nbsp;&nbsp;&nbsp; foreach (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in next input <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> data = (<span class="codekw">byte</span>)(b ^ crc);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* get current CRC value = remainder */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)(crctable[data]);<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+<p>
+The improvement of speed comes at the cost of processing time to precalculate the table and of higher memory consumption of the 256-byte elements, but that's worth it :-)! 
+</p>
+
+
+
+
+<!--
+	************************************************************
+	* Extending to CRC-16
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch5">5. Extending to CRC-16</h2>
+<p>
+The more bits the CRC value has the less is the probability of a collision: for CRC-8 there are only 256 different CRC values. This means if the data is disturbed or modified between sender and receiver, there is a probability of 1/256 that the modified data stream has the same CRC value as the original data stream, thus the error is not detected. Beside other factors (more on this in the theory part), increasing the CRC width results in better error protection.<br><br>
+This raises the question: What is the impact on the implementation if we want to extend it from CRC-8 to CRC-16?</p>
+<ul>
+	<li>1. Obviously a CRC-16 uses a polynomial of degree 17, but similar to CRC-8 the most significant bit is implicitely 1. Therefore the generator polynomial as well as the CRC value have now a 16bit data type.</li>
+	<li>2. How to 'Xor-In' the next input byte (8bit) into the CRC value (16bit)? The answer is into the most signficant byte of the CRC. Similar to chapter 4.3, let's visualize it with an example: </li>
+</ul>
+<p>
+First, let's make another manual calculation, this time for CRC-16 with polynomial 0x1021:
+</p>
+
+<div class="infobox1">
+<p class="infobox1caption">Example for two byte input data {<span class="powderbluetext">0x01</span>, <span class="redtext">0x02</span>} with polynomial 0x1021 (<i>1</i> 0001 0000 0010 0001)</p><hr>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;"><span class="lightgraytext">ABCDEFGHIJKLMNOPQRSTUVWXYZ</span>
+<span class="powderbluetext">00000001</span><span class="redtext">00000010</span>0000000000000000
+       10001000000100001
+       -----------------
+       <span class="purpletext">00001001000100001</span> = 0x1221 (intermediate CRC value after completing first byte)
+           10001000000100001
+           -----------------
+           00011001000110001
+              10001000000100001
+              -----------------
+              01000000110101001
+               10001000000100001
+               -----------------
+               00001001101110011 = 0x1373 (final CRC value after both bytes)
+<span class="lightgraytext">ABCDEFGHIJKLMNOPQRSTUVWXYZ</span>             
+</p>
+</div>
+<p>
+What happens if the algorithm has handled the first input byte 0x01:
+<span style="font-size: 9pt; font-family: Courier New, Courier, monospace;white-space:pre-wrap; line-height: 8px">
+<span class="powderbluetext">00000001</span>000000000000000000000000
+       10001000000100001
+       -----------------
+       <span class="bluetext">00001000000100001</span>
+</span>
+Here we see that the next input byte 0x02 = <span class="redtext">00000010</span> has be xored into the MSB of <span class="bluetext">00001000000100001</span> to get <span class="purpletext">00001001000100001</span> to proceed.
+</p>
+<ul>
+	<li>3. The check if the most significant bit set changes because bit15 instead of bit7 has to be tested: 0x80 -> 0x8000</li>
+</ul>
+<p>
+Therefore the CRC-16 simple implementation looks like:
+</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static ushort </span>Compute_CRC16_Simple(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const ushort </span>generator = 0x1021;	<span class="codecomment">/* divisor is 16bit */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">ushort</span> crc = 0; <span class="codecomment">/* CRC value is 16bit */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp; foreach (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc ^= (<span class="codekw">ushort</span>(b &lt;&lt; 8); <span class="codecomment">/* move <span class="codekw">byte</span> into MSB of 16bit CRC */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 8; i++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & 0x8000) != 0) <span class="codecomment">/* test <span class="codekw">for</span> MSB = bit 15 */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">ushort</span>((crc &lt;&lt; 1) ^ generator);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+<p>
+The modification of the implementations for calculating the CRC-16 lookup table is now quite easy:	
+</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">void</span> CalculateTable_CRC16()<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const ushort</span> generator = 0x1021;<br>
+&nbsp;&nbsp;&nbsp; crctable16 = <span class="codekw">new</span> <span class="codekw">ushort</span>[256];<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> divident = 0; divident &lt; 256; divident++) <span class="codecomment">/* iterate over all possible input byte values 0 - 255 */</span><br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">ushort</span> curByte = (<span class="codekw">ushort</span>(divident &lt;&lt; 8); <span class="codecomment">/* move divident byte into MSB of 16Bit CRC */ </span><br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">byte</span> bit = 0; bit &lt; 8; bit++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((curByte & 0x8000) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte ^= generator;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crctable16[divident] = curByte;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}
+</div>
+
+<p>The actual byte by byte is a bit tricky so let's first check our example again:</p>
+<div class="infobox1">
+<p class="infobox1caption">Process for bytewise CRC-16 using input data {<span class="powderbluetext">0x01</span>, <span class="redtext">0x02</span>} and polynomial 0x1021</p><hr>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace;">
+1. Init crc = 0<br>
+2. Handle first input byte <span class="powderbluetext">0x01</span>:<br>
+&nbsp;2.1 'Xor-in' first input byte <span class="powderbluetext">0x01</span> into MSB(!) of crc:<br>
+&nbsp;&nbsp; 0000 0000 0000 0000 (crc)<br>
+&nbsp;&nbsp; <span class="powderbluetext">0000 0001 0000 0000</span> (input byte 0x01 left-shifted by 8)<br>
+&nbsp;&nbsp; -------------------<br>
+&nbsp;&nbsp; 0000 0001 0000 0000 = 0x0100<br>
+&nbsp;&nbsp; The MSB of this result is our current divident: MSB(0x100) = 0x01.<br>
+&nbsp;2.2 So 0x01 is the divident. Get the remainder for divident from our table: crctable16[0x01] = 0x1021. (Well this value is famila from the manual computation above.)<br>
+&nbsp;&nbsp; Remember the current crc value is 0x0000. Shift out the MSB of current crc and xor it with the current remainder to get the new CRC:<br>
+&nbsp;&nbsp; 0001 0000 0010 0001 (0x1021)<br>
+&nbsp;&nbsp; 0000 0000 0000 0000 (CRC 0x0000 left-shifted by 8 = 0x0000)<br>
+&nbsp;&nbsp; -------------------<br>
+&nbsp;&nbsp; 0001 0000 0010 0001 = 0x1021 = intermediate crc.<br>
+3. Handle next input byte <span class="redtext">0x02</span>:<br>
+&nbsp;Currently we have intermediate crc = 0x1021 = 0001 0000 0010 0001.<br>
+&nbsp;3.1 'Xor-in' input byte <span class="redtext">0x02</span> into MSB(!) of crc:<br>
+&nbsp;&nbsp; 0001 0000 0010 0001 (crc 0x1021)<br>
+&nbsp;&nbsp; <span class="redtext">0000 0010 0000 0000</span> (input byte 0x02 left-shifted by 8)<br>
+&nbsp;&nbsp; -------------------<br>
+&nbsp;&nbsp; 0001 0010 0010 0001 = 0x1221<br>
+&nbsp;&nbsp; The MSB of this result is our current divident: MSB(0x1221) = 0x12.<br>
+&nbsp;3.2 So 0x12 is the divident. Get the remainder for divident from our table: crctable16[0x12] = 0x3273.<br>
+&nbsp;&nbsp; Remember the current crc value is 0x1021. Shift out the MSB of current crc and xor it with the current remainder to get the new CRC:<br>
+&nbsp;&nbsp; 0011 0010 0111 0011 (0x3273)<br>
+&nbsp;&nbsp; 0010 0001 0000 0000 (CRC 0x1021 left-shifted by 8 = 0x2100)<br>
+&nbsp;&nbsp; -------------------<br>
+&nbsp;&nbsp; 0001 0011 0111 0011 = 0x1373 = final crc.
+</p>
+</div>
+
+<p>The important point is here that after xoring the current byte into the MSB of the intermediate CRC, the MSB is the index into the lookup table.<br>
+Here the corresponding implementation for the table-based CRC-16 algorithm:</p>
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">ushort</span> Compute_CRC16(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">ushort</span> crc = 0;<br>
+&nbsp;&nbsp;&nbsp; foreach (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in next input byte into MSB of crc, that's our new intermediate divident */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> pos = (<span class="codekw">byte</span>)( (crc >> 8) ^ b); <span class="codecomment">/* equal: ((crc ^ (b &lt;&lt; 8)) >> 8) */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* Shift out the MSB used for division per lookuptable and XOR with the remainder */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">ushort</span>)((crc &lt;&lt; 8) ^ (<span class="codekw">ushort</span>)(crctable16[pos]));<br>
+<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+
+
+
+<!--
+	************************************************************
+	* Extending to CRC-32
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch6">6. Extending to CRC-32</h2>
+<p>
+After having understood the extension process from CRC-8 to CRC-16 in the previous chapter, the modifications to CRC-32 is pretty easy. I discard the detailed steps as they are very similar to the CRC-16 case - just a quick overview of the changes:</p>
+<ul>
+ <li>CRC-32 uses a 33-bit polynom, however again the most signficant bit is always '1' and can be discarded. Therefore, the polynomial and the CRC value are represented by 32 bit variables.</li>
+ <li>The bit operations change slightly: Moving the input byte into the MSB of CRC requires now a shift by 24. Also the check for the most significant bit uses a different mask of 0x8000000 instead of 0x8000.
+</ul>
+<p>Actually that's it, so here is the bitwise CRC-32 algorithm implementation:</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">uint</span> Compute_CRC32_Simple(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const</span> <span class="codekw">uint</span> polynomial = 0x04C11DB7; <span class="codecomment">/* divisor is 32bit */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = 0; <span class="codecomment">/* CRC value is 32bit */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc ^= (<span class="codekw">uint</span>)(b &lt;&lt; 24); <span class="codecomment">/* move <span class="codekw">byte</span> into MSB of 32bit CRC */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 8; i++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & 0x80000000) != 0) <span class="codecomment">/* test <span class="codekw">for</span> MSB = bit 31 */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)((crc &lt;&lt; 1) ^ polynomial);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+<p>Calculating the CRC-32 lookup table and using it for the CRC computation is then straight forward:</p>
+
+<div class="codetable">
+<span class="codekw">private</span> <span class="codekw">void</span> CalculateCrcTable_CRC32()<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">const</span> <span class="codekw">uint</span> polynomial = 0x04C11DB7;<br>
+&nbsp;&nbsp;&nbsp; crcTable = <span class="codekw">new</span> <span class="codekw">uint</span>[256];<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> divident = 0; divident &lt; 256; divident++) <span class="codecomment">/* iterate over all possible input <span class="codekw">byte</span> values 0 - 255 */</span><br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> curByte = (<span class="codekw">uint</span>)(divident &lt;&lt; 24); <span class="codecomment">/* move divident <span class="codekw">byte</span> into MSB of 32Bit CRC */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">byte</span> bit = 0; bit &lt; 8; bit++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((curByte & 0x80000000) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte ^= polynomial;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crcTable[divident] = curByte;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}
+</div>
+
+<br>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">uint</span> Compute_CRC32(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = 0;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in next input <span class="codekw">byte</span> into MSB of crc and get this MSB, that's our <span class="codekw">new</span> intermediate divident */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> pos = (<span class="codekw">byte</span>)((crc ^ (b &lt;&lt; 24)) >> 24);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* Shift out the MSB used <span class="codekw">for</span> division per lookuptable and XOR with the remainder */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)((crc &lt;&lt; 8) ^ (<span class="codekw">uint</span>)(crcTable[pos]));<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> crc;<br>
+}
+</div>
+
+
+<!--
+	************************************************************
+	* CRC algorithm specification
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch7">7. CRC algorithm specification</h2>
+<p>At this point, you (and me hopefully... ;-) ) should know how CRC computation works and how to calculate it manually as well as how to implement it in your favourite programming language.<br><br>
+However, a CRC instance is defined by specific parameters. We have already seen that e.g. the width of the generator polynomial varies, but there are more definition parameters. In order to be able to implement each CRC instance, let's discuss how an CRC algorithm instance is described.</p>
+
+
+
+<!--
+	************************************************************
+	* CRC parametrization
+	* **********************************************************
+-->
+
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch71">7.1 CRC parametrization</h3>
+<p>Following standard parameters are used to define a CRC algorithm instance:</p>
+
+<ul>
+<li>
+<b>Name</b>: Well, a CRC instance has to be identified somehow, so each public defined CRC parameter set has a name like e.g. CRC-16/CCITT.
+</li>
+
+<li>
+<b>Width</b> (in bits): Defines the width of the result CRC value (n bits). Simultaneously, also the width of the generator polynomial is defined (n+1 bits). Most common used widths are 8, 16 and 32 bit. But thereotically all widths beginning from 1 are possible. In practice, even quite big (80 bit) or uneven (5 bit or 31 bit) widths are used.
+</li>
+
+<li>
+<b>Polynomial</b>: Used generator polynomial value. Note that different respresentations exist, see chapter 7.2.
+</li>
+
+<li>
+<b>Initial Value</b>: The value used to initialize the CRC value / register. In the examples above, always zero is used, but it could be any value.
+</li>
+
+<li>
+<b>Input reflected</b>: If this value is TRUE, each input byte is reflected before being used in the calculation. Reflected means that the bits of the input byte are used in reverse order. So this also means that bit 0 is treated as the most significant bit and bit 7 as least significant.<br>
+Example with byte 0x82 = b10000010: Reflected(0x82) = Reflected(b10000010) = b01000001 = 0x41.
+</li>
+
+<li>
+<b>Result reflected</b>: If this value is TRUE, the final CRC value is reflected before being returned. The reflection is done over the whole CRC value, so e.g. a CRC-32 value is reflected over all 32 bits.
+</li>
+
+<li>
+<b>Final XOR value</b>: The Final XOR value is xored to the final CRC value before being returned. This is done after the 'Result reflected' step. Obviously a Final XOR value of 0 has no impact.
+</li>
+
+<li>
+<b>Check value</b> [Optional]: This value is not required but often specified to help to validate the implementation. This is the CRC value of input string "123456789" or as byte array: [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39].
+</li>
+
+</ul>
+
+<p>For a great overview over standard CRC algorithms, refer to <a href="#ref5">[5]</a>.<br>
+Here a pseudo-code CRC-32 table-based implementation taking the definition parameters into account:</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">uint</span> Compute_CRC32(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = crcModel.Initial; <span class="codecomment">/* CRC is set to specified initial value */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* reflect input <span class="codekw">byte</span> <span class="codekw">if</span> specified, otherwise input <span class="codekw">byte</span> is taken as it is */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> curByte = (crcModel.InputReflected ? CrcUtil.Reflect8(b) : b);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in next input <span class="codekw">byte</span> into MSB of crc and get this MSB, that's our <span class="codekw">new</span> intermediate divident */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> pos = (<span class="codekw">byte</span>)((crc ^ (curByte &lt;&lt; 24)) >> 24);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* Shift out the MSB used <span class="codekw">for</span> division per lookuptable and XOR with the remainder */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)((crc &lt;&lt; 8) ^ (<span class="codekw">uint</span>)(crcTable[pos]));<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* reflect result crc <span class="codekw">if</span> specified, otherwise calculated crc value is taken as it is */</span><br>
+&nbsp;&nbsp;&nbsp; crc = (crcModel.ResultReflected ? CrcUtil.Reflect32(crc) : crc);<br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* Xor the crc value with specified final XOR value before returning */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> (<span class="codekw">uint</span>)(crc ^ crcModel.FinalXor);<br>
+}
+</div>
+
+<p>And finally a possible implementation to reflect a 16bit value:</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> <span class="codekw">ushort</span> Reflect16(<span class="codekw">ushort</span> val)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">ushort</span> resVal = 0;<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 16; i++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((val & (1 &lt;&lt; i)) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; resVal |= (<span class="codekw">ushort</span>)(1 &lt;&lt; (15 - i));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> resVal;<br>
+}
+</div>
+
+
+
+
+<!--
+	************************************************************
+	* Representation of generator polyonomials
+	* **********************************************************
+-->
+
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch72">7.2 Representation of generator polynomials</h3>
+<p>It is worth to know that there are different ways to represent a generator polynomial in hexadecimal.<br>
+Remember: A CRC-n uses a generator polynomial of degree x+1 of the form x<sup>n</sup> + x<sup>n-1</sup> + ... + x<sup>1</sup> + x<sup>0</sup> (Note that it has n+1 coefficients).
+</p>
+
+<ul>
+<li>Normal representation: The most significant bit (= x<sup>n</sup>) of the generator polynomial is left out in the hexadecimal respresentation (as it's always 1). The hexadecial polynomial contains only the coefficients x<sup>n-1</sup> ... x<sup>0</sup>. We used normal respresentation in this article.<br>
+Example: In the CRC-8 discussion we used polynomial 100011101. Discarding the most significant bit results in <span class="lightgraytext"><s>1</s></span>00011101, which is 0x1D.</li>
+
+<li>Reversed representation: The most significant bit (= x<sup>n</sup>) of the generator polynomial is left out in the hexadecimal respresentation (like in the normal representation), but the tail is then reflected ('LSB first'), i.e. each nibble is reversed. So the most-significant bit does not match x<sup>n-1</sup> as in the normal representation, but x<sup>0</sup>.<br>
+Example: Polynomial is 100011101. Discarding the most significant bit results in <span class="lightgraytext"><s>1</s></span>0001 1101. Reflection (reverse of each nibble) of 0001 1101 is 1011 1000 = 0xB8.</li>
+
+<li>Koopman representation: The least(!) significant bit (= x<sup>0</sup>) of the generator polynomial is discarded. The hexadecial polynomial contains only the coefficients x<sup>n</sup> ... x<sup>1</sup>.<br>
+Example: Polynomial is 100011101. Discarding the least significant bit results in 10001110<span class="lightgraytext"><s>1</s></span> = 0x8E.</li>
+
+</ul>
+
+<p>Note that there are also so-called reciprocal polynomials which have their own representation, see <a href="#ch73">chapter 7.3</a>.</p>
+
+<div class="infobox1">
+<p class="infobox1caption">INFO:</p><hr>
+<p>Please note that this only affects the <i>representation</i> of the polynomial. But the key point is that in each case the SAME polynomial is used for calculation.<br>
+Consider the often used CRC-16 polynomial x^16 + x^12 + x^5 + 1. In binary, that's 1 0001 0000 0010 0001.<br>
+Here the three different representations for this example:</p>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; white-space:pre-wrap;">1 0001 0000 0010 0001
+  0001 0000 0010 0001                                    = 0x1021 - Normal Representation
+  0001 0000 0010 0001 -> reversed  : 1000 0100 0000 1000 = 0x8408 - Reversed representation
+1 0001 0000 0010 000  -> rearranged: 1000 1000 0001 0000 = 0x8810 - Koopman representation
+</p>
+</div>
+
+<br>
+
+
+<!--
+	************************************************************
+	* Choosing a generator polyonomial
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h4 id="ch721">7.2.1 Choosing a generator polyonomial</h4>
+<p>The length on the generator polynomial depends on the maximum length of the input data and the desired error detection properties. The more likely one or more bit errors shall be detected and/or the longer the input data may be, the longer the generator polynomial has to be. This also decreases the probality of collisions (same CRC value for different input data).<br>Note that the actual value of the generator polynomial has also major impact on its error detection capabilities and its design is non-trivial and requires serious math knowledge (e.g. see <a href="#ref2">[2]</a> for an expert article.)</p>
+
+
+
+<!--
+	************************************************************
+	* Reciprocal polynomials
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch73">7.3 Reciprocal polynomials</h3>
+<p>
+Reciprocal polyonomials are polynomials that are reflected. So the least significant coefficient becomes the most significant and the other way. In other words, a reciprocal polynomial is created from a polynomial by assigning coefficient x<sup>n</sup> to x<sup>0</sup>, x<sup>n-1</sup> to x<sup>1</sup> and so on.<br>
+The representation is based on the Koopman representation, but reflected ('LSB first').
+</p>
+
+<p>CAUTION: Sometimes reciprocal polynomials are called reversed polynomials. This can easily be mixed up with the reversed representation of polynomal as described in <a href="#ch72">chapter 7.2</a>. However these are two different things.</p>
+
+<div class="infobox1">
+<p>Example: Keep with the CRC-16 polynomial 0x1021 which has binary respresentation 1 0001 0000 0010 0001.<br>
+The Koopman representation is 1000 1000 0001 0000 <span class="lightgraytext"><s>1</s></span>.<br>
+Reversing (or reflecting) the polynomial results in 0000 1000 0001 0001 = 0x0811.
+</p>
+</div>
+
+<p>It's a fact that reversed polynomials are 'as good as' the polynomials of which they are the reciprocal ones referring to their error detection properties.<br> Unfortunately such polynomials make it all a bit more complicated: the calculated CRC value of a polynomial is <b>NOT</b> the same as the calculated CRC value of its reciprocal polyonomial for the same message data! <br><br>
+
+Because the LSB and MSB are exchanged, you can think of the processing of reversed polynomials as they would be shifted from the other side into the CRC shift register: In the example of the CRC shift register in <a href="#ch3">chapter 3</a> the input data was shifted from the right. If the reversed polynomial is used, you could get the same CRC result when shifting the input data from the left. Actually the whole processing is then just mirrored.<br>
+In the C# download package linked at the top, there is a 'reflected' implementation for each CRC class: Such a reflected CRC algorithm produces the same CRC result when using a reversed polynomial like the standard implementation using the non-reversed polynomial by 'mirroring' the processing.
+</p>
+
+<!--
+	************************************************************
+	* Reversed CRC lookup table
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h4 id="ch731">7.3.1 Reversed CRC lookup table and calculation of reciprocal CRC</h3>
+<p>
+The fact that there are the two variants MSB-to-LSB and LSB-to-MSB often causes confusion. For example this is the reason why often two different lookup tables are found in the net for the same CRC instance: For the well-known standard CRC-32 instance (e.g. PKZIP) with polynomial 0x04c11db7, you can find a lookup table starting with the values 0x00000000 and 0x04C11DB7, the other one with 0x00000000 and 0x77073096. The first one correspond to the algorithms described in this article, while the second corresponds to the reciprocal variant where the coefficients are reflected.<br>
+Let's recall the calculation for the 'normal' CRC-32 lookup table, compared to the 'reciprocal variant' of the CRC-32 lookup table :
+</p>
+
+<div class="codetable" style="width:49%; float:left">
+<span class="codekw">private</span> <span class="codekw">void</span> CalculateCrcTable()<br>
+{<br>
+&nbsp;&nbsp;&nbsp; crcTable = <span class="codekw">new</span> <span class="codekw">uint</span>[256];<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> divident = 0; divident &lt; 256; divident++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> curByte = (<span class="codekw">uint</span>)(divident &lt;&lt; 24);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">byte</span> bit = 0; bit &lt; 8; bit++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((curByte &amp;
+ 0x80000000) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte ^= polynomial;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crcTable[divident] = curByte;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}
+</div>
+
+<div class="codetable" style="width:49%; float:right">
+<span class="codekw">private</span> <span class="codekw">void</span> CalculateCrcTableReciprocal()<br>
+{<br>
+&nbsp;&nbsp;&nbsp; crcTable = <span class="codekw">new</span> <span class="codekw">uint</span>[256];<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> divident = 0; divident &lt; 256; divident++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> curByte = (<span class="codekw">uint</span>)(divident);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">byte</span> bit = 0; bit &lt; 8; bit++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((curByte &amp;
+ 0x00000001) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte >>= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte ^= Reflect32(polynomial);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; curByte >>= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crcTable[divident] = curByte;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}
+</div>
+<br style="clear:both;"/>
+
+<p>
+To calculate the reciprocal variant lookup-table, two changes are required to handle the reflected bit-order: At first, the CRC parameter <i>Polynomial</i> has  to be reflected, and second the order of bit processing in the algorithm itself needs to be changed from MSB-to-LSB to LSB-to-MSB, resulting in right-shifting instead of left-shifting.<br>
+So this results in two different look-up tables. This implies that also the actual CRC calculation needs to adapated for the reciprocal variant in order to retrieve the same CRC result as for the normal variant.
+</p>
+
+<p>
+In general, to use the reciprocal variant of a CRC-model, following changes are required for the CRC model: The CRC parameters <i>Polynomial</i> and <i>Initial Value</i> have to be reflected, the parameters <i>Input reflected</i> and <i>Result reflected</i> have to be negated and the parameter <i>Final XOR value</i> remains unchanged. Here some code to change the CRC model to the reciprocal CRC model:
+</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">static</span> Crc32Model GetReflectedCrcModel(Crc32Model model)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> <span class="codekw">new</span> Crc32Model(<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CrcUtil.Reflect32(model.Polynomial),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CrcUtil.Reflect32(model.Initial),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; model.FinalXor,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; !model.InputReflected,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; !model.ResultReflected<br>
+&nbsp;&nbsp;&nbsp; );<br>
+}
+</div>
+
+<p>With this information, here the table-based calculation of reciprocal CRC-32 (right) compared to the normal calculation (left):</p>
+
+<div class="codetable" style="width:49%; float:left">
+<span class="codekw">public</span> <span class="codekw">uint</span> Compute(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = crcModel.Initial;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> curByte = (crcModel.InputReflected ? CrcUtil.Reflect8(b) : b);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* update the MSB of crc value with next input <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc ^ (curByte &lt;&lt; 24));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* this MSB <span class="codekw">byte</span> value is the index into the lookup table */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> pos = (<span class="codekw">byte</span>)(crc >> 24);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* shift out this index */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc &lt;&lt; 8);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in remainder from lookup table using the calculated index */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc ^ (<span class="codekw">uint</span>)crcTable[pos]);<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; crc = (crcModel.ResultReflected ? CrcUtil.Reflect32(crc) : crc);<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> (<span class="codekw">uint</span>)(crc ^ crcModel.FinalXor);<br>
+}
+</div>
+
+<div class="codetable" style="width:49%; float:right">
+<span class="codekw">public</span> <span class="codekw">uint</span> ComputeReciprocal(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; crcModel = GetReflectedCrcModel(crcModel);<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = crcModel.Initial;<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> curByte = (crcModel.InputReflected ? CrcUtil.Reflect8(b) : b);<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* update the LSB of crc value with next input <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc ^ curByte);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* this <span class="codekw">byte</span> value is the index into the lookup table, make sure it's a <span class="codekw">byte</span> */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> pos = (<span class="codekw">byte</span>)(crc &amp;
+ 0xFF);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* shift out this index */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc >> 8);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codecomment">/* XOR-in remainder from lookup table using the calculated index */</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc ^ (<span class="codekw">uint</span>)crcTable[pos]);<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; crc = (crcModel.ResultReflected ? CrcUtil.Reflect32(crc) : crc);<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> (<span class="codekw">uint</span>)(crc ^ crcModel.FinalXor);<br>
+}
+</div>
+
+<br style="clear:both;"/>
+<br>
+
+
+
+
+<!--
+	************************************************************
+	* Additional remarks (points worth to know)
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch8">8. Additional remarks (points worth to know)</h2>
+
+<p>
+This last chapter contains interesting (and maybe not completely obvious) topics about CRC calculation. These points are optional and contain just additional information, for those who are interested in same background information.</p>
+
+
+<!--
+	************************************************************
+	* Basic mathematical view of CRC
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch81">8.1 Basic mathematical view of CRC (read it first)</h3>
+
+<p>
+First let's recall some mathematical basics for CRC definition for better understanding of the next points. Please note that the sub chapter actually represents the same information as <a href="#ch2">chapter 2</a> (don't hesitate to have a quick look back at this introduction chapter):<br><br>
+CRC-n uses a generator polynomial G(x) which has degree n and n+1 terms:  x<sup>n</sup> + x<sup>n-1</sup> + ... + x<sup>1</sup> + x<sup>0</sup>.<br>
+The n+1 terms means that the polynomial has a length of n + 1 bits (using normal representation the most significant bit is left out).
+</p>
+
+<div class="infobox1">
+<p>Example: A CRC-8 with polynomial 0x07 is actually the value 100000111 = 1*x<sup>8</sup> + 0*x<sup>7</sup> + 0*x<sup>6</sup> + 0*x<sup>5</sup> + 0*x<sup>4</sup> + 0*x<sup>3</sup> + 1*x<sup>2</sup> + 1*x<sup>1</sup> + 1*x<sup>0</sup>.</p>
+</div>
+
+<p>
+The computation of CRC, which we know is based on polynomial division (or more specific on <i>Polynomial arithmetic modulo 2</i>), can be stated as M(x) * x<sup>n</sup> = G(x) * Q(x) + R(x) where:
+</p>
+
+<ul>
+<li>
+<b>M(x)</b> is the input binary string, so M(x)*x<sup>n</sup> is the input string with n zero bits appended.  <span style="font-size: smaller">(Stop! Why is it like that? Answer: We'll come to this later in chapter <a href="#ch85">8.5</a> )</span>.
+</li>
+
+<li>
+<b>G(x)</b> is the generator polynomial with degree n as already stated.
+</li>
+
+<li>
+<b>Q(x)</b> is quotient of the division and not used further.
+</li>
+
+<li>
+<b>R(x)</b> is the remainder = the actual CRC value.
+</li>
+
+</ul>
+<br>
+
+
+<!--
+	************************************************************
+	* Background to CRC verification
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch82">8.2 Background to CRC verification</h3>
+<p><b>Or: "Why is the verification result zero if the CRC is computed over the input data with the actual CRC value appended (in the manual approach)?"</b></p>
+
+<p>
+Actually, the XOR arithmetic of CRC division is comparable to school arithmetic in this case, so let's start with an example.</p>
+
+<div class="infobox1">
+<p>
+Assume the input data M(x) * x<sup>n</sup> is the number 195 and the divisor G(x) is 29. We would calculate:<br>
+195 / 29 = 6 remainder 21<sup>(<a href="#sidenote1">side note 1)</a></sup>. This is the same as 195 = 29 * 6 + 21 (which corresponds to M(x) * x<sup>n</sup> = G(x) * Q(x) + R(x)). So the CRC value R(x) is 21.<br><br>
+First verification approch (CRC is transmitted separately to the input data):<br>
+The sender sends the input data 195 along with the CRC value 21. The receiver then would take the input data and perform the same calculation (remember the generator polynomial is fixed and statically known by transmitter and receiver): 195 % 29 = 21. The calculated remainder is the same as the received one, so the data transmission was faultless.<br><br>
+Second verification approach (CRC is appended to the input data):<br>
+The CRC value is appended to the input data which corresponds in school arithemtic to subtraction. So the CRC value 21 is subtracted from input data 195 resulting in 174 ( = M(x) * x<sup>n</sup> - R(x)). The receiver would perform 174 % 29 = 0, so the remainder is zero and the data transmission was faultless.<br>
+</p>
+</div>
+
+<p>
+We know that M(x) * x<sup>n</sup> is the input data bit string with n zero bits appended. As we see later ( in chapters <a href="#ch84">8.4</a> and <a href="#ch85">8.5</a>) appending the bits of R(x) to this input string can be stated as M(x) * x<sup>n</sup> - R(x).<br>
+Rearrange the formula: M(x) * x<sup>n</sup> = G(x) * Q(x) + R(x) &nbsp;===&gt;&nbsp; M(x) * x<sup>n</sup> - R(x) = G(x) * Q(x)<br>
+Here we see that M(x) * x<sup>n</sup> - R(x) (which is the input data with the CRC appended) is an integer multiple of the polynomial G(x). And this means that M(x) * x<sup>n</sup> - R(x) divided by G(x) results in 0.
+</p>
+
+<p id="sidenote1" style="font-size:smaller">
+Side note 1: M(x) * x<sup>n</sup> = G(x) * Q(x) + R(x) can also be written using the modulo operator <i>mod</i> as
+R(x) = (M(x) * x<sup>n</sup>) mod G(x).
+</p>
+<br>
+
+
+
+<!--
+	************************************************************
+	* CRC-1 is the same as a parity bit
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch83">8.3 CRC-1 is the same as a parity bit</h3>
+<p>
+This is correct. Here some clarifying words: A parity bit indicates if the number of bits with value 1 is even or odd. In the case of even parity, the number of bits whose value is 1 in a given set are counted. If that total is odd, the parity bit value is set to 1, making the total count of 1's in the set an even number.
+</p>
+
+<div class="infobox1">
+<p>Example: The value 0x34 = 0011 0100 has three '1' bits. Because three is odd, the parity bit is 1.
+</p>
+</div>
+
+<p>
+CRC-1 has degree 1 and 2 terms: a*x^1 + b*x^0. The most significant bit is always 1. However a polynomial 10 has no sense because the actual CRC value would always be 0. So CRC-1 has polyomial 11 (binary) which is just 0x01 in normal representation. And this is in fact the calculation of an even parity bit. Remember that the actual CRC value has n bits, so for CRC-1 the remainder has 1 bit, either 0 or 1.
+</p>
+
+<div class="infobox1">
+<p>Here an example for the value 0x34:</p>
+<p style="font-size: 9pt; font-family: Courier New, Courier, monospace; line-height: 13pt; white-space:pre-wrap;">001101000
+  11
+---------
+  0001000
+     11
+  -------
+     0100
+      11
+      ---
+      010
+       11
+       --
+       01 = CRC = 1
+</p>
+</div>
+<br>
+
+<!--
+	************************************************************
+	* Why is addition is the same as subtraction in CRC arithmetic
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch84">8.4 Why is addition is the same as subtraction in CRC arithmetic?</h3>
+<p>
+CRC computation is performed using so-called polynomial arithmetic. This polynomial arithmetic is based on division over the finite field with two elements: 0 and 1. Also called Galois field over two elements.<br>
+To define the addition operation, there are only four cases to distinct: <br>
+0 + 0 = 0<br>
+0 + 1 = 1<br>
+1 + 0 = 1<br>
+1 + 1 = 0 - note that there is no carry!<br><br>
+
+Due to the fact that we perform the calculation over a finite field (refer to <a href="#ref6">[6]</a> for more info), there is only one way to define subtraction:<br>
+0 - 0 = 0<br>
+0 - 1 = 1<br>
+1 - 0 = 1<br>
+1 - 1 = 0<br><br>
+
+We see that addition and subtraction are the same: Basically this is the XOR operation we have already used several times above.<br>
+That's the reason why we stated above that M(x) * x<sup>n</sup> - R(x) and M(x) * x<sup>n</sup> + R(x) are the same in CRC arithmetic.
+</p>
+<br>
+
+
+<!--
+	************************************************************
+	* Why does multiplication with x<sup>n</sup> append n zeros
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch85">8.5 Why does multiplication with x<sup>n</sup> append n zeros?</h3>
+<p>
+This is due to the fact that each trailing zero bit of adds a factor of x. Let's say we have the polynomial x<sup>n</sup> + x<sup>n-1</sup> + ... + x<sup>1</sup> + x<sup>0</sup>. Multiply it with x:<br>
+x* (x<sup>n</sup> + x<sup>n-1</sup> + ... + x<sup>1</sup> + x<sup>0</sup>)
+= x<sup>n+1</sup> + x<sup>n</sup> + ... + x<sup>1</sup><br>
+So by multiplying with x, we have increased the degree of the polynomial by 1, which equals appending a zero to the right. Maybe this gets clearer with an example:
+</p>
+
+<div class="infobox1">
+<p class="infobox1caption">Example:</p><hr>
+<p>
+Assume the polynomial 01010010 = x^6 + x^4 + x and add a zero:<br>
+010100100 = x^7 + x^5 + x^2 = <b>x</b> * (x^6 + x^4 + x). So each factor of x appends a zero.
+</p>
+</div>
+<br>
+<br>
+
+<!--
+	************************************************************
+	* When using an initial value other than zero in the shift register, the result is incorrect.
+	* **********************************************************
+-->
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h3 id="ch86">8.6 When using an initial value other than zero in the shift register, the result is incorrect.</h3>
+<p>
+In <a href="#ch7">chapter 7</a> initial values were introduced, with the description that it's the value used to initialize the shift register. Well, you can read this statement also in other CRC articles, however there is a trap that is commonly not well described (if at all).</p>
+
+<div class="infobox1">
+<p>Example: If that would be true than e.g. following two CRC instances should calculate the same CRC:</p><hr>
+<p>
+<i>Instance a</i>: Initial value = 0x00, polynomial = 0x9B, input message data = [0xFF, 0x01].<br>
+<i>Instance b</i>: Initial value = 0xFF, polynomial = 0x9B, input message data = [0x01].<br><br>
+Assumption: Because in CRC instance a), the initial value is zero, nothing will happen (meaning no xor operation will be computed), until the first data byte 0xFF is completely shifted into the register, because 0x00 has no bit set. Then we have actually the same state as CRC instance b), so the processing of the remaining byte 0x01 should result the in the same CRC value for both cases. Right?
+</p>
+</div>
+
+<p>
+Unfortunately, not. Above examples give the two different CRC values of 0x2A and 0xE0.<br><br>
+Looking at the simple (non-lookup table, but byte-wise handling) CRC-8 implementation, we see the reason:
+</p>
+
+<div class="codetable">
+<span class="codekw">public</span> <span class="codekw">byte</span> Compute_Simple(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp; <span class="codekw">byte</span> crc = crcModel.Initial;<br>
+<br>
+&nbsp; <span class="codekw">foreach</span> (<span class="codekw">byte</span> b in bytes)<br>
+&nbsp; {<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> curByte = (crcModel.InputReflected ? CrcUtil.Reflect8(b) : b);<br>
+&nbsp;&nbsp;&nbsp; crc ^= curByte; <span class="codecomment">/* XOR-in the next input <span class="codekw">byte</span> */</span><br>
+<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt; 8; i++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & 0x80) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">byte</span>)((crc &lt;&lt; 1) ^ crcModel.Polynomial);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc &lt;&lt;= 1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp; }<br>
+<br>
+&nbsp; crc = (crcModel.ResultReflected ? CrcUtil.Reflect8(crc) : crc);<br>
+&nbsp; <span class="codekw">return</span> (<span class="codekw">byte</span>)(crc ^ crcModel.FinalXor);<br>
+}
+</div>
+
+<p>
+<b>&gt;</b> Before the actual first xor operation of the CRC calculation is performed, the initial value is xored with the first input byte!<br><br>
+What does that mean for the initial value of the shift register when performing the CRC calculation bit by bit, like the pen and paper approach at the top? Answer: The register must be initialized with the initial value 'xored' with the first input bytes. For CRC-16 the initial value must be xored with the first two input bytes, for CRC-32 with the first four input bytes, and so on.<br>
+
+Here an example implementation how to initialize a CRC-32 shift register and the corresponding shift register algorithm. This is taken from the C# source package linked at the top of the article:
+</p>
+
+<div class="codetable">
+<span class="codekw">private</span> <span class="codekw">uint</span> GetInitialShiftRegister(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp; <span class="codekw">byte</span> b1 = 0, b2 = 0, b3 = 0, b4 = 0;<br>
+&nbsp; <span class="codekw">if</span> (bytes.Length >= 1)<br>
+&nbsp; {<br>
+&nbsp;&nbsp;&nbsp; b1 = crcModel.InputReflected ? CrcUtil.Reflect8(bytes[0]) : bytes[0];<br>
+&nbsp; }<br>
+&nbsp; <span class="codekw">if</span> (bytes.Length >= 2)<br>
+&nbsp; {<br>
+&nbsp;&nbsp;&nbsp; b2 = crcModel.InputReflected ? CrcUtil.Reflect8(bytes[1]) : bytes[1];<br>
+&nbsp; }<br>
+&nbsp; <span class="codekw">if</span> (bytes.Length >= 3)<br>
+&nbsp; {<br>
+&nbsp;&nbsp;&nbsp; b3 = crcModel.InputReflected ? CrcUtil.Reflect8(bytes[2]) : bytes[2];<br>
+&nbsp; }<br>
+&nbsp; <span class="codekw">if</span> (bytes.Length >= 4)<br>
+&nbsp; {<br>
+&nbsp;&nbsp;&nbsp; b4 = crcModel.InputReflected ? CrcUtil.Reflect8(bytes[3]) : bytes[3];<br>
+&nbsp; }<br>
+&nbsp; <span class="codekw">return</span> (<span class="codekw">uint</span>)(crcModel.Initial ^ (<span class="codekw">uint</span>)((<span class="codekw">uint</span>)b4 &lt;&lt; 24 | (<span class="codekw">uint</span>)b3 &lt;&lt; 16 | (<span class="codekw">uint</span>)b2 &lt;&lt; 8 | b1));<br>
+}<br>
+<br>
+<span class="codekw">public</span> <span class="codekw">uint</span> Compute_Simple_ShiftReg(<span class="codekw">byte</span>[] bytes)<br>
+{<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">uint</span> crc = GetInitialShiftRegister(bytes);<br>
+&nbsp;&nbsp;&nbsp; <span class="codecomment">/* skip first four bytes, already inside crc register */</span><br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> byteIndex = 4; byteIndex &lt; bytes.Length + 4; byteIndex++)<br>
+&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">byte</span> curByte = (byteIndex &lt; bytes.Length) ? (crcModel.InputReflected ? CrcUtil.Reflect8(bytes[byteIndex]) : bytes[byteIndex]) : (<span class="codekw">byte</span>)0;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">for</span> (<span class="codekw">int</span> i = 0; i &lt;= 7; i++)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">if</span> ((crc & LOWBIT_MASK) != 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc >> 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = ((<span class="codekw">uint</span>)(curByte & (1 &lt;&lt; i)) != 0) ? (<span class="codekw">uint</span>)(crc | 0x80000000) : (<span class="codekw">uint</span>)(crc & 0x7FFFFFFF);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc ^ crcModel.Polynomial);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="codekw">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = (<span class="codekw">uint</span>)(crc >> 1);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; crc = ((<span class="codekw">uint</span>)(curByte & (1 &lt;&lt; i)) != 0) ? (<span class="codekw">uint</span>)(crc | 0x80000000) : (<span class="codekw">uint</span>)(crc & 0x7FFFFFFF);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; crc = (crcModel.ResultReflected ? CrcUtil.Reflect32(crc) : crc);<br>
+&nbsp;&nbsp;&nbsp; <span class="codekw">return</span> (<span class="codekw">uint</span>)(crc ^ crcModel.FinalXor);<br>
+}
+</div>
+
+<br>
+
+
+<!--
+	************************************************************
+	* Conclusion &amp; References
+	* **********************************************************
+-->
+<br>
+<p><a href="#TOP" class="backtotop">[Back to top]</a></p>
+<h2 id="ch9">9. Conclusion &amp; References</h2>
+<p>This article is my own guide to CRC: very practical and based on many examples - quite different to most of the other articles on the web. I hope you found it interesting and that it supported you in understanding and implementing CRC!<br>
+Drop me a line for corrections, hints, criticism, praise ;)<br><br>
+
+Sunshine, February 2015 (updated March 2019)
+
+<br><br>
+<h3>References</h3>
+<a id="ref1"> </a>[1]<a href="http://en.wikipedia.org/wiki/Cyclic_redundancy_check"> Cyclic redundancy check @ Wikipedia</a><br>
+<a id="ref2"> </a>[2]<a href="http://www.ece.cmu.edu/~koopman/roses/dsn04/koopman04_crc_poly_embedded.pdf"> "Cyclic Redundancy Code (CRC) Polynomial Selection For Embedded Networks"</a>. The International Conference on Dependable Systems and Networks: 145–154. Retrieved 29 December 2014.<br>
+<a id="ref3"> </a>[3]<a href="http://en.wikipedia.org/wiki/Mathematics_of_cyclic_redundancy_checks"> Mathematics of cyclic redundancy checks @ Wikipedia</a><br>
+<a id="ref4"> </a>[4]<a href="http://www.ross.net/crc/crcpaper.html"> A Painless Guide to CRC Error Detection Algorithms</a><br>
+<a id="ref5"> </a>[5]<a href="http://reveng.sourceforge.net/crc-catalogue/"> CRC RevEng - Catalogue of parametrised CRC algorithms</a><br>
+<a id="ref6"> </a>[6]<a href="http://en.wikipedia.org/wiki/Finite_field"> Finite field @ Wikipedia</a><br>
+
+<br>
+<h4 id="updates">Updates</h4>
+<ul>
+ <li>2019/03/22:
+  <ul>
+   <li>Fixed a bug in chapter 7.3.1 about the final XOR value when using the reciprocal variant: In the reciprocal CRC model, the final XOR value <i>must not</i> be reflected, contrary to my previous statement.<br> Note that in the source code, this was already correctly implemented.</li>
+  </ul>
+ </li>
+ <li>2018/12/29:
+  <ul>
+   <li>Replaced occurrences of x^n by x<sup>n</sup> for consistent naming.</li>
+  </ul>
+ </li>
+ <li>2018/09/29:
+  <ul>
+   <li>Fixed a glitch in the "Step-by-step visualization of simple CRC-8 algorithmus" table. Thanks to the careful reader for pointing me to it.</li>
+   <li>Reworked the chapters of representation of polynomials and reciprocal polynomials - hopefully they are more understandable now (chapter 7.2 and 7.3).</li>
+   <li>Fixed a typo in chapter 8.6 (byte 0x01 instead of 0x11). Thanks to the careful reader for pointing me to it.</li>
+  </ul>
+ </li>
+ <li>2016/11/11:
+  <ul>
+   <li>Added chapters 7.3 (reversed polynomials) and chapter 8.6 (initial value for shift register)</li>
+   <li>Updated C# source package with CRC classes that work in the reversed way.</li>
+   <li>Updated Javascript Online calculator to show optionally the CRC lookup table in the reversed way.</li>
+  </ul>
+ </li>
+ <li>2016/08/19: Fixed a typo in chapter 8.4: 1 + 1 = 0 instead of 1 + 1 = 1.</li>
+ <li>2015/05/30: Added chapter 8.</li>
+</ul>
+<br>
+<br>
+
+<footer>
+<hr>
+<p>This site is part of <a href="http://www.sunshine2k.de">Sunshine's Homepage</a></p>
+</footer>
+
+<p><!-- Google analytics -->
+ <script src="http://www.google-analytics.com/urchin.js" type="text/javascript">
+ </script>
+</p>
+<script type="text/javascript">
+_uacct = "UA-2878002-1";
+urchinTracker();
+</script>
+
+</div>
+</body>
+</html>
