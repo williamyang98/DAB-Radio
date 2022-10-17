@@ -131,7 +131,8 @@ public:
     UpdateResult SetStartAddress(const subchannel_addr_t start_address);
     UpdateResult SetLength(const subchannel_size_t length);
     UpdateResult SetIsUEP(const bool is_uep);
-    UpdateResult SetProtectionLevel(const protection_level_t protection_level);
+    UpdateResult SetUEPProtIndex(const uep_protection_index_t uep_prot_index);
+    UpdateResult SetEEPProtLevel(const eep_protection_level_t eep_prot_level);
     UpdateResult SetEEPType(const EEP_Type eep_type);
     UpdateResult SetFECScheme(const fec_scheme_t fec_scheme);
     virtual bool IsComplete();

@@ -82,7 +82,8 @@ struct Subchannel {
     subchannel_addr_t start_address = 0;                // required
     subchannel_size_t length = 0;                       // required
     bool is_uep = false;                                // required
-    protection_level_t protection_level = 0;            // required
+    uep_protection_index_t uep_prot_index = 0;          // required for UEP
+    eep_protection_level_t eep_prot_level = 0;          // required for EEP
     EEP_Type eep_type;                                  // required for EEP
     fec_scheme_t fec_scheme = 0;                        // optional? used only for packet mode
     Subchannel(const subchannel_id_t _id): id(_id) {}

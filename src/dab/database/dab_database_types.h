@@ -15,7 +15,8 @@ typedef uint8_t  closed_caption_id_t;       // 8bits
 
 typedef uint16_t subchannel_addr_t;         // 10bits
 typedef uint16_t subchannel_size_t;         // 10bits (in capacity units)
-typedef uint8_t  protection_level_t;        // 2bits (EEP) or 3bits (UEP)
+typedef uint8_t  eep_protection_level_t;    // 2bits (EEP) table index
+typedef uint8_t  uep_protection_index_t;    // 6bits (UEP) table index
 typedef uint8_t  fec_scheme_t;              // 4bits 
 
 typedef uint16_t lsn_t;                     // 12bits (linkage set number)

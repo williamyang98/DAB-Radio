@@ -1,7 +1,7 @@
 #include "radio_fig_handler.h"
 #include "database/dab_database_updater.h"
 
-#include "constants/subchannel_protection_table.h"
+#include "constants/subchannel_protection_tables.h"
 #include "algorithms/modified_julian_date.h"
 
 #include <stdio.h>
@@ -56,16 +56,15 @@ void Radio_FIG_Handler::OnSubchannel_1_Short(
         return;
     } 
 
-    if (table_index >= SUBCHANNEL_PROTECTION_TABLE_SIZE) {
+    if (table_index >= UEP_PROTECTION_TABLE_SIZE) {
         LOG_ERROR("Received an index outside of table for UEP (%u/%u)\n", 
-            table_index, SUBCHANNEL_PROTECTION_TABLE_SIZE);
+            table_index, UEP_PROTECTION_TABLE_SIZE);
         return;
     }
 
-    const auto props = SUBCHANNEL_PROTECTION_TABLE[table_index];
-    u->SetProtectionLevel(props.protection_level);
-    u->SetLength(props.length);
-    // TODO: bitrate?
+    const auto props = UEP_PROTECTION_TABLE[table_index];
+    u->SetUEPProtIndex(table_index);
+    u->SetLength(props.subchannel_size);
 }
 
 // Long form for EEP
@@ -81,7 +80,7 @@ void Radio_FIG_Handler::OnSubchannel_1_Long(
     u->SetIsUEP(false);
     u->SetStartAddress(start_address);
     u->SetEEPType(option ? EEP_Type::TYPE_B : EEP_Type::TYPE_A);
-    u->SetProtectionLevel(protection_level);
+    u->SetEEPProtLevel(protection_level);
     u->SetLength(subchannel_size);
 }
 

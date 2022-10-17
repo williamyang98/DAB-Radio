@@ -264,14 +264,15 @@ bool ServiceComponentUpdater::IsComplete() {
 }
 
 // Subchannel form
-const uint8_t SUBCHANNEL_FLAG_START_ADDRESS = 0b10000000;
-const uint8_t SUBCHANNEL_FLAG_LENGTH        = 0b01000000;
-const uint8_t SUBCHANNEL_FLAG_UEP           = 0b00100000;
-const uint8_t SUBCHANNEL_FLAG_PROT_LEVEL    = 0b00010000;
-const uint8_t SUBCHANNEL_FLAG_EEP_TYPE      = 0b00001000;
-const uint8_t SUBCHANNEL_FLAG_FEC_SCHEME    = 0b00000100;
-const uint8_t SUBCHANNEL_FLAG_REQUIRED_UEP  = 0b11110000;
-const uint8_t SUBCHANNEL_FLAG_REQUIRED_EEP  = 0b11111000;
+const uint8_t SUBCHANNEL_FLAG_START_ADDRESS     = 0b10000000;
+const uint8_t SUBCHANNEL_FLAG_LENGTH            = 0b01000000;
+const uint8_t SUBCHANNEL_FLAG_IS_UEP            = 0b00100000;
+const uint8_t SUBCHANNEL_FLAG_UEP_PROT_INDEX    = 0b00010000;
+const uint8_t SUBCHANNEL_FLAG_EEP_PROT_LEVEL    = 0b00001000;
+const uint8_t SUBCHANNEL_FLAG_EEP_TYPE          = 0b00000100;
+const uint8_t SUBCHANNEL_FLAG_FEC_SCHEME        = 0b00000010;
+const uint8_t SUBCHANNEL_FLAG_REQUIRED_UEP      = 0b11110000;
+const uint8_t SUBCHANNEL_FLAG_REQUIRED_EEP      = 0b11101100;
 
 UpdateResult SubchannelUpdater::SetStartAddress(const subchannel_addr_t start_address) {
     FORM_FIELD_MACRO(start_address, SUBCHANNEL_FLAG_START_ADDRESS);
@@ -282,17 +283,23 @@ UpdateResult SubchannelUpdater::SetLength(const subchannel_size_t length) {
 }
 
 UpdateResult SubchannelUpdater::SetIsUEP(const bool is_uep) {
-    // Cannot define EEP type while in UEP
-    if (is_uep && (dirty_field & SUBCHANNEL_FLAG_EEP_TYPE)) {
-        OnConflict();
-        return UpdateResult::CONFLICT;
-    }
-
-    FORM_FIELD_MACRO(is_uep, SUBCHANNEL_FLAG_UEP);
+    FORM_FIELD_MACRO(is_uep, SUBCHANNEL_FLAG_IS_UEP);
 }
 
-UpdateResult SubchannelUpdater::SetProtectionLevel(const protection_level_t protection_level) {
-    FORM_FIELD_MACRO(protection_level, SUBCHANNEL_FLAG_PROT_LEVEL);
+UpdateResult SubchannelUpdater::SetUEPProtIndex(const uep_protection_index_t uep_prot_index) {
+    const auto res = SetIsUEP(true);
+    if (res == UpdateResult::CONFLICT) {
+        return UpdateResult::CONFLICT;
+    }
+    FORM_FIELD_MACRO(uep_prot_index, SUBCHANNEL_FLAG_UEP_PROT_INDEX);
+}
+
+UpdateResult SubchannelUpdater::SetEEPProtLevel(const eep_protection_level_t eep_prot_level) {
+    const auto res = SetIsUEP(false);
+    if (res == UpdateResult::CONFLICT) {
+        return UpdateResult::CONFLICT;
+    }
+    FORM_FIELD_MACRO(eep_prot_level, SUBCHANNEL_FLAG_EEP_PROT_LEVEL);
 }
 
 UpdateResult SubchannelUpdater::SetEEPType(const EEP_Type eep_type) {
@@ -309,7 +316,7 @@ UpdateResult SubchannelUpdater::SetFECScheme(const fec_scheme_t fec_scheme) {
 
 bool SubchannelUpdater::IsComplete() {
     // Cant tell if it is complete since it depends on subchannel protection type
-    if (!(dirty_field & SUBCHANNEL_FLAG_UEP)) {
+    if (!(dirty_field & SUBCHANNEL_FLAG_IS_UEP)) {
         return false;
     }
     const bool eep = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
