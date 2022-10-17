@@ -4,3 +4,9 @@
 [submodule "vendor/implot"]
 	path = vendor/implot
 	url = https://github.com/epezent/implot.git
+[submodule "vendor/faad2"]
+	path = vendor/faad2
+	url = https://github.com/knik0/faad2.git
+[submodule "vendor/kissfft"]
+	path = vendor/kissfft
+	url = https://github.com/mborgerding/kissfft.git

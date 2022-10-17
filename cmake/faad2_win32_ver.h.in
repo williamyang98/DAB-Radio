@@ -1,0 +1,5 @@
+#pragma once
+
+// NOTE: This file is required by faad2 to set the version/package string
+// We just set some random string here
+#define PACKAGE_VERSION "libfaad2"
