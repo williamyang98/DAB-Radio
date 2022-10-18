@@ -281,3 +281,14 @@ bool DAB_Database::RegenerateLookups() {
 
     return is_success;
 }
+
+void DAB_Database::ClearAll() {
+    services.clear();
+    service_components.clear();
+    subchannels.clear();
+    link_services.clear();
+    fm_services.clear();
+    drm_services.clear();
+    amss_services.clear();
+    other_ensembles.clear();
+}

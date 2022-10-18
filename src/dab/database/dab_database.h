@@ -90,4 +90,5 @@ public:
 
     // Recreate the lookup tables from the existing entities
     bool RegenerateLookups();
+    void ClearAll();
 };

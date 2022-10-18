@@ -651,3 +651,60 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subcha
     }
     return &(res->second);
 }
+
+void DAB_Database_Updater::ExtractCompletedDatabase(DAB_Database& dest_db) {
+    dest_db.ClearAll(); 
+    if (ensemble_updater.IsComplete()) {
+        dest_db.ensemble = *ensemble_updater.GetData();
+    }
+
+    for (auto& [k, v]: service_updaters) {
+        if (v.IsComplete()) {
+            dest_db.services.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: service_component_updaters) {
+        if (v.IsComplete()) {
+            dest_db.service_components.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: subchannel_updaters) {
+        if (v.IsComplete()) {
+            dest_db.subchannels.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: link_service_updaters) {
+        if (v.IsComplete()) {
+            dest_db.link_services.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: fm_service_updaters) {
+        if (v.IsComplete()) {
+            dest_db.fm_services.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: drm_service_updaters) {
+        if (v.IsComplete()) {
+            dest_db.drm_services.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: amss_service_updaters) {
+        if (v.IsComplete()) {
+            dest_db.amss_services.push_back(*v.GetData());
+        }
+    }
+
+    for (auto& [k, v]: other_ensemble_updaters) {
+        if (v.IsComplete()) {
+            dest_db.other_ensembles.push_back(*v.GetData());
+        }
+    }
+
+    dest_db.RegenerateLookups();
+}

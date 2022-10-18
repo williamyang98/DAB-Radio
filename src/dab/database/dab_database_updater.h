@@ -86,6 +86,7 @@ public:
     UpdateResult SetLocalTimeOffset(const int local_time_offset);
     UpdateResult SetInternationalTableID(const uint8_t international_table_id) ;
     virtual bool IsComplete();
+    Ensemble* GetData() { return data; }
 };
 
 class ServiceUpdater: public UpdaterChild 
@@ -102,6 +103,7 @@ public:
     UpdateResult SetLanguage(const language_id_t language);
     UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
     virtual bool IsComplete();
+    Service* GetData() { return data; }
 };
 
 class ServiceComponentUpdater: public UpdaterChild 
@@ -119,6 +121,7 @@ public:
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
     uint32_t GetServiceReference();
     virtual bool IsComplete();
+    ServiceComponent* GetData() { return data; }
 };
 
 class SubchannelUpdater: public UpdaterChild 
@@ -136,6 +139,7 @@ public:
     UpdateResult SetEEPType(const EEP_Type eep_type);
     UpdateResult SetFECScheme(const fec_scheme_t fec_scheme);
     virtual bool IsComplete();
+    Subchannel* GetData() { return data; }
 };
 
 class LinkServiceUpdater: public UpdaterChild 
@@ -151,6 +155,7 @@ public:
     UpdateResult SetServiceReference(const service_id_t service_reference);
     service_id_t GetServiceReference();
     virtual bool IsComplete();
+    LinkService* GetData() { return data; }
 };
 
 class FM_ServiceUpdater: public UpdaterChild 
@@ -164,6 +169,7 @@ public:
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     virtual bool IsComplete();
+    FM_Service* GetData() { return data; }
 };
 
 class DRM_ServiceUpdater: public UpdaterChild 
@@ -177,6 +183,7 @@ public:
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     virtual bool IsComplete();
+    DRM_Service* GetData() { return data; }
 };
 
 class AMSS_ServiceUpdater: public UpdaterChild 
@@ -189,6 +196,7 @@ public:
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     virtual bool IsComplete();
+    AMSS_Service* GetData() { return data; }
 };
 
 class OtherEnsembleUpdater: public UpdaterChild 
@@ -204,6 +212,7 @@ public:
     UpdateResult SetIsTransmissionModeI(const bool is_transmission_mode_I);
     UpdateResult SetFrequency(const freq_t frequency);
     virtual bool IsComplete();
+    OtherEnsemble* GetData() { return data; }
 };
 
 class DAB_Database_Updater: public UpdaterParent
@@ -251,4 +260,6 @@ public:
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
     // TODO: remove this is for debugging
     inline std::vector<UpdaterChild*>& GetUpdaters() { return all_updaters; }
+    // Create a copy of the database with complete entities
+    void ExtractCompletedDatabase(DAB_Database& dest_db);
 };
