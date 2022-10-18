@@ -4,8 +4,8 @@ project(ofdm_demod)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(imgui REQUIRED)
 find_package(implot REQUIRED)
-
-find_package(unofficial-kissfft CONFIG REQUIRED)
+find_package(faad2 REQUIRED)
+find_package(kissfft REQUIRED)
 
 if(WIN32)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
@@ -21,18 +21,24 @@ add_library(ofdm_core STATIC
     ${OFDM_CORE_DIR}/dab_mapper_ref.cpp)
 include_directories(ofdm_core PUBLIC ${OFDM_CORE_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
-target_link_libraries(ofdm_core PRIVATE unofficial::kissfft::kissfft)
+target_link_libraries(ofdm_core PRIVATE kissfft)
 
 set(DAB_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dab)
 add_library(dab_core STATIC
-    ${DAB_CORE_DIR}/viterbi_decoder.cpp
-    ${DAB_CORE_DIR}/fic_decoder.cpp
-    ${DAB_CORE_DIR}/fig_processor.cpp
+    ${DAB_CORE_DIR}/algorithms/viterbi_decoder.cpp
+    ${DAB_CORE_DIR}/algorithms/reed_solomon_decoder.cpp
+    ${DAB_CORE_DIR}/fic/fic_decoder.cpp
+    ${DAB_CORE_DIR}/fic/fig_processor.cpp
+    ${DAB_CORE_DIR}/database/dab_database.cpp
+    ${DAB_CORE_DIR}/database/dab_database_updater.cpp
     ${DAB_CORE_DIR}/radio_fig_handler.cpp
-    ${DAB_CORE_DIR}/dab_database.cpp
-    ${DAB_CORE_DIR}/dab_database_updater.cpp)
+    ${DAB_CORE_DIR}/msc/msc_decoder.cpp
+    ${DAB_CORE_DIR}/msc/cif_deinterleaver.cpp
+    ${DAB_CORE_DIR}/audio/aac_frame_processor.cpp
+    ${DAB_CORE_DIR}/audio/aac_decoder.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
+target_link_libraries(dab_core PRIVATE faad2)
 
 add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
@@ -60,13 +66,13 @@ add_executable(view_ofdm_sample
     src/view_ofdm_sample.cpp)
 include_directories(view_ofdm_sample src/)
 set_target_properties(view_ofdm_sample PROPERTIES CXX_STANDARD 17)
-target_link_libraries(view_ofdm_sample PRIVATE getopt imgui implot unofficial::kissfft::kissfft)
+target_link_libraries(view_ofdm_sample PRIVATE getopt imgui implot kissfft)
 
 add_executable(process_frames
     src/process_frames.cpp)
 include_directories(process_frames src/)
 set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
-target_link_libraries(process_frames PRIVATE getopt dab_core)
+target_link_libraries(process_frames PRIVATE getopt dab_core imgui)
 
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
