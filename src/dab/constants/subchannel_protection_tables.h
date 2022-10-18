@@ -3,12 +3,12 @@
 #include <stdint.h>
 
 struct UEP_Descriptor {
-    const uint16_t subchannel_size; 
-    const uint16_t bitrate;
-    const uint8_t protection_level;
-    const uint8_t Lx[4];                // Number of 128bit blocks with that puncture code
-    const uint8_t PIx[4];               // ID of the puncture code
-    const uint8_t total_padding_bits;   // UEP is different to EEP in that it adds padding bits
+    uint16_t subchannel_size; 
+    uint16_t bitrate;
+    uint8_t protection_level;
+    uint8_t Lx[4];                // Number of 128bit blocks with that puncture code
+    uint8_t PIx[4];               // ID of the puncture code
+    uint8_t total_padding_bits;   // UEP is different to EEP in that it adds padding bits
 };
 
 constexpr int UEP_PROTECTION_TABLE_SIZE = 64;
@@ -101,11 +101,11 @@ struct EEP_Descriptor {
     // Subchannel capacity is a multiple of a constant
     // CU = K*n, where K is provided by protection profile
     // n = An integer constant that is used for various calculations for the protection profile
-    const uint16_t capacity_unit_multiple;  
-    const EEP_Lx_Equation Lx[2];
-    const uint8_t PIx[2];
+    uint16_t capacity_unit_multiple;  
+    EEP_Lx_Equation Lx[2];
+    uint8_t PIx[2];
     // bitrate is an multiple of the integer constant n
-    const uint8_t bitrate_multiple;
+    uint8_t bitrate_multiple;
 }; 
 
 constexpr int EEP_PROTECTION_TABLE_SIZE = 4;

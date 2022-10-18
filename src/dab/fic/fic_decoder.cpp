@@ -2,7 +2,6 @@
 
 #include "../algorithms/viterbi_decoder.h"
 #include "../algorithms/additive_scrambler.h"
-// #include "../algorithms/CRC.h"
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
 
@@ -65,6 +64,9 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
     int curr_decoded_bit = 0;
 
     ViterbiDecoder::DecodeResult res;
+
+    auto PI_16 = GetPunctureCode(16);
+    auto PI_15 = GetPunctureCode(15);
 
     vitdec->Reset();
     res = vitdec->Decode(
