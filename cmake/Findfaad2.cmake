@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.10)
 project(faad2)
 
 set(FAAD_SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/libfaad)
+set(FAAD_HEADER_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/include)
 
+# win32_ver.h is required to set the package version string
 configure_file(cmake/faad2_win32_ver.h.in ${FAAD_SRC_DIR}/win32_ver.h)
 
 add_library(faad2 SHARED
@@ -105,5 +107,6 @@ add_library(faad2 SHARED
     ${FAAD_SRC_DIR}/codebook/hcb_11.h
     ${FAAD_SRC_DIR}/codebook/hcb_sf.h)
 
-include_directories(faad2 PUBLIC ${FAAD_SRC_DIR})
+include_directories(faad2 PRIVATE ${FAAD_SRC_DIR})
+include_directories(faad2 PUBLIC ${FAAD_HEADER_DIR})
 set_target_properties(faad2 PROPERTIES CXX_STANDARD 17)
