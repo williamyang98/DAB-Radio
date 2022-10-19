@@ -35,7 +35,8 @@ add_library(dab_core STATIC
     ${DAB_CORE_DIR}/msc/msc_decoder.cpp
     ${DAB_CORE_DIR}/msc/cif_deinterleaver.cpp
     ${DAB_CORE_DIR}/audio/aac_frame_processor.cpp
-    ${DAB_CORE_DIR}/audio/aac_decoder.cpp)
+    ${DAB_CORE_DIR}/audio/aac_decoder.cpp
+    ${DAB_CORE_DIR}/audio/win32_pcm_player.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2)
