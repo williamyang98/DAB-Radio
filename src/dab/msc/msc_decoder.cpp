@@ -13,13 +13,13 @@
 #define PRINT_LOG_ERROR 1
 
 #if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[fp] " fmt, ##__VA_ARGS__)
+    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[msc] " fmt, ##__VA_ARGS__)
 #else
     #define LOG_MESSAGE(...) (void)0
 #endif
 
 #if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [fp] " fmt, ##__VA_ARGS__)
+    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [msc] " fmt, ##__VA_ARGS__)
 #else
     #define LOG_ERROR(...)   (void)0
 #endif
@@ -112,7 +112,8 @@ int MSC_Decoder::DecodeEEP() {
     ViterbiDecoder::DecodeResult res;
 
     vitdec->Reset();
-    for (int i = 0; i < 2; i++) {
+    const int TOTAL_PUNCTURE_CODES = 2;
+    for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
         const int Lx = descriptor.Lx[i].GetLx(n);
         const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
         VITDEC_RUN(128*Lx, puncture_code, 32, false);
@@ -151,6 +152,7 @@ int MSC_Decoder::DecodeEEP() {
     return nb_decoded_bytes;
 }
 
+// TODO: We don't have any samples to test if UEP decoding works
 int MSC_Decoder::DecodeUEP() {
     const auto descriptor = UEP_PROTECTION_TABLE[subchannel.uep_prot_index]; 
 

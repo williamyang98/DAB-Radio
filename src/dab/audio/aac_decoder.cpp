@@ -4,6 +4,24 @@
 #include <neaacdec.h>
 #include <stdio.h>
 
+#include "pcm_player.h"
+#include "win32_pcm_player.h"
+
+#define PRINT_LOG_MESSAGE 1
+#define PRINT_LOG_ERROR 1
+
+#if PRINT_LOG_MESSAGE
+    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[aac] " fmt, ##__VA_ARGS__)
+#else
+    #define LOG_MESSAGE(...) (void)0
+#endif
+
+#if PRINT_LOG_ERROR
+    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [aac] " fmt, ##__VA_ARGS__)
+#else
+    #define LOG_ERROR(...)   (void)0
+#endif
+
 // Push bits into a buffer
 class BitPusherHelper 
 {
@@ -249,14 +267,16 @@ AAC_Decoder::AAC_Decoder(
 }
 
 AAC_Decoder::~AAC_Decoder() {
+    NeAACDecClose(decoder_handle);
     delete [] mp4_bitfile_config;
     delete decoder_frame_info;
-    NeAACDecClose(decoder_handle);
 }
+
+static PCM_Player* pcm_player = new Win32_PCM_Player();
 
 int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     auto audio_data = (uint8_t*)NeAACDecDecode(decoder_handle, decoder_frame_info, data, N);
-    fprintf(stderr, "[aac] aac_decoder_error=%u\n", decoder_frame_info->error);
+    LOG_MESSAGE("aac_decoder_error=%u\n", decoder_frame_info->error);
 
 	// abort, if no output at all
     const int error_code = decoder_frame_info->error;
@@ -267,12 +287,17 @@ int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     }
 
 	if (nb_consumed_bytes != N) {
-        fprintf(stderr, "[aac] aac_decoder didn't consume all bytes\n");
+        LOG_ERROR("aac_decoder didn't consume all bytes (%d/%d)\n", nb_consumed_bytes, N);
         return 1;
     }
     
     const int nb_output_bytes = decoder_frame_info->samples * sizeof(uint16_t);
-    fwrite(audio_data, sizeof(uint8_t), nb_output_bytes, stdout);
+    // fwrite(audio_data, sizeof(uint8_t), nb_output_bytes, stdout);
+    auto params = pcm_player->GetParameters();
+    params.sample_rate = sampling_frequency;
+    pcm_player->SetParameters(params);
+    pcm_player->ConsumeBuffer(audio_data, nb_output_bytes);
+    LOG_MESSAGE("Outputed %d samples @ %d bytes to audio\n", nb_samples, nb_output_bytes);
 
 	return error_code;
 }

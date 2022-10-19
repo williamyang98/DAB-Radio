@@ -5,6 +5,25 @@
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
 
+#define PRINT_LOG_MESSAGE 1
+#define PRINT_LOG_ERROR 1
+
+#if PRINT_LOG_MESSAGE || PRINT_LOG_ERROR
+#include <stdio.h>
+#endif
+
+#if PRINT_LOG_MESSAGE
+    #define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[fic] " fmt, ##__VA_ARGS__)
+#else
+    #define LOG_MESSAGE(...) (void)0
+#endif
+
+#if PRINT_LOG_ERROR
+    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [fic] " fmt, ##__VA_ARGS__)
+#else
+    #define LOG_ERROR(...)   (void)0
+#endif
+
 FIC_Decoder::FIC_Decoder()
 {
     {
@@ -39,6 +58,7 @@ FIC_Decoder::~FIC_Decoder() {
     delete scrambler;
 }
 
+// Each group contains 3 fibs (fast information blocks)
 void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_index) {
     const int nb_encoded_bytes = 288;
     const int nb_encoded_bits = nb_encoded_bytes*8;
@@ -98,10 +118,10 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
 
     const uint32_t error = vitdec->GetPathError();
 
-    // LOG_MESSAGE("encoded:  %d/%d\n", curr_encoded_bit, nb_encoded_bits);
-    // LOG_MESSAGE("decoded:  %d/%d\n", curr_decoded_bit, nb_decoded_bits);
-    // LOG_MESSAGE("puncture: %d\n", curr_puncture_bit);
-    // LOG_MESSAGE("error:    %d\n", error);
+    LOG_MESSAGE("encoded:  %d/%d\n", curr_encoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("decoded:  %d/%d\n", curr_decoded_bit, nb_decoded_bits);
+    LOG_MESSAGE("puncture: %d\n", curr_puncture_bit);
+    LOG_MESSAGE("error:    %d\n", error);
 
     // pack into bytes for further processing
     // NOTE: we are placing the bits in reversed order for correct bit order
@@ -125,7 +145,7 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
     const int nb_fibs = 3;
     const int nb_fib_bytes = nb_decoded_bytes/nb_fibs;
     const int nb_data_bytes = nb_fib_bytes-2;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < nb_fibs; i++) {
         auto* fib_buf = &decoded_bytes[i*nb_fib_bytes];
 
         uint16_t crc16_rx = 0u;
@@ -134,14 +154,9 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
 
         const uint16_t crc16_pred = crc16_calc->Process(fib_buf, nb_data_bytes);
         const bool is_valid = crc16_rx == crc16_pred;
-        // LOG_MESSAGE("%04x/%04x (%d)\n", crc16_rx, crc16_pred, is_valid);
+        LOG_MESSAGE("crc16: fib=%d pred=%04X got=%04X\n", i, crc16_pred, crc16_rx);
         if (is_valid && callback) {
-            // LOG_MESSAGE("[%d] FIG group start (%d)\n", cif_index, i);
-            // fprintf(stderr, "crc16: pred=%04X got=%04X\n", crc16_pred, crc16_rx);
             callback->OnDecodeFIBGroup(fib_buf, nb_fib_bytes, cif_index);
-        } else {
-            // fprintf(stderr, "crc16: pred=%04X got=%04X\n", crc16_pred, crc16_rx);
-        }
+        }    
     }
-
 }
