@@ -3,3 +3,5 @@ build/
 data/
 imgui.ini
 *.ini
+*.log
+*.txt

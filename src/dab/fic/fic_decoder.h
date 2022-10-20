@@ -22,6 +22,14 @@ private:
     AdditiveScrambler* scrambler;
     CRC_Calculator<uint16_t>* crc16_calc;
     Callback* callback = NULL;
+    uint8_t* encoded_bits;
+    uint8_t* decoded_bits;
+    uint8_t* decoded_bytes;
+
+    const int nb_encoded_bytes;
+    const int nb_encoded_bits;
+    const int nb_decoded_bytes;
+    const int nb_decoded_bits;
 public:
     FIC_Decoder();
     ~FIC_Decoder();

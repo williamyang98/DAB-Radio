@@ -29,6 +29,10 @@
 #include <thread>
 #include <mutex>
 
+#include "easylogging++.h"
+#include "dab/logging.h"
+INITIALIZE_EASYLOGGINGPP
+
 #define PRINT_LOG 1
 #if PRINT_LOG 
   #define LOG_MESSAGE(...) fprintf(stderr, ##__VA_ARGS__)
@@ -204,7 +208,7 @@ public:
         }
     }
     virtual void OnDecodeFIBGroup(const uint8_t* buf, const int N, const int cif_index) {
-        fig_processor->ProcessFIG(buf, cif_index);
+        fig_processor->ProcessFIG(buf);
     }
 };
 
@@ -259,7 +263,19 @@ int main(int argc, char** argv) {
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
 
-    const int N = 28800;
+    auto dab_loggers = RegisterLogging();
+
+    el::Configurations defaultConf;
+    defaultConf.setToDefault();
+    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, "true");
+    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, "true");
+    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "false");
+    el::Loggers::reconfigureAllLoggers(defaultConf);
+
+    // Number of bytes per OFDM frame in transmission mode I
+    // NOTE: we are hard coding this because all other transmission modes have been deprecated
+    const int N = 75*1536*2/8;
     auto buf = new uint8_t[N];
     auto app = App();
     bool is_running = true;

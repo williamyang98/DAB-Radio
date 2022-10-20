@@ -4,16 +4,11 @@
 
 #include "aac_decoder.h"
 
-#include <stdio.h>
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#define PRINT_LOG 1
-#if PRINT_LOG 
-  #define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[aac] " fmt, ##__VA_ARGS__)
-  #define LOG_ERROR(fmt, ...)   fprintf(stderr, "ERROR: [aac] " fmt, ##__VA_ARGS__)
-#else
-  #define LOG_MESSAGE(...) (void)0
-  #define LOG_ERROR(...) (void)0
-#endif
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(##__VA_ARGS__)
 
 #define MAX_SUPER_FRAME_SIZE 10000
 
@@ -125,6 +120,8 @@ bool AAC_Frame_Processor::CalculateFirecode(const uint8_t* buf, const int N) {
     const uint16_t crc_rx = (buf[0] << 8) | buf[1];
     const uint16_t crc_pred = firecode_crc_calc->Process(crc_data, nb_crc_bytes);
     const bool is_valid = (crc_rx == crc_pred);
+    LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}",
+        is_valid, crc_rx, crc_pred);
     return is_valid;
 }
 
@@ -149,7 +146,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
             rs_encoded[j] = super_frame_buf[i + j*N];
         }
         const int corr_count = rs_decoder.Decode(rs_encoded, corr_pos, 0);
-        LOG_MESSAGE("[RS decoder] index=%d corr_count=%d\n", i, corr_count);
+        LOG_MESSAGE("[reed-solomon] index={} corr_count={}", i, corr_count);
         if (corr_count < 0) {
             LOG_ERROR("Too many errors for reed solomon to correct\n");
             return;
@@ -179,22 +176,22 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     const uint32_t sampling_rate = dac_rate ? 48000 : 32000;
     const bool is_stereo = aac_channel_mode;
 
-    LOG_MESSAGE("sampling_rate=%u\n", sampling_rate);
-    LOG_MESSAGE("sbr=%u\n", sbr_flag);
-    LOG_MESSAGE("ps=%u\n", ps_flag);
-    LOG_MESSAGE("is_stereo=%u\n", is_stereo);
+    LOG_MESSAGE("sampling_rate={} Hz", sampling_rate);
+    LOG_MESSAGE("sbr={}", sbr_flag);
+    LOG_MESSAGE("ps={}", ps_flag);
+    LOG_MESSAGE("is_stereo={}", is_stereo);
     switch (mpeg_config) {
     case 0b000:
-        LOG_MESSAGE("MPEG surround is not used\n");
+        LOG_MESSAGE("MPEG surround is not used");
         break;
     case 0b001:
-        LOG_MESSAGE("MPEG surround with 5.1 output channels is used\n");
+        LOG_MESSAGE("MPEG surround with 5.1 output channels is used");
         break;
     case 0b111:
-        LOG_MESSAGE("MPEG surround in other mode\n");
+        LOG_MESSAGE("MPEG surround in other mode");
         break;
     default:
-        LOG_MESSAGE("MPEG surround is RFA\n");
+        LOG_MESSAGE("MPEG surround is RFA");
         break;
     }
 
@@ -241,7 +238,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
         const uint16_t crc_pred = access_unit_crc_calc->Process(au_buf, nb_data_bytes);
         const bool is_crc_valid = (crc_pred == crc_rx);
-        LOG_MESSAGE("au[%d]: crc_match=%u, crc_pred=%04X, crc_rx=%04X\n", i, is_crc_valid, crc_pred, crc_rx);
+        LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 
         if (!is_crc_valid) {
             continue;
@@ -249,7 +246,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
         const int aac_error_code = aac_decoder->DecodeFrame(au_buf, nb_data_bytes);
         if (aac_error_code > 0) {
-            LOG_ERROR("Decoder failed due to %d\n", aac_error_code);
+            LOG_ERROR("aac_decoder_error={}", aac_error_code);
         }
     }
 }

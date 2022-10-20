@@ -4,20 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define PRINT_LOG_MESSAGE 1
-#define PRINT_LOG_ERROR 1
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[fp] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_MESSAGE(...) (void)0
-#endif
-
-#if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [fp] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_ERROR(...)   (void)0
-#endif
+#define LOG_MESSAGE(...) CLOG(INFO, "fig-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "fig-processor") << fmt::format(##__VA_ARGS__)
 
 struct ServiceIdentifier {
     uint8_t country_id = 0;
@@ -59,7 +50,7 @@ struct EnsembleIdentifier {
     }
 };
 
-void FIG_Processor::ProcessFIG(const uint8_t* buf, const int cif_index) {
+void FIG_Processor::ProcessFIG(const uint8_t* buf) {
     // Dont do anything if we don't have an associated handler
     if (handler == NULL) {
         return;
@@ -84,32 +75,30 @@ void FIG_Processor::ProcessFIG(const uint8_t* buf, const int cif_index) {
         const uint8_t fig_length_bytes = fig_data_length_bytes+1;
 
         if (fig_length_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig specified length overflows buffer (%d/%d)\n",
-                cif_index, fig_length_bytes, nb_remain_bytes);
+            LOG_ERROR("fig specified length overflows buffer ({}/{})",
+                fig_length_bytes, nb_remain_bytes);
             return;
         }
 
         const uint8_t* fig_buf = &buf[curr_byte+1];
         curr_byte += fig_length_bytes;
 
-        // LOG_MESSAGE("[%d] FIG type start (%d)\n", cif_index, curr_fig++);
-
         switch (fig_type) {
         // MCI and part of SI
         case 0:
-            ProcessFIG_Type_0(fig_buf, fig_data_length_bytes, cif_index);
+            ProcessFIG_Type_0(fig_buf, fig_data_length_bytes);
             break;
         // Labels etc. part of SI
         case 1:
-            ProcessFIG_Type_1(fig_buf, fig_data_length_bytes, cif_index);
+            ProcessFIG_Type_1(fig_buf, fig_data_length_bytes);
             break;
         // Labels etc. part of SI
         case 2:
-            ProcessFIG_Type_2(fig_buf, fig_data_length_bytes, cif_index);
+            ProcessFIG_Type_2(fig_buf, fig_data_length_bytes);
             break;
         // Conditional access
         case 6:
-            ProcessFIG_Type_6(fig_buf, fig_data_length_bytes, cif_index);
+            ProcessFIG_Type_6(fig_buf, fig_data_length_bytes);
             break;
         // Ending byte of the FIG packet
         // If data occupying all 30 bytes, no delimiter present
@@ -122,13 +111,13 @@ void FIG_Processor::ProcessFIG(const uint8_t* buf, const int cif_index) {
         case 4:
         case 5:
         default:
-            LOG_ERROR("Invalid fig type (%d)\n", fig_type);
+            LOG_ERROR("Invalid fig type ({})", fig_type);
             return;
         }
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N, const int cif_index) {
+void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N) {
     const uint8_t descriptor = buf[0];
 
     FIG_Header_Type_0 header;
@@ -141,33 +130,31 @@ void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N, const
     const uint8_t* field_buf = &buf[1];
     const uint8_t nb_field_bytes = N-1;
 
-    // LOG_MESSAGE("fig 0/%d L=%d\n", extension, nb_field_bytes);
-
     switch (extension) {
-    case 0 : ProcessFIG_Type_0_Ext_0 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 1 : ProcessFIG_Type_0_Ext_1 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 2 : ProcessFIG_Type_0_Ext_2 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 3 : ProcessFIG_Type_0_Ext_3 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 4 : ProcessFIG_Type_0_Ext_4 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 5 : ProcessFIG_Type_0_Ext_5 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 6 : ProcessFIG_Type_0_Ext_6 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 7 : ProcessFIG_Type_0_Ext_7 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 8 : ProcessFIG_Type_0_Ext_8 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 9 : ProcessFIG_Type_0_Ext_9 (header, field_buf, nb_field_bytes, cif_index); break;
-    case 10: ProcessFIG_Type_0_Ext_10(header, field_buf, nb_field_bytes, cif_index); break;
-    case 13: ProcessFIG_Type_0_Ext_13(header, field_buf, nb_field_bytes, cif_index); break;
-    case 14: ProcessFIG_Type_0_Ext_14(header, field_buf, nb_field_bytes, cif_index); break;
-    case 17: ProcessFIG_Type_0_Ext_17(header, field_buf, nb_field_bytes, cif_index); break;
-    case 21: ProcessFIG_Type_0_Ext_21(header, field_buf, nb_field_bytes, cif_index); break;
-    case 24: ProcessFIG_Type_0_Ext_24(header, field_buf, nb_field_bytes, cif_index); break;
+    case 0 : ProcessFIG_Type_0_Ext_0 (header, field_buf, nb_field_bytes); break;
+    case 1 : ProcessFIG_Type_0_Ext_1 (header, field_buf, nb_field_bytes); break;
+    case 2 : ProcessFIG_Type_0_Ext_2 (header, field_buf, nb_field_bytes); break;
+    case 3 : ProcessFIG_Type_0_Ext_3 (header, field_buf, nb_field_bytes); break;
+    case 4 : ProcessFIG_Type_0_Ext_4 (header, field_buf, nb_field_bytes); break;
+    case 5 : ProcessFIG_Type_0_Ext_5 (header, field_buf, nb_field_bytes); break;
+    case 6 : ProcessFIG_Type_0_Ext_6 (header, field_buf, nb_field_bytes); break;
+    case 7 : ProcessFIG_Type_0_Ext_7 (header, field_buf, nb_field_bytes); break;
+    case 8 : ProcessFIG_Type_0_Ext_8 (header, field_buf, nb_field_bytes); break;
+    case 9 : ProcessFIG_Type_0_Ext_9 (header, field_buf, nb_field_bytes); break;
+    case 10: ProcessFIG_Type_0_Ext_10(header, field_buf, nb_field_bytes); break;
+    case 13: ProcessFIG_Type_0_Ext_13(header, field_buf, nb_field_bytes); break;
+    case 14: ProcessFIG_Type_0_Ext_14(header, field_buf, nb_field_bytes); break;
+    case 17: ProcessFIG_Type_0_Ext_17(header, field_buf, nb_field_bytes); break;
+    case 21: ProcessFIG_Type_0_Ext_21(header, field_buf, nb_field_bytes); break;
+    case 24: ProcessFIG_Type_0_Ext_24(header, field_buf, nb_field_bytes); break;
     default:
-        LOG_MESSAGE("[%d] fig 0/%u Unsupported\n", 
-            cif_index, extension);
+        LOG_MESSAGE("fig 0/{} Unsupported", 
+            extension);
         break;
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N, const int cif_index) {
+void FIG_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N) {
     const uint8_t descriptor = buf[0];
 
     FIG_Header_Type_1 header;
@@ -179,17 +166,17 @@ void FIG_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N, const
     const uint8_t nb_field_bytes = N-1;
 
     switch (extension) {
-    case 0: ProcessFIG_Type_1_Ext_0(header, field_buf, nb_field_bytes, cif_index); break;
-    case 1: ProcessFIG_Type_1_Ext_1(header, field_buf, nb_field_bytes, cif_index); break;
-    case 4: ProcessFIG_Type_1_Ext_4(header, field_buf, nb_field_bytes, cif_index); break;
-    case 5: ProcessFIG_Type_1_Ext_5(header, field_buf, nb_field_bytes, cif_index); break;
+    case 0: ProcessFIG_Type_1_Ext_0(header, field_buf, nb_field_bytes); break;
+    case 1: ProcessFIG_Type_1_Ext_1(header, field_buf, nb_field_bytes); break;
+    case 4: ProcessFIG_Type_1_Ext_4(header, field_buf, nb_field_bytes); break;
+    case 5: ProcessFIG_Type_1_Ext_5(header, field_buf, nb_field_bytes); break;
     default:
-        LOG_MESSAGE("[%d] fig 1/%u L=%u Unsupported\n", cif_index, extension, nb_field_bytes);
+        LOG_MESSAGE("fig 1/{} L={} Unsupported", extension, nb_field_bytes);
         break;
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N, const int cif_index)
+void FIG_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N)
 {
     const uint8_t descriptor = buf[0];
 
@@ -202,10 +189,10 @@ void FIG_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N, const
     const uint8_t* field_buf = &buf[1];
     const uint8_t nb_field_bytes = N-1;
 
-    LOG_MESSAGE("[%d] fig 2/%u L=%u Unsupported\n", cif_index, extension, nb_field_bytes);
+    LOG_MESSAGE("fig 2/{} L={} Unsupported", extension, nb_field_bytes);
 }
 
-void FIG_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N, const int cif_index)
+void FIG_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N)
 {
     const uint8_t descriptor = buf[0];
 
@@ -216,18 +203,18 @@ void FIG_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N, const
     const uint8_t lef               = (descriptor & 0b00001000) >> 3;
     const uint8_t short_CA_sys_id   = (descriptor & 0b00000111) >> 0;
 
-    LOG_MESSAGE("fig 6 L=%d Unsupported\n", N);
+    LOG_MESSAGE("fig 6 L={} Unsupported", N);
 }
 
 // Ensemble information
 void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_field_bytes = 4;
     if (N != nb_field_bytes) {
-        LOG_ERROR("[%d] fig 0/0 Length doesn't match expectations (%d/%d)\n",
-            cif_index, nb_field_bytes, N);
+        LOG_ERROR("fig 0/0 Length doesn't match expectations ({}/{})",
+            nb_field_bytes, N);
         return;
     }
 
@@ -249,14 +236,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     //                              (buf[4] & 0b11111111) >> 0;
     const uint8_t occurance_change = 0x00;
 
-    LOG_MESSAGE("[%d] fig 0/0 country_id=%u ensemble_ref=%u change=%u alarm=%u cif=%u|%u\n",
-        cif_index,
+    LOG_MESSAGE("fig 0/0 country_id={} ensemble_ref={} change={} alarm={} cif={}|{}",
         eid.country_id, eid.ensemble_reference,
         change_flags, alarm_flag,
         cif_upper, cif_lower);
     
     handler->OnEnsemble_1_ID(
-        cif_index, 
         eid.country_id, eid.ensemble_reference,
         change_flags, alarm_flag, 
         cif_upper, cif_lower);
@@ -265,7 +250,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
 // Subchannel for stream mode MSC
 void FIG_Processor::ProcessFIG_Type_0_Ext_1(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index) 
+    const uint8_t* buf, const uint8_t N) 
 {
     int curr_byte = 0;
     int curr_subchannel = 0;
@@ -275,7 +260,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
 
         // Minimum length of header
         if (nb_remain < 3) {
-            LOG_ERROR("[%d] fig 0/1 Ended early for some reason (%d)\n", cif_index, curr_byte);
+            LOG_ERROR("fig 0/1 Ended early for some reason ({})", curr_byte);
             break;
         }
         
@@ -287,7 +272,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
         const uint8_t is_long_form = (data[2] & 0b10000000) >> 7;
         const uint8_t nb_data_bytes = is_long_form ? 4 : 3;
         if (nb_data_bytes > nb_remain) {
-            LOG_ERROR("[%d] fig 0/1 Long field cannot fit in remaining length\n", cif_index);
+            LOG_ERROR("fig 0/1 Long field cannot fit in remaining length");
             break;
         }
 
@@ -297,14 +282,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
             const uint8_t table_switch = (data[2] & 0b01000000) >> 6;
             const uint8_t table_index  = (data[2] & 0b00111111) >> 0;
 
-            LOG_MESSAGE("[%d] fig 0/1 i=%d subchannel_id=%-2u start_addr=%-3u long=%u table_switch=%u table_index=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/1 i={} subchannel_id={:>2} start_addr={:>3} long={} table_switch={} table_index={}",
                 curr_subchannel,
                 subchannel_id, start_address, is_long_form,
                 table_switch, table_index);
 
             handler->OnSubchannel_1_Short(
-                cif_index,
                 subchannel_id, start_address,
                 table_switch, table_index);
         // process long form
@@ -316,14 +299,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
                    (static_cast<uint16_t>(data[2] & 0b00000011) << 8) |
                                         ((data[3] & 0b11111111) >> 0);
 
-            LOG_MESSAGE("[%d] fig 0/1 i=%d subchannel_id=%-2u start_addr=%-3u long=%u option=%u prot_level=%u subchannel_size=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/1 i={} subchannel_id={:>2} start_addr={:>3} long={} option={} prot_level={} subchannel_size={}",
                 curr_subchannel,
                 subchannel_id, start_address, is_long_form,
                 option, prot_level, subchannel_size);
 
             handler->OnSubchannel_1_Long(
-                cif_index,
                 subchannel_id, start_address,
                 option, prot_level, subchannel_size);
         }
@@ -335,7 +316,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
 // Service and service components information in stream mode
 void FIG_Processor::ProcessFIG_Type_0_Ext_2(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -349,8 +330,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
         const int nb_remain_bytes = N-curr_index;
 
         if (nb_header_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/2 Message not long enough header field for service data\n",
-                cif_index);
+            LOG_ERROR("fig 0/2 Message not long enough header field for service data");
             return;
         }
 
@@ -371,7 +351,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
         const int nb_length_bytes = nb_service_component_bytes*nb_service_components + nb_header_bytes;
 
         if (nb_length_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/2 Message not long enough for service components\n", cif_index);
+            LOG_ERROR("fig 0/2 Message not long enough for service components");
             return;
         }
 
@@ -397,15 +377,14 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                     const uint8_t subchannel_id = (b1 & 0b11111100) >> 2;
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("[%d] fig 0/2 pd=%u country_id=%-2u service_ref=%-4u ecc=%u i=%d-%d/%d tmid=%u ASTCy=%u subchannel_id=%-2u ps=%u ca=%u\n",
-                        cif_index, header.pd,
+                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} ASTCy={} subchannel_id={:>2} ps={} ca={}",
+                        header.pd,
                         sid.country_id, sid.service_reference, sid.ecc,
                         curr_service, i, nb_service_components,
                         tmid, 
                         ASTCy, subchannel_id, is_primary, ca_flag);
                     
                     handler->OnServiceComponent_1_StreamAudioType(
-                        cif_index,
                         sid.country_id, sid.service_reference, sid.ecc,
                         subchannel_id, ASTCy, is_primary);
                 }
@@ -417,15 +396,14 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                     const uint8_t subchannel_id = (b1 & 0b11111100) >> 2;
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("[%d] fig 0/2 pd=%u country_id=%-2u service_ref=%-4u ecc=%u i=%d-%d/%d tmid=%u DSTCy=%u subchannel_id=%-2u ps=%u ca=%u\n",
-                        cif_index, header.pd,
+                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} DSTCy={} subchannel_id={:>2} ps={} ca={}",
+                        header.pd,
                         sid.country_id, sid.service_reference, sid.ecc,
                         curr_service, i, nb_service_components,
                         tmid, 
                         DSCTy, subchannel_id, is_primary, ca_flag);
                     
                     handler->OnServiceComponent_1_StreamDataType(
-                        cif_index,
                         sid.country_id, sid.service_reference, sid.ecc,
                         subchannel_id, DSCTy, is_primary);
                 }
@@ -439,21 +417,20 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                                                 ((b1 & 0b11111100) >> 2);
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("[%d] fig 0/2 pd=%u country_id=%-2u service_ref=%-4u ecc=%u i=%d-%d/%d tmid=%u SCId=%u ps=%u ca=%u\n",
-                        cif_index, header.pd,
+                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} SCId={} ps={} ca={}",
+                        header.pd,
                         sid.country_id, sid.service_reference, sid.ecc,
                         curr_service, i, nb_service_components,
                         tmid, 
                         SCId, is_primary, ca_flag);
 
                     handler->OnServiceComponent_1_PacketDataType(
-                        cif_index,
                         sid.country_id, sid.service_reference, sid.ecc,
                         SCId, is_primary);
                 }
                 break;
             default:
-                LOG_ERROR("[%d] fig 0/2 reserved tmid=%d\n", cif_index, tmid);
+                LOG_ERROR("fig 0/2 reserved tmid={}", tmid);
                 return;
             }
         }
@@ -467,7 +444,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
 // Service components information in packet mode
 void FIG_Processor::ProcessFIG_Type_0_Ext_3(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_header_bytes = 5;
     const int nb_CAOrg_field_bytes = 2;
@@ -477,8 +454,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
     while (curr_byte < N) {
         const int nb_bytes_remain = N-curr_byte;
         if (nb_header_bytes > nb_bytes_remain) {
-            LOG_ERROR("[%d] fig 0/3 Insufficient length for header (%d/%d)\n",
-                cif_index, nb_header_bytes, nb_bytes_remain);
+            LOG_ERROR("fig 0/3 Insufficient length for header ({}/{})",
+                nb_header_bytes, nb_bytes_remain);
             return;
         }
 
@@ -501,8 +478,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
         const int nb_data_length = CAOrg_flag ? (nb_header_bytes+nb_CAOrg_field_bytes) : nb_header_bytes;
 
         if (nb_data_length > nb_bytes_remain) {
-            LOG_ERROR("[%d] fig 0/3 Insufficient length for CAOrg field (%d/%d)\n",
-                cif_index, nb_data_length, nb_bytes_remain);
+            LOG_ERROR("fig 0/3 Insufficient length for CAOrg field ({}/{})",
+                nb_data_length, nb_bytes_remain);
             return;
         }
 
@@ -513,14 +490,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
                                      ((v[1] & 0b11111111) >> 0);
         }
 
-        LOG_MESSAGE("[%d] fig 0/3 i=%d SCId=%u rfa=%u CAOrg=%u dg=%u rfu=%u DSCTy=%u subchannel_id=%u packet_address=%u CAOrg=%u\n", 
-            cif_index,
+        LOG_MESSAGE("fig 0/3 i={} SCId={} rfa={} CAOrg={} dg={} rfu={} DSCTy={} subchannel_id={} packet_address={} CAOrg={}", 
             curr_component,
             SCId, rfa, CAOrg_flag, dg_flag, rfu, DSCTy, 
             subchannel_id, packet_address, CAOrg);
         
         handler->OnServiceComponent_2_PacketDataType(
-            cif_index,
             SCId, subchannel_id, DSCTy, packet_address);
         
         curr_byte += nb_data_length;
@@ -531,12 +506,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
 // Service components information in stream mode with conditional access
 void FIG_Processor::ProcessFIG_Type_0_Ext_4(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_component_bytes = 3;
     if ((N % nb_component_bytes) != 0) {
-        LOG_ERROR("[%d] fig 0/4 Field must be a multiple of %d bytes\n", 
-            cif_index, nb_component_bytes);
+        LOG_ERROR("fig 0/4 Field must be a multiple of {} bytes", 
+            nb_component_bytes);
         return;
     }
 
@@ -549,13 +524,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_4(
         const uint16_t CAOrg =
                 (static_cast<uint16_t>(b[1] & 0b11111111) << 8) |
                                      ((b[2] & 0b11111111) >> 0);
-        LOG_MESSAGE("[%d] fig 0/4 i=%d/%d rfa=%u rfu=%u subchannel_id=%u CAOrg=%u\n",
-            cif_index,
+        LOG_MESSAGE("fig 0/4 i={}/{} rfa={} rfu={} subchannel_id={} CAOrg={}",
             i, nb_components,
             rfa, rfu, subchannel_id, CAOrg);
         
         handler->OnServiceComponent_2_StreamConditionalAccess(
-            cif_index,
             subchannel_id, CAOrg);
     }
 }
@@ -563,7 +536,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_4(
 // Service component language 
 void FIG_Processor::ProcessFIG_Type_0_Ext_5(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     int curr_byte = 0;
     while (curr_byte < N) {
@@ -575,8 +548,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
         const int nb_length_bytes = LS ? 3 : 2;
 
         if (nb_length_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/5 LS=%u Insufficient length for contents (%d/%d)\n",
-                cif_index, 
+            LOG_ERROR("fig 0/5 LS={} Insufficient length for contents ({}/{})",
                 LS, 
                 nb_length_bytes, nb_remain_bytes);
             return;
@@ -587,13 +559,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
             const uint8_t Rfu =             (b[0] & 0b01000000) >> 6;
             const uint8_t subchannel_id =   (b[0] & 0b00111111) >> 0;
             const uint8_t language = b[1];
-            LOG_MESSAGE("[%d] fig 0/5 LS=%u Rfu=%u subchannel_id=%-2u language=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/5 LS={} Rfu={} subchannel_id={:>2} language={}",
                 LS, 
                 Rfu, subchannel_id, language);
 
             handler->OnServiceComponent_3_Short_Language(
-                cif_index,
                 subchannel_id, language);
         // long form
         } else {
@@ -602,13 +572,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
                       (static_cast<uint16_t>(b[0] & 0b00001111) << 8) |
                                            ((b[1] & 0b11111111) >> 0);
             const uint8_t language = b[2];
-            LOG_MESSAGE("[%d] fig 0/5 LS=%u Rfa=%u SCId=%u language=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/5 LS={} Rfa={} SCId={} language={}",
                 LS, 
                 Rfa, SCId, language);
 
             handler->OnServiceComponent_3_Long_Language(
-                cif_index,
                 SCId, language); 
         }
 
@@ -619,7 +587,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
 // Service linking information
 void FIG_Processor::ProcessFIG_Type_0_Ext_6(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_header_bytes = 2;
 
@@ -629,8 +597,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 
         // minimum of 16 bits = 2 bytes
         if (nb_remain_bytes < nb_header_bytes) {
-            LOG_ERROR("[%d] fig 0/6 Insufficient length for header (%d/%d)\n",
-                cif_index, nb_header_bytes, nb_remain_bytes);
+            LOG_ERROR("fig 0/6 Insufficient length for header ({}/{})",
+                nb_header_bytes, nb_remain_bytes);
             return;
         }
 
@@ -646,13 +614,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 
         // short data field without id list
         if (!id_list_flag) {
-            LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={}",
                 header.pd,
                 id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number);
             
             handler->OnServiceLinkage_1_LSN_Only(
-                cif_index, 
                 is_active_link, is_hard_link, is_international, 
                 linkage_set_number);
             
@@ -666,8 +632,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
         const int nb_total_header_bytes = nb_header_bytes + nb_list_header_bytes;
 
         if (nb_remain_bytes < nb_total_header_bytes) {
-            LOG_ERROR("[%d] fig 0/6 Insufficient length for long header (%d/%d)\n",
-                cif_index, nb_total_header_bytes, nb_remain_bytes);
+            LOG_ERROR("fig 0/6 Insufficient length for long header ({}/{})",
+                nb_total_header_bytes, nb_remain_bytes);
             return;
         }
 
@@ -678,8 +644,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 
         const int nb_list_remain = nb_remain_bytes-nb_total_header_bytes;
         if (nb_list_remain <= 0) {
-            LOG_ERROR("[%d] fig 0/6 Insufficient length for any list buffer\n",
-                cif_index);
+            LOG_ERROR("fig 0/6 Insufficient length for any list buffer");
             return;
         }
 
@@ -691,8 +656,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
             const int nb_id_bytes = 2;
             const int nb_list_bytes = nb_id_bytes*nb_ids;
             if (nb_list_bytes > nb_list_remain) {
-                LOG_ERROR("[%d] fig 0/6 Insufficient length for type 1 id list (%d/%d)\n",
-                    cif_index, nb_list_bytes, nb_list_remain);
+                LOG_ERROR("fig 0/6 Insufficient length for type 1 id list ({}/{})",
+                    nb_list_bytes, nb_list_remain);
                 return;
             }
 
@@ -705,8 +670,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                     {
                         ServiceIdentifier sid;
                         sid.ProcessShortForm(entry_buf);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=1 i=%d/%d country_id=%u service_ref=%u ecc=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -714,7 +678,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             sid.country_id, sid.service_reference, sid.ecc);
 
                         handler->OnServiceLinkage_1_ServiceID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -725,8 +688,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                         const uint16_t rds_pi_code = 
                             (static_cast<uint16_t>(entry_buf[0]) << 8) |
                                                   (entry_buf[1]  << 0);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=1 i=%d/%d RDS_PI=%04X\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} RDS_PI={:04X}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -734,7 +696,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             rds_pi_code);
                         
                         handler->OnServiceLinkage_1_RDS_PI_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, rds_pi_code);
                     }
@@ -744,8 +705,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                         const uint32_t drm_id = 
                             (static_cast<uint32_t>(entry_buf[0]) << 8) |
                                                   (entry_buf[1]  << 0);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=1 i=%d/%d DRM_id=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} DRM_id={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -753,7 +713,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             drm_id);
                         
                         handler->OnServiceLinkage_1_DRM_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -774,8 +733,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
             const int nb_entry_bytes = 3;
             const int nb_list_bytes = nb_entry_bytes*nb_ids;
             if (nb_list_bytes > nb_list_remain) {
-                LOG_ERROR("[%d] fig 0/6 Insufficient length for type 2 id list (%d/%d)\n",
-                    cif_index, nb_list_bytes, nb_list_remain);
+                LOG_ERROR("fig 0/6 Insufficient length for type 2 id list ({}/{})",
+                    nb_list_bytes, nb_list_remain);
                 return;
             }
 
@@ -790,8 +749,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                         ServiceIdentifier sid;
                         sid.ProcessShortForm(&entry_buf[1]);
                         sid.ecc = ecc;
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=2 i=%d/%d country_id=%u service_ref=%u ecc=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -799,7 +757,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             sid.country_id, sid.service_reference, sid.ecc);
                         
                         handler->OnServiceLinkage_1_ServiceID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number,
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -810,8 +767,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                         const uint16_t rds_pi_code = 
                             (static_cast<uint16_t>(entry_buf[1]) << 8) |
                                                   (entry_buf[2]  << 0);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=2 i=%d/%d RDS_PI=%04X ecc=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} RDS_PI={:04X} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -819,7 +775,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             rds_pi_code, ecc);
                         
                         handler->OnServiceLinkage_1_RDS_PI_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             rds_pi_code, ecc);
@@ -831,8 +786,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             (static_cast<uint32_t>(ecc)          << 16) |
                             (static_cast<uint32_t>(entry_buf[1]) << 8) |
                                                   (entry_buf[2]  << 0);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=2 i=%d/%d DRM_id=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} DRM_id={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -840,7 +794,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             drm_id);
                         
                         handler->OnServiceLinkage_1_DRM_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -860,8 +813,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
             const int nb_entry_bytes = 4;
             const int nb_list_bytes = nb_entry_bytes*nb_ids;
             if (nb_list_bytes > nb_list_remain) {
-                LOG_ERROR("[%d] fig 0/6 Insufficient length for type 3 id list (%d/%d)\n",
-                    cif_index, nb_list_bytes, nb_list_remain);
+                LOG_ERROR("fig 0/6 Insufficient length for type 3 id list ({}/{})",
+                    nb_list_bytes, nb_list_remain);
                 return;
             }
             for (int i = 0; i < nb_ids; i++)  {
@@ -873,8 +826,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                     {
                         ServiceIdentifier sid;
                         sid.ProcessLongForm(entry_buf);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=3 i=%d/%d country_id=%u service_ref=%u ecc=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -882,7 +834,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             sid.country_id, sid.service_reference, sid.ecc);
                         
                         handler->OnServiceLinkage_1_ServiceID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -899,8 +850,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                         const uint16_t rds_pi_code = 
                               (static_cast<uint16_t>(entry_buf[2]) << 8) |
                                                     (entry_buf[3]  << 0);
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=3 i=%d/%d RDS_PI=%08X\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} RDS_PI={:08X}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -908,7 +858,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             rds_pi_code);
                         
                         handler->OnServiceLinkage_1_RDS_PI_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, rds_pi_code);
                     }
@@ -921,8 +870,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             (static_cast<uint32_t>(entry_buf[1]) << 16) |
                             (static_cast<uint32_t>(entry_buf[2]) << 8 ) |
                                                   (entry_buf[3]  << 0 );
-                        LOG_MESSAGE("[%d] fig 0/6 pd=%u ld=%u LA=%u S/H=%u ILS=%u LSN=%u rfu0=%u IdLQ=%u Rfa0=%u type=3 i=%d/%d DRM_id=%u\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} DRM_id={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
@@ -930,7 +878,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             drm_id);
                         
                         handler->OnServiceLinkage_1_DRM_ID(
-                            cif_index,
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -950,12 +897,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 // Configuration information
 void FIG_Processor::ProcessFIG_Type_0_Ext_7(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_data_bytes = 2;
     if (N != nb_data_bytes) {
-        LOG_ERROR("[%d] fig 0/7 Length doesn't match expectations (%d/%d)\n",
-            cif_index, N, nb_data_bytes);
+        LOG_ERROR("fig 0/7 Length doesn't match expectations ({}/{})",
+            N, nb_data_bytes);
         return;
     }
 
@@ -964,19 +911,17 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_7(
           (static_cast<uint16_t>(buf[0] & 0b00000011) << 8) |
                                ((buf[1] & 0b11111111) >> 0);
     
-    LOG_MESSAGE("[%d] fig 0/7 total_services=%u reconfiguration_count=%u\n",
-        cif_index,
+    LOG_MESSAGE("fig 0/7 total_services={} reconfiguration_count={}",
         nb_services, reconfiguration_count);
     
     handler->OnConfigurationInformation_1(
-        cif_index,
         nb_services, reconfiguration_count);
 }
 
 // Service component global definition 
 void FIG_Processor::ProcessFIG_Type_0_Ext_8(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -990,8 +935,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
         const int nb_remain_bytes = N-curr_index;
 
         if ((nb_header_bytes+1) > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/8 Message not long enough for header field (%d)\n",
-                cif_index, nb_remain_bytes);
+            LOG_ERROR("fig 0/8 Message not long enough for header field ({})",
+                nb_remain_bytes);
             return;
         }
 
@@ -1019,8 +964,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
         const uint8_t nb_length_bytes = nb_header_bytes + nb_data_bytes + nb_rfa_byte;
 
         if (nb_length_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/8 Message not long enough for tail data (%d/%d)\n", 
-                cif_index, nb_length_bytes, nb_remain_bytes);
+            LOG_ERROR("fig 0/8 Message not long enough for tail data ({}/{})", 
+                nb_length_bytes, nb_remain_bytes);
             return;
         }
 
@@ -1029,15 +974,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
         if (!ls_flag) {
             const uint8_t rfu0          = (data_buf[0] & 0b01000000) >> 6;
             const uint8_t subchannel_id = (data_buf[0] & 0b00111111) >> 0;
-            LOG_MESSAGE("[%d] fig 0/8 pd=%u country_id=%-2u service_ref=%-4u ecc=%u ext=%u rfa0=%u SCIdS=%u is_long=%u rfu0=%u subchannel_id=%-2u rfa2=%u\n",
-                cif_index, 
+            LOG_MESSAGE("fig 0/8 pd={} country_id={:>2} service_ref={:>4} ecc={} ext={} rfa0={} SCIdS={} is_long={} rfu0={} subchannel_id={:>2} rfa2={}",
                 header.pd, 
                 sid.country_id, sid.service_reference, sid.ecc, 
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfu0, subchannel_id, rfa2);
             
             handler->OnServiceComponent_4_Short_Definition(
-                cif_index,
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, subchannel_id);
         } else {
@@ -1045,15 +988,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
             const uint16_t SCId = 
                     (static_cast<uint16_t>(data_buf[0] & 0b00001111) << 8) |
                                          ((data_buf[1] & 0b11111111) >> 0);
-            LOG_MESSAGE("[%d] fig 0/8 pd=%u country_id=%-2u service_ref=%-4u ecc=%u ext=%u rfa0=%u SCIdS=%u is_long=%u rfa1=%u SCId=%-2u rfa2=%u\n",
-                cif_index, 
+            LOG_MESSAGE("fig 0/8 pd={} country_id={:>2} service_ref={:>4} ecc={} ext={} rfa0={} SCIdS={} is_long={} rfa1={} SCId={:>2} rfa2={}",
                 header.pd, 
                 sid.country_id, sid.service_reference, sid.ecc, 
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfa1, SCId, rfa2);
             
             handler->OnServiceComponent_4_Long_Definition(
-                cif_index,
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, SCId);
         }
@@ -1067,12 +1008,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
 // Country, LTO and International Table
 void FIG_Processor::ProcessFIG_Type_0_Ext_9(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_header_bytes = 3;
     if (nb_header_bytes > N) {
-        LOG_ERROR("[%d] fig 0/9 Insufficient length for header (%d/%d)\n",
-            cif_index, nb_header_bytes, N);
+        LOG_ERROR("fig 0/9 Insufficient length for header ({}/{})",
+            nb_header_bytes, N);
         return;
     }
 
@@ -1093,25 +1034,23 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
     const int nb_ext_bytes = N-nb_header_bytes;
 
     if (ext_flag && (nb_ext_bytes <= 0)) {
-        LOG_ERROR("[%d] fig 0/9 Insufficient length for extended field (%d)\n",
-            cif_index, nb_ext_bytes);
+        LOG_ERROR("fig 0/9 Insufficient length for extended field ({})",
+            nb_ext_bytes);
         return;
     }
 
     if (!ext_flag && (nb_ext_bytes > 0)) {
-        LOG_ERROR("[%d] fig 0/9 Extra bytes unaccounted for no extended fields (%d)\n",
-            cif_index, nb_ext_bytes);
+        LOG_ERROR("fig 0/9 Extra bytes unaccounted for no extended fields ({})",
+            nb_ext_bytes);
         return;
     }
 
     // no extended field
     if (!ext_flag) {
-        LOG_MESSAGE("[%d] fig 0/9 ext=%u Rfa1=%u ensemble_lto=%u ensemble_ecc=%02X inter_table_id=%u\n",
-            cif_index, 
+        LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={:02X} inter_table_id={}",
             ext_flag, Rfa1, ensemble_lto, ensemble_ecc, inter_table_id);
         
         handler->OnEnsemble_2_Country(
-            cif_index, 
             ensemble_lto, ensemble_ecc, inter_table_id);
         return;
     }
@@ -1128,8 +1067,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
     while (curr_byte < nb_ext_bytes) {
         const int nb_ext_remain_bytes = nb_ext_bytes-curr_byte;
         if (nb_subfield_header_bytes > nb_ext_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/9 Insufficient length for subfield header (%d/%d)\n",
-                cif_index, nb_subfield_header_bytes, nb_ext_remain_bytes);
+            LOG_ERROR("fig 0/9 Insufficient length for subfield header ({}/{})",
+                nb_subfield_header_bytes, nb_ext_remain_bytes);
             return;
         }
 
@@ -1142,8 +1081,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
         const int nb_list_bytes = nb_services*nb_service_id_bytes;
 
         if (nb_list_bytes > nb_remain_list_bytes) {
-            LOG_ERROR("[%d] fig 0/9 Insufficient length for service id list (%d/%d)\n",
-                cif_index, nb_list_bytes, nb_remain_list_bytes);
+            LOG_ERROR("fig 0/9 Insufficient length for service id list ({}/{})",
+                nb_list_bytes, nb_remain_list_bytes);
             return;
         }
 
@@ -1153,15 +1092,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
             ServiceIdentifier sid;
             sid.ProcessShortForm(b);
             sid.ecc = service_ecc;
-            LOG_MESSAGE("[%d] fig 0/9 ext=%u Rfa1=%u ensemble_lto=%u ensemble_ecc=%u inter_table_id=%u Rfa2=%u ECC=%u i=%d-%d/%d service_country_id=%u service_ref=%u service_ecc=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={} inter_table_id={} Rfa2={} ECC={} i={}-{}/{} service_country_id={} service_ref={} service_ecc={}",
                 ext_flag, Rfa1, ensemble_lto, ensemble_ecc, inter_table_id,
                 Rfa2, service_ecc, 
                 curr_subfield, i, nb_services,
                 sid.country_id, sid.service_reference, sid.ecc);
             
             handler->OnEnsemble_2_Service_Country(
-                cif_index,
                 ensemble_lto, ensemble_ecc, inter_table_id,
                 sid.country_id, sid.service_reference, sid.ecc);
         }
@@ -1174,12 +1111,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
 // Date and time
 void FIG_Processor::ProcessFIG_Type_0_Ext_10(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_min_bytes = 4;
     if (nb_min_bytes > N) {
-        LOG_ERROR("[%d] fig 0/10 Insufficient length for minimum configuration (%d/%d)\n",
-            cif_index, nb_min_bytes, N);
+        LOG_ERROR("fig 0/10 Insufficient length for minimum configuration ({}/{})",
+            nb_min_bytes, N);
         return;
     }
 
@@ -1194,8 +1131,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
 
     const int nb_actual_bytes = UTC ? 6 : 4;
     if (nb_actual_bytes > N) {
-        LOG_ERROR("[%d] fig 0/10 Insufficient length for long form UTC (%d/%d)\n",
-            cif_index, nb_actual_bytes, N);
+        LOG_ERROR("fig 0/10 Insufficient length for long form UTC ({}/{})",
+            nb_actual_bytes, N);
         return;
     }
 
@@ -1215,15 +1152,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
                                  ((buf[5] & 0b11111111) >> 0);
     }
 
-    LOG_MESSAGE("[%d] fig 0/10 rfu0=%u MJD=%u LSI=%u Rfa0=%u UTC=%u time=%02u:%02u:%02u.%03u\n",
-        cif_index,
+    LOG_MESSAGE("fig 0/10 rfu0={} MJD={} LSI={} Rfa0={} UTC={} time={:02}:{:02}:{:02}.{:03}",
         rfu0, 
         MJD,
         LSI, Rfa0, UTC,
         hours, minutes, seconds, milliseconds);
     
     handler->OnDateTime_1(
-        cif_index,
         MJD, hours, minutes, seconds, milliseconds,
         LSI, UTC);
 }
@@ -1231,7 +1166,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
 // User application information
 void FIG_Processor::ProcessFIG_Type_0_Ext_13(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -1242,8 +1177,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
     while (curr_byte != N) {
         const int nb_remain_bytes = N-curr_byte;
         if (nb_header_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/13 Length not long enough for header data (%d)\n", 
-                cif_index, nb_remain_bytes);
+            LOG_ERROR("fig 0/13 Length not long enough for header data ({})", 
+                nb_remain_bytes);
             return;
         }
 
@@ -1270,8 +1205,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
             auto* app_buf = &apps_buf[curr_apps_buf_index];
 
             if (nb_app_header_bytes > nb_app_remain_bytes) {
-                LOG_ERROR("[%d] fig 0/13 Length not long enough for app header data (%d/%d)\n",
-                    cif_index, nb_app_header_bytes, nb_app_remain_bytes);
+                LOG_ERROR("fig 0/13 Length not long enough for app header data ({}/{})",
+                    nb_app_header_bytes, nb_app_remain_bytes);
                 return;
             }
 
@@ -1284,15 +1219,14 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 
             const uint8_t nb_app_total_bytes = nb_app_header_bytes + nb_app_data_bytes;
             if (nb_app_total_bytes > nb_app_remain_bytes) {
-                LOG_ERROR("[%d] fig 0/13 Length not long enough for app XPAD/user data (%d/%d)\n",
-                    cif_index, nb_app_total_bytes, nb_app_remain_bytes);
+                LOG_ERROR("fig 0/13 Length not long enough for app XPAD/user data ({}/{})",
+                    nb_app_total_bytes, nb_app_remain_bytes);
                 return;
             }
 
             // TODO: process this app data somehow
             // Sometimes it is XPAD data, sometimes it isn't
-            LOG_MESSAGE("[%d] fig 0/13 pd=%u country_id=%-2u service_ref=%-4u ecc=%u SCIdS=%u i=%d-%d/%d app_type=%u L=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/13 pd={} country_id={:>2} service_ref={:>4} ecc={} SCIdS={} i={}-{}/{} app_type={} L={}",
                 header.pd,
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, 
@@ -1301,7 +1235,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 
             auto* app_data_buf = (nb_app_data_bytes > 0) ? &app_buf[nb_app_header_bytes] : NULL;
             handler->OnServiceComponent_5_UserApplication(
-                cif_index,
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, 
                 user_app_type, app_data_buf, nb_app_data_bytes);
@@ -1318,20 +1251,18 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 // Subchannel for packet mode MSC FEC type
 void FIG_Processor::ProcessFIG_Type_0_Ext_14(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
 
     for (int i = 0; i < N; i++) {
         const uint8_t v = buf[i];
         const uint8_t subchannel_id = (v & 0b11111100) >> 2;
         const uint8_t fec           = (v & 0b00000011) >> 0;
-        LOG_MESSAGE("[%d] fig 0/14 i=%d/%d id=%-2d fec=%d\n",
-            cif_index,
+        LOG_MESSAGE("fig 0/14 i={}/{} id={:>2} fec={}",
             i, N,
             subchannel_id, fec);
         
         handler->OnSubchannel_2_FEC(
-            cif_index,
             subchannel_id, fec);
     }
 }
@@ -1339,7 +1270,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_14(
 // Programme type
 void FIG_Processor::ProcessFIG_Type_0_Ext_17(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_min_bytes = 4;
 
@@ -1356,8 +1287,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         auto* b = &buf[curr_byte];
         const int nb_remain_bytes = N-curr_byte;
         if (nb_remain_bytes < nb_min_bytes) {
-            LOG_ERROR("[%d] fig 0/17 Remaining buffer doesn't have minimum bytes (%d/%d)\n",
-                cif_index, nb_min_bytes, nb_remain_bytes);
+            LOG_ERROR("fig 0/17 Remaining buffer doesn't have minimum bytes ({}/{})",
+                nb_min_bytes, nb_remain_bytes);
             return;
         }
 
@@ -1385,8 +1316,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         int data_index = 3;
 
         if (nb_remain_bytes < nb_bytes) {
-            LOG_ERROR("[%d] fig 0/17 Insufficient bytes for langugage (%d) and caption (%d) field (%d/%d)\n",
-                cif_index, 
+            LOG_ERROR("fig 0/17 Insufficient bytes for langugage ({}) and caption ({}) field ({}/{})",
                 language_flag, cc_flag,
                 nb_bytes, nb_remain_bytes);
             return;
@@ -1402,16 +1332,14 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
 
         const uint8_t international_code = (b[data_index++] & 0b00011111) >> 0;
         
-        // LOG_MESSAGE("[%d] fig 0/17 pd=%u country_id=%u service_ref=%-4u ecc=%u i=%d/%d SD=%u Rfa1=%u Rfu1=%u Rfa2=%u Rfu2=%u inter_code=%u\n",
-        //     cif_index,
-        //     header.pd,
+        // LOG_MESSAGE("fig 0/17 pd={} country_id={} service_ref={:>4} ecc={} i={}/{} SD={} Rfa1={} Rfu1={} Rfa2={} Rfu2={} inter_code={}",
+        //     //     header.pd,
         //     sid.country_id, sid.service_reference, sid.ecc,
         //     i, nb_programmes,
         //     SD, Rfa1, Rfu1, Rfa2, Rfu2, 
         //     international_code);
 
-        LOG_MESSAGE("[%d] fig 0/17 pd=%u country_id=%u service_ref=%-4u ecc=%u i=%d SD=%u L_flag=%u cc_flag=%u inter_code=%-2u language=%u CC=%u\n",
-            cif_index,
+        LOG_MESSAGE("fig 0/17 pd={} country_id={} service_ref={:>4} ecc={} i={} SD={} L_flag={} cc_flag={} inter_code={:>2} language={} CC={}",
             header.pd,
             sid.country_id, sid.service_reference, sid.ecc,
             curr_programme,
@@ -1420,7 +1348,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
             language_type, cc_type);
         
         handler->OnService_1_ProgrammeType(
-            cif_index,
             sid.country_id, sid.service_reference, sid.ecc, 
             international_code, language_type, cc_type,
             language_flag, cc_flag);
@@ -1433,7 +1360,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
 // Frequency information
 void FIG_Processor::ProcessFIG_Type_0_Ext_21(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_block_header_bytes = 2;
 
@@ -1446,8 +1373,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
     while (curr_byte < N) {
         const int nb_remain_bytes = N-curr_byte;
         if (nb_block_header_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/21 Insufficient length for block header (%d/%d)\n",
-                cif_index,
+            LOG_ERROR("fig 0/21 Insufficient length for block header ({}/{})",
                 nb_block_header_bytes, nb_remain_bytes);
             return;
         }
@@ -1472,8 +1398,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
         while (curr_fi_byte < nb_fi_list_bytes) {
             const int nb_fi_remain_bytes = nb_fi_list_bytes-curr_fi_byte;
             if (nb_fi_list_header_bytes > nb_fi_remain_bytes) {
-                LOG_ERROR("[%d] fig 0/21 Insufficient length for fi list header (%d/%d)\n",
-                    cif_index,
+                LOG_ERROR("fig 0/21 Insufficient length for fi list header ({}/{})",
                     nb_fi_list_header_bytes, nb_fi_remain_bytes);
                 return;
             }
@@ -1500,8 +1425,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 
                     const uint8_t nb_entry_bytes = 3;
                     if ((nb_freq_list_bytes % nb_entry_bytes) != 0) {
-                        LOG_ERROR("[%d] fig 0/21 Frequency list RM=%u doesn't have a list length that is a multiple (%dmod%d)\n",
-                            cif_index,
+                        LOG_ERROR("fig 0/21 Frequency list RM={} doesn't have a list length that is a multiple ({}{})",
                             RM, nb_freq_list_bytes, nb_entry_bytes);
                         return;
                     }
@@ -1521,8 +1445,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         const bool is_geographically_adjacent = !(control_field & 0b1);
                         const bool is_transmission_mode_I = (control_field & 0b10);
 
-                        LOG_MESSAGE("[%d] fig 0/21 i=%d-%d-%d/%d Rfa0=%u RM=%u is_continuous=%u country_id=%u ensemble_ref=%u is_adjacent=%u is_mode_I=%u freq=%.3fMHz\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} is_continuous={} country_id={} ensemble_ref={} is_adjacent={} is_mode_I={} freq={}",
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, 
                             is_continuous_output, 
@@ -1531,7 +1454,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             (float)(alt_freq)*1e-6f);
                         
                         handler->OnFrequencyInformation_1_Ensemble(
-                            cif_index,
                             eid.country_id, eid.ensemble_reference, 
                             alt_freq, 
                             is_continuous_output,
@@ -1551,15 +1473,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         // alternative frequency on an AM or FM station
                         // F' = 87.5MHz + F*100kHz
                         const uint32_t alt_freq = 87500000u + freq*100000u;
-                        LOG_MESSAGE("[%d] fig 0/21 i=%d-%d-%d/%d Rfa0=%u RM=%u time_compensated=%u RDS_PI=%04X freq=%.3fMHz\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} time_compensated={} RDS_PI={:04X} freq={}",
                             curr_block, curr_fi_list, i, nb_freq_list_bytes, 
                             Rfa0, RM, is_time_compensated, 
                             rds_pi_code,
                             (float)(alt_freq)*1e-6f);
                         
                         handler->OnFrequencyInformation_1_RDS_PI(
-                            cif_index,
                             rds_pi_code, alt_freq, is_time_compensated);
                     }
                 }
@@ -1572,8 +1492,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 
                     const uint8_t nb_entry_bytes = 3;
                     if ((nb_freq_list_bytes % nb_entry_bytes) != 0) {
-                        LOG_ERROR("[%d] fig 0/21 Frequency list RM=%u doesn't have a list length that is a multiple (%dmod%d)\n",
-                            cif_index,
+                        LOG_ERROR("fig 0/21 Frequency list RM={} doesn't have a list length that is a multiple ({}{})",
                             RM, nb_freq_list_bytes, nb_entry_bytes);
                         return;
                     }
@@ -1594,14 +1513,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         const uint32_t multiplier = is_multiplier ? 10000u : 1000u;
                         const uint32_t alt_freq = multiplier*freq;
 
-                        LOG_MESSAGE("[%d] fig 0/21 i=%d-%d-%d/%d Rfa0=%u RM=%u time_compensated=%u DRM_id=%u freq=%.3fMHz\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} time_compensated={} DRM_id={} freq={}",
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             drm_id, (float)(alt_freq)*1e-6f);
                         
                         handler->OnFrequencyInformation_1_DRM(
-                            cif_index,
                             drm_id, alt_freq, is_time_compensated);
                     }
                 }
@@ -1614,8 +1531,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 
                     const uint8_t nb_entry_bytes = 3;
                     if ((nb_freq_list_bytes % nb_entry_bytes) != 0) {
-                        LOG_ERROR("[%d] fig 0/21 Frequency list RM=%u doesn't have a list length that is a multiple (%dmod%d)\n",
-                            cif_index,
+                        LOG_ERROR("fig 0/21 Frequency list RM={} doesn't have a list length that is a multiple ({}{})",
                             RM, nb_freq_list_bytes, nb_entry_bytes);
                         return;
                     }
@@ -1632,19 +1548,17 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         // F' = F*1kHz 
                         const uint32_t alt_freq = freq*1000u;
 
-                        LOG_MESSAGE("[%d] fig 0/21 i=%d-%d-%d/%d Rfa0=%u RM=%u time_compensated=%u AMSS_id=%u freq=%.3fMHz\n",
-                            cif_index,
+                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} time_compensated={} AMSS_id={} freq={}",
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             amss_id, (float)(alt_freq)*1e-6f);
                         
                         handler->OnFrequencyInformation_1_AMSS(
-                            cif_index,
                             amss_id, alt_freq, is_time_compensated);
                     }
                 }
             default:
-                LOG_ERROR("[%d] fig 0/21 Unknown RM value (%u)\n", cif_index, RM);
+                LOG_ERROR("fig 0/21 Unknown RM value ({})", RM);
                 return;
             }
 
@@ -1660,7 +1574,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 // OE Services for service following?
 void FIG_Processor::ProcessFIG_Type_0_Ext_24(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_sid_bytes = header.pd ? 4 : 2;
     const int nb_header_bytes = nb_sid_bytes + 1;
@@ -1669,8 +1583,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
     while (curr_byte < N) {
         const int nb_remain_bytes = N-curr_byte;
         if (nb_header_bytes > nb_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/24 Insufficient length for header bytes (%d/%d)\n",
-                cif_index, nb_header_bytes, nb_remain_bytes);
+            LOG_ERROR("fig 0/24 Insufficient length for header bytes ({}/{})",
+                nb_header_bytes, nb_remain_bytes);
             return;
         }
 
@@ -1693,8 +1607,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
         const int nb_EId_list_remain_bytes = nb_remain_bytes - nb_header_bytes;
 
         if (nb_EId_list_bytes > nb_EId_list_remain_bytes) {
-            LOG_ERROR("[%d] fig 0/24 Insufficient length for EId list (%d/%d)\n",
-                cif_index, nb_EId_list_bytes, nb_EId_list_remain_bytes);
+            LOG_ERROR("fig 0/24 Insufficient length for EId list ({}/{})",
+                nb_EId_list_bytes, nb_EId_list_remain_bytes);
             return;
         }
 
@@ -1704,14 +1618,12 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
             EnsembleIdentifier eid;
             eid.ProcessBuffer(eid_buf);
 
-            LOG_MESSAGE("[%d] fig 0/24 country_id=%u service_ref=%u ecc=%u Rfa=%u CAId=%u i=%d/%d ensemble_country_id=%u ensemble_reference=%u\n",
-                cif_index,
+            LOG_MESSAGE("fig 0/24 country_id={} service_ref={} ecc={} Rfa={} CAId={} i={}/{} ensemble_country_id={} ensemble_reference={}",
                 sid.country_id, sid.service_reference, sid.ecc,
                 Rfa, CAId, i, nb_EIds,
                 eid.country_id, eid.ensemble_reference);
             
             handler->OnOtherEnsemble_1_Service(
-                cif_index,
                 sid.country_id, sid.service_reference, sid.ecc,
                 eid.country_id, eid.ensemble_reference);
         }
@@ -1722,7 +1634,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
 // Ensemble label
 void FIG_Processor::ProcessFIG_Type_1_Ext_0(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
 
     const int nb_eid_bytes = 2;
@@ -1731,8 +1643,8 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
     const int nb_expected_bytes = nb_eid_bytes + nb_char_bytes + nb_flag_bytes;
 
     if (N != nb_expected_bytes) {
-        LOG_ERROR("[%d] fig 1/0 Expected %d bytes got %d bytes\n",
-            cif_index, nb_expected_bytes, N);
+        LOG_ERROR("fig 1/0 Expected {} bytes got {} bytes",
+            nb_expected_bytes, N);
         return;
     }
 
@@ -1747,14 +1659,13 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
     
-    LOG_MESSAGE("[%d] fig 1/0 charset=%u country_id=%u ensemble_ref=%-4u flag=%04X chars=%.*s\n",
-        cif_index, header.charset,
+    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} chars={}",
+        header.charset,
         eid.country_id, eid.ensemble_reference,
         flag_field,
-        nb_char_bytes, char_buf);
+        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
     
     handler->OnEnsemble_3_Label(
-        cif_index,
         eid.country_id, eid.ensemble_reference,
         flag_field, char_buf, nb_char_bytes);
 }
@@ -1762,7 +1673,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
 // Short form service identifier label
 void FIG_Processor::ProcessFIG_Type_1_Ext_1(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_sid_bytes = 2;
     const int nb_char_bytes = 16;
@@ -1770,8 +1681,8 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
     const int nb_expected_bytes = nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
 
     if (N != nb_expected_bytes) {
-        LOG_ERROR("[%d] fig 1/1 Expected %d bytes got %d bytes\n",
-            cif_index, nb_expected_bytes, N);
+        LOG_ERROR("fig 1/1 Expected {} bytes got {} bytes",
+            nb_expected_bytes, N);
         return;
     }
 
@@ -1784,14 +1695,13 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
     
-    LOG_MESSAGE("[%d] fig 1/1 charset=%u country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
-        cif_index, header.charset,
+    LOG_MESSAGE("fig 1/1 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+        header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field,
-        nb_char_bytes, char_buf);
+        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
 
     handler->OnService_2_Label(
-        cif_index,
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field, char_buf, nb_char_bytes);
 }
@@ -1799,15 +1709,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
 // Service component label (non primary)
 void FIG_Processor::ProcessFIG_Type_1_Ext_4(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_header_bytes = 1;
     const int nb_char_bytes = 16;
     const int nb_flag_bytes = 2;
 
     if (N < nb_header_bytes) {
-        LOG_ERROR("[%d] fig 1/4 Expected at least %d byte for header got %d bytes\n",
-            cif_index, nb_header_bytes, N);
+        LOG_ERROR("fig 1/4 Expected at least {} byte for header got {} bytes",
+            nb_header_bytes, N);
         return;
     }
 
@@ -1820,8 +1730,8 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
     const int nb_expected_bytes = nb_header_bytes + nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
 
     if (N != nb_expected_bytes) {
-        LOG_ERROR("[%d] fig 1/4 Expected %d bytes got %d bytes\n",
-            cif_index, nb_expected_bytes, N);
+        LOG_ERROR("fig 1/4 Expected {} bytes got {} bytes",
+            nb_expected_bytes, N);
         return;
     }
 
@@ -1840,15 +1750,14 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
     
-    LOG_MESSAGE("[%d] fig 1/5 charset=%u SCIdS=%u country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
-        cif_index, header.charset,
+    LOG_MESSAGE("fig 1/5 charset={} SCIdS={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+        header.charset,
         SCIdS,
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field,
-        nb_char_bytes, char_buf);
+        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
 
     handler->OnServiceComponent_6_Label(
-        cif_index,
         sid.country_id, sid.service_reference, sid.ecc,
         SCIdS, 
         flag_field, char_buf, nb_char_bytes);
@@ -1857,7 +1766,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
 // Long form service identifier label
 void FIG_Processor::ProcessFIG_Type_1_Ext_5(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N, const int cif_index)
+    const uint8_t* buf, const uint8_t N)
 {
     const int nb_sid_bytes = 4;
     const int nb_char_bytes = 16;
@@ -1865,8 +1774,8 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(
 
     const int nb_expected_bytes = nb_sid_bytes + nb_char_bytes + nb_flag_bytes;
     if (N != nb_expected_bytes) {
-        LOG_ERROR("[%d] fig 1/5 Expected %d bytes got %d bytes\n",
-            cif_index, nb_expected_bytes, N);
+        LOG_ERROR("fig 1/5 Expected {} bytes got {} bytes",
+            nb_expected_bytes, N);
         return;
     }
 
@@ -1879,14 +1788,13 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
     
-    LOG_MESSAGE("[%d] fig 1/5 charset=%u country_id=%u service_ref=%-4u ecc=%u flag=%04X chars=%.*s\n",
-        cif_index, header.charset,
+    LOG_MESSAGE("fig 1/5 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+        header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field,
-        nb_char_bytes, char_buf);
+        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
     
     handler->OnService_2_Label(
-        cif_index,
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field, char_buf, nb_char_bytes);
 }

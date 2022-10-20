@@ -7,24 +7,13 @@
 #include "constants/puncture_codes.h"
 #include "constants/subchannel_protection_tables.h"
 
-#include <stdio.h>
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#define PRINT_LOG_MESSAGE 1
-#define PRINT_LOG_ERROR 1
+#define LOG_MESSAGE(...) CLOG(INFO, "msc-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(##__VA_ARGS__)
 
-#if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[msc] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_MESSAGE(...) (void)0
-#endif
-
-#if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [msc] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_ERROR(...)   (void)0
-#endif
-
-// Capacity channel sizes for mode I
+// NOTE: Capacity channel sizes for mode I are constant
 constexpr int NB_CU_BITS = 64;
 constexpr int NB_CU_BYTES = NB_CU_BITS/8;
 
@@ -74,8 +63,10 @@ int MSC_Decoder::DecodeCIF(const uint8_t* buf, const int N) {
 
     // viterbi decoding
     if (!subchannel.is_uep) {
+        LOG_MESSAGE("Decoding UEP");
         return DecodeEEP();
     } else {
+        LOG_MESSAGE("Decoding EEP");
         return DecodeUEP();
     }
 }
@@ -121,11 +112,10 @@ int MSC_Decoder::DecodeEEP() {
     VITDEC_RUN(24, PI_X, 24, true);
 
     const uint32_t error = vitdec->GetPathError();
-    LOG_MESSAGE("encoded:  %d/%d\n", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  %d/%d\n", curr_decoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("puncture: %d\n", curr_puncture_bit);
-    LOG_MESSAGE("error:    %d\n", error);
-    LOG_MESSAGE("\n");
+    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
+    LOG_MESSAGE("error:    {}", error);
 
     // NOTE: we are placing the bits in reversed order for correct bit order
     // Remove tail bits
@@ -171,11 +161,10 @@ int MSC_Decoder::DecodeUEP() {
     VITDEC_RUN(24, PI_X, 24, true);
 
     const uint32_t error = vitdec->GetPathError();
-    LOG_MESSAGE("encoded:  %d/%d\n", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  %d/%d\n", curr_decoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("puncture: %d\n", curr_puncture_bit);
-    LOG_MESSAGE("error:    %d\n", error);
-    LOG_MESSAGE("\n");
+    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
+    LOG_MESSAGE("error:    {}", error);
 
     // NOTE: we are placing the bits in reversed order for correct bit order
     // Remove tail bits

@@ -6,6 +6,8 @@ find_package(imgui REQUIRED)
 find_package(implot REQUIRED)
 find_package(faad2 REQUIRED)
 find_package(kissfft REQUIRED)
+find_package(easyloggingpp REQUIRED)
+find_package(fmt REQUIRED)
 
 if(WIN32)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
@@ -39,7 +41,7 @@ add_library(dab_core STATIC
     ${DAB_CORE_DIR}/audio/win32_pcm_player.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
-target_link_libraries(dab_core PRIVATE faad2)
+target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
 
 add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
@@ -73,7 +75,7 @@ add_executable(process_frames
     src/process_frames.cpp)
 include_directories(process_frames src/)
 set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
-target_link_libraries(process_frames PRIVATE getopt dab_core imgui)
+target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp)
 
 add_executable(pcm_play src/pcm_play.cpp)
 set_target_properties(pcm_play PROPERTIES CXX_STANDARD 17)

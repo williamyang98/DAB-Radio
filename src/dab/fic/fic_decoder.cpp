@@ -5,26 +5,19 @@
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
 
-#define PRINT_LOG_MESSAGE 1
-#define PRINT_LOG_ERROR 1
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#if PRINT_LOG_MESSAGE || PRINT_LOG_ERROR
-#include <stdio.h>
-#endif
-
-#if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[fic] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_MESSAGE(...) (void)0
-#endif
-
-#if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [fic] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_ERROR(...)   (void)0
-#endif
+#define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(##__VA_ARGS__)
 
 FIC_Decoder::FIC_Decoder()
+// NOTE: 1/3 coding rate after puncturing and 1/4 code
+// For mode I transmission these parameters are constant
+: nb_encoded_bytes(288),
+  nb_encoded_bits(288*8),
+  nb_decoded_bits(288*8/3),
+  nb_decoded_bytes(288/3)
 {
     {
         const uint16_t crc16_poly = 0x1021;
@@ -48,6 +41,10 @@ FIC_Decoder::FIC_Decoder()
 
     scrambler = new AdditiveScrambler();
     scrambler->SetSyncword(0xFFFF);
+
+    encoded_bits = new uint8_t[nb_encoded_bits];
+    decoded_bits = new uint8_t[nb_decoded_bits];
+    decoded_bytes = new uint8_t[nb_decoded_bytes];
 }
 
 FIC_Decoder::~FIC_Decoder() {
@@ -56,27 +53,21 @@ FIC_Decoder::~FIC_Decoder() {
     delete trellis;
     delete vitdec;
     delete scrambler;
+
+    delete [] encoded_bits;
+    delete [] decoded_bits;
+    delete [] decoded_bytes;
 }
 
 // Each group contains 3 fibs (fast information blocks)
 void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_index) {
-    const int nb_encoded_bytes = 288;
-    const int nb_encoded_bits = nb_encoded_bytes*8;
-
     // unpack bits
-    static uint8_t* encoded_bits = new uint8_t[nb_encoded_bits];
     for (int i = 0; i < nb_encoded_bytes; i++) {
         const uint8_t b = encoded_bytes[i];
         for (int j = 0; j < 8; j++) {
             encoded_bits[8*i + j] = (b >> j) & 0b1;
         }
     }
-
-    // 1/3 coding rate after puncturing and 1/4 code
-    const int nb_decoded_bits = nb_encoded_bits/3;
-    const int nb_decoded_bytes = nb_decoded_bits/8;
-    static uint8_t* decoded_bits = new uint8_t[nb_decoded_bits];
-    static uint8_t* decoded_bytes = new uint8_t[nb_decoded_bytes];
 
     // viterbi decoding
     int curr_encoded_bit = 0;
@@ -118,10 +109,10 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
 
     const uint32_t error = vitdec->GetPathError();
 
-    LOG_MESSAGE("encoded:  %d/%d\n", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  %d/%d\n", curr_decoded_bit, nb_decoded_bits);
-    LOG_MESSAGE("puncture: %d\n", curr_puncture_bit);
-    LOG_MESSAGE("error:    %d\n", error);
+    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
+    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_decoded_bits);
+    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
+    LOG_MESSAGE("error:    {}", error);
 
     // pack into bytes for further processing
     // NOTE: we are placing the bits in reversed order for correct bit order
@@ -154,7 +145,8 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
 
         const uint16_t crc16_pred = crc16_calc->Process(fib_buf, nb_data_bytes);
         const bool is_valid = crc16_rx == crc16_pred;
-        LOG_MESSAGE("crc16: fib=%d pred=%04X got=%04X\n", i, crc16_pred, crc16_rx);
+        LOG_MESSAGE("[crc16] fib={} is_match={} pred={:04X} got={:04X}", 
+            i, is_valid, crc16_pred, crc16_rx);
         if (is_valid && callback) {
             callback->OnDecodeFIBGroup(fib_buf, nb_fib_bytes, cif_index);
         }    

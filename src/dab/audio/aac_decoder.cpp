@@ -2,25 +2,15 @@
 #include "aac_decoder.h"
 
 #include <neaacdec.h>
-#include <stdio.h>
 
 #include "pcm_player.h"
 #include "win32_pcm_player.h"
 
-#define PRINT_LOG_MESSAGE 1
-#define PRINT_LOG_ERROR 1
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...)    fprintf(stderr, "[aac] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_MESSAGE(...) (void)0
-#endif
-
-#if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [aac] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_ERROR(...)   (void)0
-#endif
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-decoder") << fmt::format(##__VA_ARGS__)
 
 // Push bits into a buffer
 class BitPusherHelper 
@@ -245,6 +235,7 @@ AAC_Decoder::AAC_Decoder(
 :   sampling_frequency(_sampling_frequency),
     is_SBR(_is_SBR), is_stereo(_is_stereo), is_PS(_is_PS)
 {
+    // TODO: Add bounds check when we construct the mp4 bitfield
     mp4_bitfile_config = new uint8_t[32];
     nb_mp4_bitfile_config_bytes = 0;
     GenerateBitfileConfig();
@@ -276,7 +267,7 @@ static PCM_Player* pcm_player = new Win32_PCM_Player();
 
 int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     auto audio_data = (uint8_t*)NeAACDecDecode(decoder_handle, decoder_frame_info, data, N);
-    LOG_MESSAGE("aac_decoder_error=%u\n", decoder_frame_info->error);
+    LOG_MESSAGE("aac_decoder_error={}", decoder_frame_info->error);
 
 	// abort, if no output at all
     const int error_code = decoder_frame_info->error;
@@ -287,7 +278,7 @@ int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     }
 
 	if (nb_consumed_bytes != N) {
-        LOG_ERROR("aac_decoder didn't consume all bytes (%d/%d)\n", nb_consumed_bytes, N);
+        LOG_ERROR("aac_decoder didn't consume all bytes ({}/{})", nb_consumed_bytes, N);
         return 1;
     }
     
@@ -297,7 +288,7 @@ int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     params.sample_rate = sampling_frequency;
     pcm_player->SetParameters(params);
     pcm_player->ConsumeBuffer(audio_data, nb_output_bytes);
-    LOG_MESSAGE("Outputed %d samples @ %d bytes to audio\n", nb_samples, nb_output_bytes);
+    LOG_MESSAGE("Outputed {} samples @ {} bytes to audio", nb_samples, nb_output_bytes);
 
 	return error_code;
 }

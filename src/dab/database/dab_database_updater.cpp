@@ -3,50 +3,19 @@
 #include <string>
 #include <string.h>
 
-#include <stdio.h>
-#include <iostream>
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#define PRINT_LOG_MESSAGE 1
-#define PRINT_LOG_ERROR 1
-
-#if PRINT_LOG_MESSAGE
-    #define LOG_MESSAGE(fmt, ...) fprintf(stderr,"[db] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_MESSAGE(...) (void)0
-#endif
-
-#if PRINT_LOG_ERROR
-    #define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [db] " fmt, ##__VA_ARGS__)
-#else
-    #define LOG_ERROR(...)   (void)0
-#endif
+#define LOG_MESSAGE(...) CLOG(INFO, "db-updater") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "db-updater") << fmt::format(##__VA_ARGS__)
 
 // macros for definining a form field
 // ALT = if property name of data structure is different from argument name
 // FULL = pass in inline code to run if the field is updating
-
-#define FORM_FIELD_MACRO_FULL(prop, flag, on_pass) {\
-    if (dirty_field & flag) {\
-        if (data->prop != prop) {\
-            LOG_ERROR("%s conflict because of value mismatch\n", #flag);\
-            OnConflict();\
-            return UpdateResult::CONFLICT;\
-        }\
-        return UpdateResult::NO_CHANGE;\
-    }\
-    dirty_field |= flag;\
-    data->prop = prop;\
-    on_pass;\
-    CheckIsComplete();\
-    return UpdateResult::SUCCESS;\
-}
-
-#define FORM_FIELD_MACRO(prop, flag) FORM_FIELD_MACRO_FULL(prop, flag, {})
-
 #define FORM_FIELD_ALT_MACRO_FULL(prop, flag, value, on_pass) {\
     if (dirty_field & flag) {\
         if (data->prop != value) {\
-            LOG_ERROR("%s conflict because of value mismatch\n", #flag);\
+            LOG_ERROR("{} conflict because of value mismatch", #flag);\
             OnConflict();\
             return UpdateResult::CONFLICT;\
         }\
@@ -59,6 +28,8 @@
     return UpdateResult::SUCCESS;\
 }
 
+#define FORM_FIELD_MACRO_FULL(prop, flag, on_pass) FORM_FIELD_ALT_MACRO_FULL(prop, flag, prop, on_pass)
+#define FORM_FIELD_MACRO(prop, flag) FORM_FIELD_MACRO_FULL(prop, flag, {})
 #define FORM_FIELD_ALT_MACRO(prop, flag, value) FORM_FIELD_ALT_MACRO_FULL(prop, flag, value, {})
 
 #define FORM_FIELD_STRING_MACRO(prop, flag, buf, N) {\
@@ -67,12 +38,12 @@
         auto* buf0 = x.data();\
         const auto N0 = x.length();\
         if (N != N0) {\
-            LOG_ERROR("%s conflict because of length mismatch (%d/%llu)\n", #flag, N, N0);\
+            LOG_ERROR("{} conflict because of length mismatch ({}/{})", #flag, N, N0);\
             OnConflict();\
             return UpdateResult::CONFLICT;\
         }\
         if (strncmp(buf0, (const char*)(buf), N) != 0) {\
-            LOG_ERROR("%s conflict because of content differnce\n", #flag);\
+            LOG_ERROR("{} conflict because of content differnce", #flag);\
             OnConflict();\
             return UpdateResult::CONFLICT;\
         }\
@@ -476,20 +447,20 @@ DAB_Database_Updater::DAB_Database_Updater(DAB_Database* _db)
 void DAB_Database_Updater::SignalComplete() {
     stats.nb_completed++;
     stats.nb_pending--;
-    LOG_MESSAGE("pending=%d complete=%d total=%d conflicts=%d\n", 
+    LOG_MESSAGE("pending={} complete={} total={} conflicts={}", 
         stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
 }
 
 void DAB_Database_Updater::SignalPending() {
     stats.nb_pending++;
     stats.nb_total++;
-    LOG_MESSAGE("pending=%d complete=%d total=%d conflicts=%d\n", 
+    LOG_MESSAGE("pending={} complete={} total={} conflicts={}", 
         stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
 }
 
 void DAB_Database_Updater::SignalConflict() {
     stats.nb_conflicts++;
-    LOG_ERROR("pending=%d complete=%d total=%d conflicts=%d\n", 
+    LOG_ERROR("pending={} complete={} total={} conflicts={}", 
         stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
 }
 

@@ -10,3 +10,9 @@
 [submodule "vendor/kissfft"]
 	path = vendor/kissfft
 	url = https://github.com/mborgerding/kissfft.git
+[submodule "vendor/easyloggingpp"]
+	path = vendor/easyloggingpp
+	url = https://github.com/amrayn/easyloggingpp.git
+[submodule "vendor/fmt"]
+	path = vendor/fmt
+	url = https://github.com/fmtlib/fmt.git
