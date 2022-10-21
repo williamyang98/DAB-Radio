@@ -47,11 +47,11 @@ add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
 
 add_executable(view_data 
-    src/view_data.cpp)
+    src/view_data.cpp
+    src/gui/render_ofdm_demod.cpp)
 include_directories(view_data src/)
 set_target_properties(view_data PROPERTIES CXX_STANDARD 17)
 target_link_libraries(view_data PRIVATE ofdm_core getopt imgui implot)
-
 
 add_executable(read_data 
     src/read_data.cpp)
