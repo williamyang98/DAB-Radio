@@ -37,8 +37,7 @@ add_library(dab_core STATIC
     ${DAB_CORE_DIR}/msc/msc_decoder.cpp
     ${DAB_CORE_DIR}/msc/cif_deinterleaver.cpp
     ${DAB_CORE_DIR}/audio/aac_frame_processor.cpp
-    ${DAB_CORE_DIR}/audio/aac_decoder.cpp
-    ${DAB_CORE_DIR}/audio/win32_pcm_player.cpp)
+    ${DAB_CORE_DIR}/audio/aac_decoder.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
@@ -72,7 +71,8 @@ set_target_properties(view_ofdm_sample PROPERTIES CXX_STANDARD 17)
 target_link_libraries(view_ofdm_sample PRIVATE getopt imgui implot kissfft)
 
 add_executable(process_frames
-    src/process_frames.cpp)
+    src/process_frames.cpp
+    src/audio/win32_pcm_player.cpp)
 include_directories(process_frames src/)
 set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
 target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp)
