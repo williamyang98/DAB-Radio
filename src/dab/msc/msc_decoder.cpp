@@ -63,10 +63,10 @@ int MSC_Decoder::DecodeCIF(const uint8_t* buf, const int N) {
 
     // viterbi decoding
     if (!subchannel.is_uep) {
-        LOG_MESSAGE("Decoding UEP");
+        LOG_MESSAGE("Decoding EEP");
         return DecodeEEP();
     } else {
-        LOG_MESSAGE("Decoding EEP");
+        LOG_MESSAGE("Decoding UEP");
         return DecodeUEP();
     }
 }
