@@ -1,9 +1,14 @@
 #include "dab_database.h"
 
 // Calls that create an object if it doesn't exist
-Service* DAB_Database::GetService(const service_id_t service_reference) {
+Service* DAB_Database::GetService(
+    const service_id_t service_reference, const bool is_create) {
     auto res = lut_services.find(service_reference);
     if (res == lut_services.end()) {
+        if (!is_create) {
+            return NULL;
+        }
+
         auto& service = services.emplace_back(service_reference);
         res = lut_services.insert({service_reference, &service}).first;
         // initialise their containers
@@ -16,7 +21,8 @@ Service* DAB_Database::GetService(const service_id_t service_reference) {
 
 ServiceComponent* DAB_Database::GetServiceComponent(
     const service_id_t service_reference, 
-    const service_component_id_t component_id)
+    const service_component_id_t component_id,
+    const bool is_create)
 {
     GetService(service_reference);
 
@@ -25,6 +31,9 @@ ServiceComponent* DAB_Database::GetServiceComponent(
 
     auto res = components_table.find(component_id);
     if (res == components_table.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& component = service_components.emplace_back(
             service_reference, component_id);
         res = components_table.insert({component_id, &component}).first;
@@ -33,19 +42,29 @@ ServiceComponent* DAB_Database::GetServiceComponent(
     return res->second;
 }
 
-Subchannel* DAB_Database::GetSubchannel(const subchannel_id_t subchannel_id) 
+Subchannel* DAB_Database::GetSubchannel(
+    const subchannel_id_t subchannel_id,
+    const bool is_create) 
 {
     auto res = lut_subchannels.find(subchannel_id);
     if (res == lut_subchannels.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& subchannel = subchannels.emplace_back(subchannel_id);
         res = lut_subchannels.insert({subchannel_id, &subchannel}).first;
     }
     return res->second;
 }
 
-LinkService* DAB_Database::GetLinkService(const lsn_t linkage_set_number) {
+LinkService* DAB_Database::GetLinkService(
+    const lsn_t linkage_set_number, const bool is_create) 
+{
     auto res = lut_link_services.find(linkage_set_number);
     if (res == lut_link_services.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& link_service = link_services.emplace_back(linkage_set_number);
         res = lut_link_services.insert({linkage_set_number, &link_service}).first;
         // initialise their containers
@@ -55,36 +74,56 @@ LinkService* DAB_Database::GetLinkService(const lsn_t linkage_set_number) {
     return res->second;
 }
 
-FM_Service* DAB_Database::Get_FM_Service(const fm_id_t rds_pi_code) {
+FM_Service* DAB_Database::Get_FM_Service(
+    const fm_id_t rds_pi_code, const bool is_create) 
+{
     auto res = lut_fm_services.find(rds_pi_code);
     if (res == lut_fm_services.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& fm = fm_services.emplace_back(rds_pi_code);
         res = lut_fm_services.insert({rds_pi_code, &fm}).first;
     }
     return res->second;
 }
 
-DRM_Service* DAB_Database::Get_DRM_Service(const drm_id_t drm_id) {
+DRM_Service* DAB_Database::Get_DRM_Service(
+    const drm_id_t drm_id, const bool is_create) 
+{
     auto res = lut_drm_services.find(drm_id);
     if (res == lut_drm_services.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& drm = drm_services.emplace_back(drm_id);
         res = lut_drm_services.insert({drm_id, &drm}).first;
     }
     return res->second;
 }
 
-AMSS_Service* DAB_Database::Get_AMSS_Service(const amss_id_t amss_id) {
+AMSS_Service* DAB_Database::Get_AMSS_Service(
+    const amss_id_t amss_id, const bool is_create) 
+{
     auto res = lut_amss_services.find(amss_id);
     if (res == lut_amss_services.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& amss = amss_services.emplace_back(amss_id);
         res = lut_amss_services.insert({amss_id, &amss}).first;
     }
     return res->second;
 }
 
-OtherEnsemble* DAB_Database::GetOtherEnsemble(const ensemble_id_t ensemble_reference) {
+OtherEnsemble* DAB_Database::GetOtherEnsemble(
+    const ensemble_id_t ensemble_reference, const bool is_create) 
+{
     auto res = lut_other_ensembles.find(ensemble_reference);
     if (res == lut_other_ensembles.end()) {
+        if (!is_create) {
+            return NULL;
+        }
         auto& oe = other_ensembles.emplace_back(ensemble_reference);
         res = lut_other_ensembles.insert({ensemble_reference, &oe}).first;
     }

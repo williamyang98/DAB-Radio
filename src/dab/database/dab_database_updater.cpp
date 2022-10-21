@@ -472,7 +472,7 @@ EnsembleUpdater* DAB_Database_Updater::GetEnsembleUpdater() {
 ServiceUpdater* DAB_Database_Updater::GetServiceUpdater(
     const service_id_t service_ref) 
 {
-    auto* service = db->GetService(service_ref);
+    auto* service = db->GetService(service_ref, true);
     auto res = service_updaters.find(service_ref);
     if (res == service_updaters.end()) {
         res = service_updaters.insert({service_ref, service}).first;
@@ -485,7 +485,7 @@ ServiceUpdater* DAB_Database_Updater::GetServiceUpdater(
 ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Service(
     const service_id_t service_ref, const service_component_id_t component_id) 
 {
-    auto* service_component = db->GetServiceComponent(service_ref, component_id);
+    auto* service_component = db->GetServiceComponent(service_ref, component_id, true);
     const auto key = std::pair<service_id_t, service_component_id_t>(
         service_ref, component_id);
 
@@ -501,7 +501,7 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Servic
 SubchannelUpdater* DAB_Database_Updater::GetSubchannelUpdater(
     const subchannel_id_t subchannel_id) 
 {
-    auto* subchannel = db->GetSubchannel(subchannel_id);
+    auto* subchannel = db->GetSubchannel(subchannel_id, true);
     auto res = subchannel_updaters.find(subchannel_id);
     if (res == subchannel_updaters.end()) {
         res = subchannel_updaters.insert({subchannel_id, subchannel}).first;
@@ -514,7 +514,7 @@ SubchannelUpdater* DAB_Database_Updater::GetSubchannelUpdater(
 LinkServiceUpdater* DAB_Database_Updater::GetLinkServiceUpdater(
     const lsn_t link_service_number) 
 {
-    auto* link_service = db->GetLinkService(link_service_number);
+    auto* link_service = db->GetLinkService(link_service_number, true);
     auto res = link_service_updaters.find(link_service_number);
     if (res == link_service_updaters.end()) {
         res = link_service_updaters.insert({link_service_number, link_service}).first;
@@ -527,7 +527,7 @@ LinkServiceUpdater* DAB_Database_Updater::GetLinkServiceUpdater(
 FM_ServiceUpdater* DAB_Database_Updater::GetFMServiceUpdater(
     const fm_id_t RDS_PI_code) 
 {
-    auto* fm_service = db->Get_FM_Service(RDS_PI_code);
+    auto* fm_service = db->Get_FM_Service(RDS_PI_code, true);
     auto res = fm_service_updaters.find(RDS_PI_code);
     if (res == fm_service_updaters.end()) {
         res = fm_service_updaters.insert({RDS_PI_code, fm_service}).first;
@@ -540,7 +540,7 @@ FM_ServiceUpdater* DAB_Database_Updater::GetFMServiceUpdater(
 DRM_ServiceUpdater* DAB_Database_Updater::GetDRMServiceUpdater(
     const drm_id_t drm_code) 
 {
-    auto* drm_service = db->Get_DRM_Service(drm_code);
+    auto* drm_service = db->Get_DRM_Service(drm_code, true);
     auto res = drm_service_updaters.find(drm_code);
     if (res == drm_service_updaters.end()) {
         res = drm_service_updaters.insert({drm_code, drm_service}).first;
@@ -553,7 +553,7 @@ DRM_ServiceUpdater* DAB_Database_Updater::GetDRMServiceUpdater(
 AMSS_ServiceUpdater* DAB_Database_Updater::GetAMSS_ServiceUpdater(
     const amss_id_t amss_code) 
 {
-    auto* amss_service = db->Get_AMSS_Service(amss_code);
+    auto* amss_service = db->Get_AMSS_Service(amss_code, true);
     auto res = amss_service_updaters.find(amss_code);
     if (res == amss_service_updaters.end()) {
         res = amss_service_updaters.insert({amss_code, amss_service}).first;
@@ -566,7 +566,7 @@ AMSS_ServiceUpdater* DAB_Database_Updater::GetAMSS_ServiceUpdater(
 OtherEnsembleUpdater* DAB_Database_Updater::GetOtherEnsemble(
     const ensemble_id_t ensemble_reference) 
 {
-    auto* oe = db->GetOtherEnsemble(ensemble_reference);
+    auto* oe = db->GetOtherEnsemble(ensemble_reference, true);
     auto res = other_ensemble_updaters.find(ensemble_reference);
     if (res == other_ensemble_updaters.end()) {
         res = other_ensemble_updaters.insert({ensemble_reference, oe}).first;
