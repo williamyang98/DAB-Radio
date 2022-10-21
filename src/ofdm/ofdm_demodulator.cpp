@@ -161,11 +161,9 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
                 const int nb_read = ReadOFDMSymbols(buf, N_remain);
                 curr_index += nb_read;
                 if (curr_ofdm_symbol == params.nb_frame_symbols) {
-                    if (callback) {
-                        // we ignore the PRS since that is just a reference
-                        // differential encoding means we have one less symbol that contains data
-                        callback->OnOFDMFrame(ofdm_frame_pred, params.nb_data_carriers, params.nb_frame_symbols-1);
-                    }
+                    // we ignore the PRS since that is just a reference
+                    // differential encoding means we have one less symbol that contains data
+                    obs_on_ofdm_frame.Notify(ofdm_frame_pred, params.nb_data_carriers, params.nb_frame_symbols-1);
                     state = State::READING_NULL_SYMBOL;
                     total_frames_read++;
 

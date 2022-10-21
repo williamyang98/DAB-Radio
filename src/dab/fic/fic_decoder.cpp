@@ -147,8 +147,6 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
         const bool is_valid = crc16_rx == crc16_pred;
         LOG_MESSAGE("[crc16] fib={} is_match={} pred={:04X} got={:04X}", 
             i, is_valid, crc16_pred, crc16_rx);
-        if (is_valid && callback) {
-            callback->OnDecodeFIBGroup(fib_buf, nb_fib_bytes, cif_index);
-        }    
+        obs_on_fib.Notify(fib_buf, nb_fib_bytes);
     }
 }

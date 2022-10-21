@@ -24,24 +24,6 @@
   #define LOG_MESSAGE(...) (void)0
 #endif
 
-class PhaseHandler: public OFDM_Demodulator_Callback {
-private:
-    OFDM_Symbol_Mapper* mapper;
-    FILE* fp_out;
-public:
-    PhaseHandler(OFDM_Symbol_Mapper* _mapper, FILE* _fp_out)
-    : mapper(_mapper), fp_out(_fp_out) {}
-    virtual void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
-        assert(mapper->GetTotalCarriers() == nb_carriers);
-        assert(mapper->GetTotalSymbols() == nb_symbols);
-        mapper->ProcessRawFrame(phases);
-
-        const auto buf = mapper->GetOutputBuffer();
-        const int N = mapper->GetOutputBufferSize(); 
-        fwrite(buf, sizeof(uint8_t), N, fp_out);
-    }
-};
-
 void usage() {
     fprintf(stderr, 
         "read_data, runs OFDM demodulation on raw IQ values\n\n"
@@ -127,8 +109,17 @@ int main(int argc, char** argv)
     auto ofdm_mapper = OFDM_Symbol_Mapper(
         ofdm_mapper_ref, ofdm_params.nb_data_carriers, 
         ofdm_params.nb_frame_symbols-1);
-    auto handler = PhaseHandler(&ofdm_mapper, fp_out);
-    ofdm_demod.SetCallback(&handler);
+
+    const auto on_ofdm_frame = [&ofdm_mapper, &fp_out](const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
+        assert(ofdm_mapper.GetTotalCarriers() == nb_carriers);
+        assert(ofdm_mapper.GetTotalSymbols() == nb_symbols);
+        ofdm_mapper.ProcessRawFrame(phases);
+
+        const auto buf = ofdm_mapper.GetOutputBuffer();
+        const int N = ofdm_mapper.GetOutputBufferSize(); 
+        fwrite(buf, sizeof(uint8_t), N, fp_out);
+    };
+    ofdm_demod.On_OFDM_Frame().Attach(on_ofdm_frame);
 
     delete [] ofdm_prs_ref;
     delete [] ofdm_mapper_ref;

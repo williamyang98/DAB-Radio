@@ -5,15 +5,10 @@
 #include "ofdm_params.h"
 #include "reconstruction_buffer.h"
 #include "circular_buffer.h"
+#include "../observable.h"
 
 // forward declare kissfft config
 typedef struct kiss_fft_state* kiss_fft_cfg;
-
-class OFDM_Demodulator_Callback 
-{
-public:
-    virtual void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) = 0;
-};
 
 class OFDM_Demodulator 
 {
@@ -96,7 +91,8 @@ private:
     bool is_null_end_found;
     float signal_l1_average;
 private:
-    OFDM_Demodulator_Callback* callback = NULL;
+    // callback for when ofdm is completed
+    Observable<const uint8_t*, const int, const int> obs_on_ofdm_frame;
 public:
     OFDM_Demodulator(
         const struct OFDM_Params _ofdm_params,
@@ -116,7 +112,7 @@ public:
     inline float* GetImpulseResponse(void) { return prs_impulse_response; }
     inline float GetSignalAverage(void) { return signal_l1_average; }
     inline int GetCurrentOFDMSymbol(void) const { return curr_ofdm_symbol; }
-    inline void SetCallback(OFDM_Demodulator_Callback* _callback) { callback = _callback; }
+    inline auto& On_OFDM_Frame(void) { return obs_on_ofdm_frame; }
 private:
     void ProcessBlockWithoutUpdate(std::complex<float>* block, const int N);
     void UpdateSignalAverage(std::complex<float>* block, const int N);
