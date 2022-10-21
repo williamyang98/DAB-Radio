@@ -9,6 +9,8 @@ find_package(kissfft REQUIRED)
 find_package(easyloggingpp REQUIRED)
 find_package(fmt REQUIRED)
 
+target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
+
 if(WIN32)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 endif(WIN32)
@@ -41,6 +43,7 @@ add_library(dab_core STATIC
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
+target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 
 add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
@@ -72,10 +75,13 @@ target_link_libraries(view_ofdm_sample PRIVATE getopt imgui implot kissfft)
 
 add_executable(process_frames
     src/process_frames.cpp
-    src/audio/win32_pcm_player.cpp)
+    src/basic_radio.cpp
+    src/audio/win32_pcm_player.cpp
+    src/gui/render_basic_radio.cpp)
 include_directories(process_frames src/)
 set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
-target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp)
+target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp fmt)
+target_compile_definitions(process_frames PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(pcm_play src/pcm_play.cpp)
 set_target_properties(pcm_play PROPERTIES CXX_STANDARD 17)

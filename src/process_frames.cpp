@@ -16,22 +16,11 @@
 
 #include "./getopt/getopt.h"
 
-#include "fic/fic_decoder.h"
-#include "fic/fig_processor.h"
-#include "database/dab_database.h"
-#include "database/dab_database_updater.h"
-#include "msc/msc_decoder.h"
-#include "audio/aac_frame_processor.h"
-#include "radio_fig_handler.h"
-
-#include <map>
-#include <memory>
-#include <thread>
-#include <mutex>
-
 #include "easylogging++.h"
+
 #include "dab/logging.h"
-INITIALIZE_EASYLOGGINGPP
+#include "basic_radio.h"
+#include "gui/render_basic_radio.h"
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
@@ -60,160 +49,8 @@ static void glfw_window_focus_callback(GLFWwindow* window, int focused)
     is_main_window_focused = focused;
 }
 
-class App;
-
-void RenderApp(App* app);
-
-class App: public FIC_Decoder::Callback
-{
-public:
-    FIC_Decoder* fic_decoder;
-    FIG_Processor* fig_processor;
-    Radio_FIG_Handler* fig_handler;
-    DAB_Database* dab_db;
-    DAB_Database_Updater* dab_db_updater;
-    std::map<subchannel_id_t, std::unique_ptr<MSC_Decoder>> msc_decoders;
-
-    DAB_Database* complete_dab_db;
-    bool is_subchannel_selected = false;
-    subchannel_id_t selected_subchannel_id = 0;
-    bool trigger_database_update = false;
-    std::mutex mutex_database_update;
-public:
-    App() {
-        fic_decoder = new FIC_Decoder();
-        fig_processor = new FIG_Processor();
-        fig_handler = new Radio_FIG_Handler();
-        dab_db = new DAB_Database();
-        dab_db_updater = new DAB_Database_Updater(dab_db);
-
-        complete_dab_db = new DAB_Database();
-
-        fig_handler->SetUpdater(dab_db_updater);
-        fig_processor->SetHandler(fig_handler);
-        fic_decoder->SetCallback(this);
-    }
-    ~App() {
-        delete fic_decoder;
-        delete fig_processor;
-        delete fig_handler;
-        delete dab_db;
-        delete dab_db_updater;
-        delete complete_dab_db;
-    }
-    void ProcessFrame(uint8_t* buf, const int N) {
-        const int nb_frame_length = 28800;
-        const int nb_symbols = 75;
-        const int nb_sym_length = nb_frame_length / nb_symbols;
-
-        const int nb_fic_symbols = 3;
-
-        const auto* fic_buf = &buf[0];
-        const auto* msc_buf = &buf[nb_fic_symbols*nb_sym_length];
-
-        {
-            const int nb_fic_length = nb_sym_length*nb_fic_symbols;
-            const int nb_msc_length = nb_sym_length*(nb_symbols-nb_fic_symbols);
-
-            // FIC: 3 symbols -> 12 FIBs -> 4 FIB groups
-            // A FIB group contains FIGs (fast information group)
-            const int nb_fic_groups = 4;
-            const int nb_fic_group_length = nb_fic_length / nb_fic_groups;
-            auto lock = std::unique_lock(mutex_database_update);
-            for (int i = 0; i < nb_fic_groups; i++) {
-                const auto* fic_group_buf = &fic_buf[i*nb_fic_group_length];
-                fic_decoder->DecodeFIBGroup(fic_group_buf, i);
-            }
-        }
-
-        // MSC: 72 symbols -> 4CIFs (18 symbols) 
-        // 1 CIF = 18*1536*2 = 55296bits = 864*64bits = 864 CU (capacity units)
-        {
-            const int nb_msc_symbols = nb_symbols-nb_fic_symbols;
-
-            const int nb_cifs = 4;
-            const int nb_cif_symbols = nb_msc_symbols/nb_cifs;
-            const int nb_cif_bytes = nb_sym_length*nb_cif_symbols;
-
-            for (int i = 0; i < nb_cifs; i++) {
-                const auto* cif_buf = &msc_buf[i*nb_cif_bytes];
-                DecodeCIF(cif_buf, nb_cif_bytes, i);
-            }
-        }
-
-        if (trigger_database_update) {
-            trigger_database_update = false;
-            auto lock = std::unique_lock(mutex_database_update);
-            dab_db_updater->ExtractCompletedDatabase(*complete_dab_db);
-        }
-
-    }
-    void DecodeCIF(const uint8_t* buf, const int N, const int cif_index) {
-        if (!is_subchannel_selected) {
-            return;
-        }
-
-        auto db = dab_db;
-
-        auto res0 = msc_decoders.find(selected_subchannel_id);
-        if (res0 == msc_decoders.end()) {
-            auto& subchannels = db->lut_subchannels;
-            auto res1 = subchannels.find(selected_subchannel_id);
-            if (res1 == subchannels.end()) {
-                LOG_MESSAGE("Selected invalid subchannel %d\n", selected_subchannel_id);
-                return;
-            }
-            auto subchannel = res1->second;
-            msc_decoders.insert({selected_subchannel_id, std::make_unique<MSC_Decoder>(*subchannel)});
-        } 
-
-        bool found_ascty = false;
-        AudioServiceType ascty = AudioServiceType::DAB;
-
-        auto res2 = db->lut_subchannel_to_service_component.find(selected_subchannel_id);
-        if (res2 != db->lut_subchannel_to_service_component.end()) {
-            if (res2->second->transport_mode == TransportMode::STREAM_MODE_AUDIO) {
-                ascty = res2->second->audio_service_type;
-                found_ascty = true;
-            }
-        }
-
-        MSC_Decoder* msc_decoder = msc_decoders[selected_subchannel_id].get();
-        const int nb_decoded_bytes = msc_decoder->DecodeCIF(buf, N);
-        auto decoded_bytes_buf = msc_decoder->GetDecodedBytes();
-
-        if (!found_ascty) {
-            return;
-        }
-
-        if (ascty != AudioServiceType::DAB_PLUS) {
-            return;
-        }
-
-        static auto frame_processor = AAC_Frame_Processor();
-        if (nb_decoded_bytes > 0) {
-            frame_processor.Process(decoded_bytes_buf, nb_decoded_bytes);
-        }
-    }
-    void FilterPending() {
-        auto& v = dab_db_updater->GetUpdaters();
-        std::vector<UpdaterChild*> pending;
-        std::vector<UpdaterChild*> complete;
-        for (auto& e: v) {
-            if (!e->IsComplete()) {
-                pending.push_back(e);
-            } else {
-                complete.push_back(e);
-            }
-        }
-    }
-    virtual void OnDecodeFIBGroup(const uint8_t* buf, const int N, const int cif_index) {
-        fig_processor->ProcessFIG(buf);
-    }
-};
-
 void app_runner(
-    App* app, uint8_t* buf, const int N, 
+    BasicRadio* radio, uint8_t* buf, const int N, 
     bool* is_running, FILE* fp_in) {
     while (*is_running) {
         const auto nb_read = fread(buf, sizeof(uint8_t), N, fp_in);
@@ -221,7 +58,7 @@ void app_runner(
             fprintf(stderr, "Failed to read %d bytes\n", N);
             break;
         }
-        app->ProcessFrame(buf, N);
+        radio->ProcessFrame(buf, N);
     }
 }
 
@@ -233,6 +70,8 @@ void usage() {
         "\t[-h (show usage)]\n"
     );
 }
+
+INITIALIZE_EASYLOGGINGPP
 
 int main(int argc, char** argv) {
     char* rd_filename = NULL;
@@ -264,25 +103,26 @@ int main(int argc, char** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
 
     auto dab_loggers = RegisterLogging();
+    auto basic_radio_logger = el::Loggers::getLogger("basic-radio");
 
     el::Configurations defaultConf;
     defaultConf.setToDefault();
     defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, "true");
     defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, "true");
-    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "false");
-    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "true");
+    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "true");
     el::Loggers::reconfigureAllLoggers(defaultConf);
 
     // Number of bytes per OFDM frame in transmission mode I
     // NOTE: we are hard coding this because all other transmission modes have been deprecated
     const int N = 75*1536*2/8;
     auto buf = new uint8_t[N];
-    auto app = App();
+    auto radio = BasicRadio();
     bool is_running = true;
 
     auto runner_thread = std::thread(
         app_runner, 
-        &app, buf, N, 
+        &radio, buf, N, 
         &is_running, fp_in);
 
     // Setup window
@@ -382,7 +222,7 @@ int main(int argc, char** argv) {
         ImGui::NewFrame();
         ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-        RenderApp(&app);
+        RenderBasicRadio(&radio);
 
         // Rendering
         ImGui::Render();
@@ -424,52 +264,3 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void RenderApp(App* app) {
-    auto lock = std::unique_lock(app->mutex_database_update);
-    auto db = app->dab_db;
-
-    static char text_buffer[256];
-    static char service_name[25] = {0};
-
-    if (ImGui::Begin("Subchannels")) {
-        if (ImGui::Button("Load database")) {
-            app->trigger_database_update = true;
-        }
-        if (ImGui::BeginListBox("Subchannels list", ImVec2(ImGui::GetWindowWidth(), ImGui::GetWindowHeight()))) {
-            for (auto& subchannel: db->subchannels) {
-
-                auto res = db->lut_subchannel_to_service_component.find(subchannel.id);
-                if (res != db->lut_subchannel_to_service_component.end()) {
-                    auto res0 = db->lut_services.find(res->second->service_reference);
-                    if (res0 != db->lut_services.end()) {
-                        snprintf(service_name, 25, (res0->second)->label.c_str());
-                    } else {
-                        snprintf(service_name, 25, "");
-                    }
-                } else {
-                    snprintf(service_name, 25, "");
-                }
-
-                snprintf(text_buffer, 256, "%d[%d+%d] uep=%u label=%s", 
-                    subchannel.id,
-                    subchannel.start_address,
-                    subchannel.length,
-                    subchannel.is_uep,
-                    service_name);
-                const bool is_selected = 
-                    app->is_subchannel_selected && 
-                    (subchannel.id == app->selected_subchannel_id);
-                if (ImGui::Selectable(text_buffer, is_selected)) {
-                    app->selected_subchannel_id = subchannel.id;
-                    app->is_subchannel_selected = !is_selected;
-                }
-
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndListBox();
-        }
-    }
-    ImGui::End();
-}

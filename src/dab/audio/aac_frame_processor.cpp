@@ -236,7 +236,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     if ((dac_rate == 1) && (sbr_flag == 1)) num_aus = 3;
     if ((dac_rate == 0) && (sbr_flag == 0)) num_aus = 4;
     if ((dac_rate == 1) && (sbr_flag == 0)) num_aus = 6;
-    static uint16_t au_start[7] = {0};
+    uint16_t au_start[7] = {0};
     const int nb_au_start_bytes = read_au_start(&buf[3], &au_start[1], num_aus-1);
     au_start[num_aus] = NB_RS_DATA_BYTES*N;
 

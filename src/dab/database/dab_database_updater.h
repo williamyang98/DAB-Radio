@@ -230,13 +230,21 @@ public:
         int nb_completed = 0;
         int nb_conflicts = 0;
         int nb_updates = 0;
-        bool operator==(Statistics& other) {
+        bool operator==(const Statistics& other) {
             return 
                 (nb_total == other.nb_total) &&
                 (nb_pending == other.nb_pending) &&
                 (nb_completed == other.nb_completed) &&
                 (nb_conflicts == other.nb_conflicts) &&
                 (nb_updates == other.nb_updates);
+        }
+        bool operator!=(const Statistics& other) {
+            return 
+                (nb_total != other.nb_total) ||
+                (nb_pending != other.nb_pending) || 
+                (nb_completed != other.nb_completed) || 
+                (nb_conflicts != other.nb_conflicts) || 
+                (nb_updates != other.nb_updates);
         }
     };
 private:

@@ -11,7 +11,7 @@ private:
     using Observer = std::function<void(T...)>;
     std::vector<Observer> observers;
 public:
-    void Attach(Observer observer) {
+    void Attach(const Observer& observer) {
         observers.push_back(observer);
     }
     void Notify(T ... args) {
