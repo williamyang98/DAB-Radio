@@ -25,6 +25,7 @@
     data->prop = value;\
     on_pass;\
     CheckIsComplete();\
+    OnUpdate();\
     return UpdateResult::SUCCESS;\
 }
 
@@ -52,6 +53,7 @@
     dirty_field |= flag;\
     data->prop = std::string((const char*)(buf), N);\
     CheckIsComplete();\
+    OnUpdate();\
     return UpdateResult::SUCCESS;\
 }
 
@@ -348,6 +350,9 @@ UpdateResult FM_ServiceUpdater::AddFrequency(const freq_t frequency) {
     const auto [_, is_added] = (data->frequencies).insert(frequency);
     dirty_field |= FM_FLAG_FREQ;
     CheckIsComplete();
+    if (is_added) {
+        OnUpdate();
+    }
     return is_added ? SUCCESS : NO_CHANGE;
 }
 
@@ -377,6 +382,9 @@ UpdateResult DRM_ServiceUpdater::AddFrequency(const freq_t frequency) {
     const auto [_, is_added] = (data->frequencies).insert(frequency);
     dirty_field |= DRM_FLAG_FREQ;
     CheckIsComplete();
+    if (is_added) {
+        OnUpdate();
+    }
     return is_added ? SUCCESS : NO_CHANGE;
 }
 
@@ -397,6 +405,9 @@ UpdateResult AMSS_ServiceUpdater::AddFrequency(const freq_t frequency) {
     const auto [_, is_added] = (data->frequencies).insert(frequency);
     dirty_field |= AMSS_FLAG_FREQ;
     CheckIsComplete();
+    if (is_added) {
+        OnUpdate();
+    }
     return is_added ? SUCCESS : NO_CHANGE;
 }
 
@@ -447,21 +458,27 @@ DAB_Database_Updater::DAB_Database_Updater(DAB_Database* _db)
 void DAB_Database_Updater::SignalComplete() {
     stats.nb_completed++;
     stats.nb_pending--;
-    LOG_MESSAGE("pending={} complete={} total={} conflicts={}", 
-        stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
+    LOG_MESSAGE("pending={} complete={} updates={} total={} conflicts={}", 
+        stats.nb_pending, stats.nb_completed, stats.nb_updates, stats.nb_total, stats.nb_conflicts);
 }
 
 void DAB_Database_Updater::SignalPending() {
     stats.nb_pending++;
     stats.nb_total++;
-    LOG_MESSAGE("pending={} complete={} total={} conflicts={}", 
-        stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
+    LOG_MESSAGE("pending={} complete={} updates={} total={} conflicts={}", 
+        stats.nb_pending, stats.nb_completed, stats.nb_updates, stats.nb_total, stats.nb_conflicts);
 }
 
 void DAB_Database_Updater::SignalConflict() {
     stats.nb_conflicts++;
-    LOG_ERROR("pending={} complete={} total={} conflicts={}", 
-        stats.nb_pending, stats.nb_completed, stats.nb_total, stats.nb_conflicts);
+    LOG_ERROR("pending={} complete={} updates={} total={} conflicts={}", 
+        stats.nb_pending, stats.nb_completed, stats.nb_updates, stats.nb_total, stats.nb_conflicts);
+}
+
+void DAB_Database_Updater::SignalUpdate() {
+    stats.nb_updates++;
+    LOG_MESSAGE("pending={} complete={} updates={} total={} conflicts={}", 
+        stats.nb_pending, stats.nb_completed, stats.nb_updates, stats.nb_total, stats.nb_conflicts);
 }
 
 EnsembleUpdater* DAB_Database_Updater::GetEnsembleUpdater() {

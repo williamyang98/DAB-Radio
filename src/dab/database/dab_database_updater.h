@@ -25,6 +25,7 @@ public:
     virtual void SignalComplete() = 0;
     virtual void SignalPending() = 0;
     virtual void SignalConflict() = 0;
+    virtual void SignalUpdate() = 0;
 };
 
 // Think of this like a web form
@@ -39,6 +40,7 @@ class UpdaterChild
 protected:
     UpdaterParent* parent = NULL;
     int total_conflicts = 0;
+    int total_updates = 0;
     bool is_complete = false;
 public:
     // NOTE: This must be called upon creation of the updater
@@ -62,6 +64,10 @@ protected:
             is_complete = true;
             parent->SignalComplete();
         }
+    }
+    void OnUpdate() {
+        total_updates++;
+        parent->SignalUpdate();
     }
 };
 
@@ -217,14 +223,25 @@ public:
 
 class DAB_Database_Updater: public UpdaterParent
 {
-private:
-    // keep track of update statuses
-    struct {
+public:
+    struct Statistics {
         int nb_total = 0;
         int nb_pending = 0;
         int nb_completed = 0;
         int nb_conflicts = 0;
-    } stats;
+        int nb_updates = 0;
+        bool operator==(Statistics& other) {
+            return 
+                (nb_total == other.nb_total) &&
+                (nb_pending == other.nb_pending) &&
+                (nb_completed == other.nb_completed) &&
+                (nb_conflicts == other.nb_conflicts) &&
+                (nb_updates == other.nb_updates);
+        }
+    };
+private:
+    // keep track of update statuses
+    Statistics stats;
     // db is not owned by updater 
     DAB_Database* db;  
     // keep reference to all updaters for global conflict/completion check
@@ -245,6 +262,7 @@ public:
     virtual void SignalComplete();
     virtual void SignalPending();
     virtual void SignalConflict();
+    virtual void SignalUpdate();
     EnsembleUpdater* GetEnsembleUpdater();
     // Create the instance
     ServiceUpdater* GetServiceUpdater(const service_id_t service_ref);
@@ -262,4 +280,6 @@ public:
     inline std::vector<UpdaterChild*>& GetUpdaters() { return all_updaters; }
     // Create a copy of the database with complete entities
     void ExtractCompletedDatabase(DAB_Database& dest_db);
+    // Get status of database
+    inline Statistics GetStatistics() const { return stats; }
 };
