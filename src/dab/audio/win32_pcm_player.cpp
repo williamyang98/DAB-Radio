@@ -99,8 +99,8 @@ Win32_PCM_Player::Win32_PCM_Player() {
     params.sample_rate = 48000;
     params.total_channels = 2;
 
-    block_buf_0 = new uint8_t[params.block_size];
-    block_buf_1 = new uint8_t[params.block_size];
+    block_buf_0 = new uint8_t[params.block_size]{0};
+    block_buf_1 = new uint8_t[params.block_size]{0};
 
     wave_data = new Win32Params(params.total_channels, params.sample_rate, params.bytes_per_sample);
     wave_data->AssociateBuffers(block_buf_0, block_buf_1, params.block_size);
@@ -146,8 +146,8 @@ void Win32_PCM_Player::Regenerate(const Parameters new_params) {
     if (params.block_size != new_params.block_size) {
         delete [] block_buf_0;
         delete [] block_buf_1;
-        block_buf_0 = new uint8_t[new_params.block_size];
-        block_buf_1 = new uint8_t[new_params.block_size];
+        block_buf_0 = new uint8_t[new_params.block_size]{0};
+        block_buf_1 = new uint8_t[new_params.block_size]{0};
         inactive_block_nb_bytes = 0;
     }
 

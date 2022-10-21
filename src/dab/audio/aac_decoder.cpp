@@ -3,9 +3,6 @@
 
 #include <neaacdec.h>
 
-#include "pcm_player.h"
-#include "win32_pcm_player.h"
-
 #include "easylogging++.h"
 #include "fmt/core.h"
 
@@ -186,16 +183,17 @@ void AAC_Decoder::GenerateBitfileConfig() {
     const uint8_t AAC_LC_index = 2;
     const uint8_t SBR_index    = 5;
 
-    const uint8_t sample_rate_index = get_sr_index(sampling_frequency);
+    const uint8_t sample_rate_index = get_sr_index(params.sampling_frequency);
 
     // Referring to ETSI TS 102 563 
     // In Table 4 it states that when the SBR flag is used
     // that the sampling rate of the AAC core is half the 
     // sampling rate of the DAC
-    const uint32_t core_sample_rate = is_SBR ? (sampling_frequency/2) : sampling_frequency;
+    const uint32_t core_sample_rate = 
+        params.is_SBR ? (params.sampling_frequency/2) : params.sampling_frequency;
     const uint8_t core_sample_rate_index = get_sr_index(core_sample_rate);
 
-    const uint8_t channel_config = is_stereo ? 2 : 1;
+    const uint8_t channel_config = params.is_stereo ? 2 : 1;
 
     // Build the mp4 bitfield header
     BitPusherHelper bit_pusher;
@@ -219,7 +217,7 @@ void AAC_Decoder::GenerateBitfileConfig() {
     // Sync extension and SBR
     // To enable sync extension we need to pass in a special identifier code
     const uint16_t SYNC_EXTENSION_TYPE_SBR = 0x2B7;
-    if (is_SBR) {
+    if (params.is_SBR) {
         bit_pusher.Push(mp4_bitfile_config, SYNC_EXTENSION_TYPE_SBR, 11);
         bit_pusher.Push(mp4_bitfile_config, SBR_index, 5);
         bit_pusher.Push(mp4_bitfile_config, 1, 1);
@@ -229,11 +227,8 @@ void AAC_Decoder::GenerateBitfileConfig() {
     nb_mp4_bitfile_config_bytes = bit_pusher.GetTotalBytesCeil();
 }
 
-AAC_Decoder::AAC_Decoder(
-    const uint32_t _sampling_frequency, 
-    const bool _is_SBR, const bool _is_stereo, const bool _is_PS)
-:   sampling_frequency(_sampling_frequency),
-    is_SBR(_is_SBR), is_stereo(_is_stereo), is_PS(_is_PS)
+AAC_Decoder::AAC_Decoder(const struct Params _params)
+: params(_params)
 {
     // TODO: Add bounds check when we construct the mp4 bitfield
     mp4_bitfile_config = new uint8_t[32];
@@ -263,32 +258,36 @@ AAC_Decoder::~AAC_Decoder() {
     delete decoder_frame_info;
 }
 
-static PCM_Player* pcm_player = new Win32_PCM_Player();
+AAC_Decoder::Result AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
+    AAC_Decoder::Result res;
+    res.audio_buf = NULL;
+    res.nb_audio_buf_bytes = 0;
+    res.is_error = false;
+    res.error_code = -1;
 
-int AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
     auto audio_data = (uint8_t*)NeAACDecDecode(decoder_handle, decoder_frame_info, data, N);
     LOG_MESSAGE("aac_decoder_error={}", decoder_frame_info->error);
 
 	// abort, if no output at all
-    const int error_code = decoder_frame_info->error;
+    res.error_code = decoder_frame_info->error;
     const int nb_consumed_bytes = decoder_frame_info->bytesconsumed;
     const int nb_samples = decoder_frame_info->samples;
+
 	if (!nb_consumed_bytes && !nb_samples) {
-		return 1;
+        res.is_error = true;
+        return res;
     }
 
 	if (nb_consumed_bytes != N) {
         LOG_ERROR("aac_decoder didn't consume all bytes ({}/{})", nb_consumed_bytes, N);
-        return 1;
+        res.is_error = true;
+        return res;
     }
     
     const int nb_output_bytes = decoder_frame_info->samples * sizeof(uint16_t);
-    // fwrite(audio_data, sizeof(uint8_t), nb_output_bytes, stdout);
-    auto params = pcm_player->GetParameters();
-    params.sample_rate = sampling_frequency;
-    pcm_player->SetParameters(params);
-    pcm_player->ConsumeBuffer(audio_data, nb_output_bytes);
-    LOG_MESSAGE("Outputed {} samples @ {} bytes to audio", nb_samples, nb_output_bytes);
+    res.is_error = false;
+    res.audio_buf = audio_data;
+    res.nb_audio_buf_bytes = nb_output_bytes;
 
-	return error_code;
+	return res;
 }

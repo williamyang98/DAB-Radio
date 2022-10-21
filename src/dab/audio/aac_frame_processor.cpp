@@ -10,7 +10,12 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(##__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(##__VA_ARGS__)
 
-#define MAX_SUPER_FRAME_SIZE 10000
+constexpr int MAX_SUPER_FRAME_SIZE = 10000;
+
+// Reed solomon decoder paramters
+constexpr int NB_RS_MESSAGE_BYTES = 120;
+constexpr int NB_RS_DATA_BYTES    = 110;
+constexpr int NB_RS_PARITY_BYTES  = 10;
 
 // Helper function to read 12bit segments from a buffer
 // It returns the number of bytes that were read (rounded up to nearest byte)
@@ -59,6 +64,9 @@ int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
 }
 
 AAC_Frame_Processor::AAC_Frame_Processor() {
+    // For the following polynomials refer to ETSI TS 102 563 
+
+    // Refer to the section below table 2 in clause 5.2
     // Generator polynomial for the the fire code
     // G(x) = (x^11 + 1) * (x^5 + x^3 + x^2 + x^1 + 1) 
     // G(x) = x^16 + x^14 + x^13 + x^12 + x^11 + x^5 + x^3 + x^2 + x^1 + 1
@@ -67,6 +75,7 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     firecode_crc_calc->SetInitialValue(0x0000);
     firecode_crc_calc->SetFinalXORValue(0x0000);
 
+    // Refer to the section below table 1 in clause 5.2
     // Generator polynomial for the access unit crc check
     // G(x) = x^16 + x^12 + x^5 + 1
     // initial = all 1s, complement = true
@@ -74,6 +83,20 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     access_unit_crc_calc = new CRC_Calculator<uint16_t>(au_crc_poly);
     access_unit_crc_calc->SetInitialValue(0xFFFF);
     access_unit_crc_calc->SetFinalXORValue(0xFFFF);
+
+    // Refer to clause 6.1 on reed solomon coding
+    // The polynomial for this is given as
+    // G(x) = x^8 + x^4 + x^3 + x^2 + 1
+    const int galois_field_poly = 0b100011101;
+    // The Phil Karn reed solmon decoder works with the 2^8 Galois field
+    // Therefore we need to use the RS(255,245) decoder
+    // As according to the spec we should insert 135 padding bits
+    const int nb_padding_bits = 255-NB_RS_MESSAGE_BYTES;
+    rs_decoder = new Reed_Solomon_Decoder(8, galois_field_poly, 0, 1, 10, nb_padding_bits);
+    rs_encoded_buf = new uint8_t[NB_RS_MESSAGE_BYTES]{0};
+    // Reed solomon code can correct up to floor(t/2) symbols that were wrong
+    // where t = the number of parity symbols
+    rs_error_positions = new int[NB_RS_PARITY_BYTES]{0};
 
     state = State::WAIT_FRAME_START;
     curr_dab_frame = 0;
@@ -87,6 +110,10 @@ AAC_Frame_Processor::~AAC_Frame_Processor() {
     if (aac_decoder != NULL) {
         delete aac_decoder;
     }
+
+    delete rs_decoder;
+    delete [] rs_encoded_buf;
+    delete [] rs_error_positions;
 }
 
 void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
@@ -122,6 +149,11 @@ bool AAC_Frame_Processor::CalculateFirecode(const uint8_t* buf, const int N) {
     const bool is_valid = (crc_rx == crc_pred);
     LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}",
         is_valid, crc_rx, crc_pred);
+    
+    if (!is_valid) {
+        obs_firecode_error.Notify(curr_dab_frame, crc_rx, crc_pred);
+    }
+
     return is_valid;
 }
 
@@ -134,30 +166,30 @@ void AAC_Frame_Processor::AccumulateFrame(const uint8_t* buf, const int N) {
 
 void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*TOTAL_DAB_FRAMES;
-    const int N = nb_rs_super_frame_bytes/120;
-    const int nb_rs_encoded_bytes = 120;
+    const int N = nb_rs_super_frame_bytes/NB_RS_MESSAGE_BYTES;
 
     // reed solomon decoder
-    static auto rs_decoder = Reed_Solomon_Decoder(8, 0x11D, 0, 1, 10, 135);
-    static uint8_t rs_encoded[nb_rs_encoded_bytes] = {0};
-    static int corr_pos[10] = {0};
     for (int i = 0; i < N; i++) {
-        for (int j = 0; j < nb_rs_encoded_bytes; j++) {
-            rs_encoded[j] = super_frame_buf[i + j*N];
+        for (int j = 0; j < NB_RS_MESSAGE_BYTES; j++) {
+            rs_encoded_buf[j] = super_frame_buf[i + j*N];
         }
-        const int corr_count = rs_decoder.Decode(rs_encoded, corr_pos, 0);
-        LOG_MESSAGE("[reed-solomon] index={} corr_count={}", i, corr_count);
-        if (corr_count < 0) {
-            LOG_ERROR("Too many errors for reed solomon to correct\n");
+        const int error_count = rs_decoder->Decode(
+            rs_encoded_buf, rs_error_positions, 0);
+
+        LOG_MESSAGE("[reed-solomon] index={} error_count={}", i, error_count);
+        // rs decoder returns -1 to indicate too many errors
+        if (error_count < 0) {
+            LOG_ERROR("Too many errors for reed solomon to correct");
+            obs_rs_error.Notify(i, N);
             return;
         }
         // correct any errors
-        for (int j = 0; j < corr_count; j++) {
-            const int k = corr_pos[j];
+        for (int j = 0; j < error_count; j++) {
+            const int k = rs_error_positions[j];
             if (k < 0) {
                 continue;
             }
-            super_frame_buf[i + k*N] = rs_encoded[k];
+            super_frame_buf[i + k*N] = rs_encoded_buf[k];
         }
     }
 
@@ -180,6 +212,9 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     LOG_MESSAGE("sbr={}", sbr_flag);
     LOG_MESSAGE("ps={}", ps_flag);
     LOG_MESSAGE("is_stereo={}", is_stereo);
+
+    // TODO: Somehow handle the mpeg configuration
+    // libfaad allows you to set more advanced audio channel configuration
     switch (mpeg_config) {
     case 0b000:
         LOG_MESSAGE("MPEG surround is not used");
@@ -203,7 +238,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     if ((dac_rate == 1) && (sbr_flag == 0)) num_aus = 6;
     static uint16_t au_start[7] = {0};
     const int nb_au_start_bytes = read_au_start(&buf[3], &au_start[1], num_aus-1);
-    au_start[num_aus] = 110*N;
+    au_start[num_aus] = NB_RS_DATA_BYTES*N;
 
     // size of the audio descriptor fields
     curr_byte += 3;
@@ -218,11 +253,22 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
     // update the aac decoder if the parameters change
     if ((aac_decoder == NULL) || is_format_changed) {
+        AAC_Decoder::Params params;
+        params.sampling_frequency = sampling_rate;
+        params.is_PS = ps_flag;
+        params.is_SBR = sbr_flag;
+        params.is_stereo = is_stereo;
+
         if (aac_decoder != NULL) {
             delete aac_decoder;
             aac_decoder = NULL;
+            LOG_ERROR("AAC decoder parameters changed: sampling_rate={}Hz PS={} SBR={} stereo={}", 
+                sampling_rate, ps_flag, sbr_flag, is_stereo);
+        } else {
+            LOG_MESSAGE("AAC decoder parameters initialised: sampling_rate={}Hz PS={} SBR={} stereo={}", 
+                sampling_rate, ps_flag, sbr_flag, is_stereo);
         }
-        aac_decoder = new AAC_Decoder(sampling_rate, sbr_flag, is_stereo, ps_flag);
+        aac_decoder = new AAC_Decoder(params);
     }
 
     // process each access unit through the AAC decoder
@@ -241,12 +287,21 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 
         if (!is_crc_valid) {
+            obs_au_crc_error.Notify(i, num_aus, crc_rx, crc_pred);
             continue;
         }
 
-        const int aac_error_code = aac_decoder->DecodeFrame(au_buf, nb_data_bytes);
-        if (aac_error_code > 0) {
-            LOG_ERROR("aac_decoder_error={}", aac_error_code);
+        const auto res = aac_decoder->DecodeFrame(au_buf, nb_data_bytes);
+        LOG_MESSAGE("[aac-decoder] error={} error_code={} total_audio_bytes={}", 
+            res.is_error, res.error_code, res.nb_audio_buf_bytes);
+
+        if (res.is_error) {
+            obs_au_decoder_error.Notify(i, num_aus, res.error_code);
+        } else {
+            obs_au_audio_frame.Notify(
+                i, num_aus, 
+                res.audio_buf, res.nb_audio_buf_bytes,
+                aac_decoder->GetParams());
         }
     }
 }
