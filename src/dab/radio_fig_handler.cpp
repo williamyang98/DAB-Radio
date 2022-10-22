@@ -1,5 +1,6 @@
 #include "radio_fig_handler.h"
 #include "database/dab_database_updater.h"
+#include "dab_misc_info.h"
 
 #include "constants/subchannel_protection_tables.h"
 #include "algorithms/modified_julian_date.h"
@@ -16,12 +17,16 @@ void Radio_FIG_Handler::OnEnsemble_1_ID(
     const uint8_t change_flags, const uint8_t alarm_flag,
     const uint8_t cif_upper, const uint8_t cif_lower) 
 {
-    if (!updater) return;
-    auto u = updater->GetEnsembleUpdater();    
-    u->SetCountryID(country_id);
-    u->SetReference(ensemble_ref);
+    if (updater) {
+        auto u = updater->GetEnsembleUpdater();    
+        u->SetCountryID(country_id);
+        u->SetReference(ensemble_ref);
+    }
 
-    // TODO: how to handle synchronisation with cif upper and lower counters
+    if (misc_info) {
+        misc_info->cif_counter.upper_count = cif_upper;
+        misc_info->cif_counter.lower_count = cif_lower;
+    }
 }
 
 // fig 0/1 - subchannel configuration
@@ -409,7 +414,7 @@ void Radio_FIG_Handler::OnDateTime_1(
     const uint8_t hours, const uint8_t minutes, const uint8_t seconds, const uint16_t milliseconds,
     const bool is_leap_second, const bool is_long_form)
 {
-    if (!updater) return;
+    if (!misc_info) return;
 
     struct {
         int year;
@@ -422,7 +427,16 @@ void Radio_FIG_Handler::OnDateTime_1(
         time.day, time.month, time.year,
         hours, minutes, seconds, milliseconds);
 
-    // TODO: put this somewhere?
+    misc_info->datetime.day = time.day;
+    misc_info->datetime.month = time.month;
+    misc_info->datetime.year = time.year;
+    misc_info->datetime.hours = hours;
+    misc_info->datetime.minutes = minutes;
+    // Seconds and milliseconds only provided with long form
+    if (is_long_form) {
+        misc_info->datetime.seconds = seconds;
+        misc_info->datetime.milliseconds = milliseconds;
+    }
 }
 
 // fig 0/13 - User application information

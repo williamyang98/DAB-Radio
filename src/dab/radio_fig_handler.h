@@ -3,14 +3,17 @@
 #include "fic/fig_handler_interface.h"
 
 class DAB_Database_Updater;
+struct DAB_Misc_Info;
 
 // Connects the FIG processor to the DAB database updater
 class Radio_FIG_Handler: public FIG_Handler_Interface
 {
 private:
-    DAB_Database_Updater* updater;
+    DAB_Database_Updater* updater = NULL;
+    DAB_Misc_Info* misc_info = NULL;
 public:
     void SetUpdater(DAB_Database_Updater* _updater) { updater = _updater; }
+    void SetMiscInfo(DAB_Misc_Info* _info) { misc_info = _info; }
 public:
     // fig 0/0 - ensemble information
     virtual void OnEnsemble_1_ID(
