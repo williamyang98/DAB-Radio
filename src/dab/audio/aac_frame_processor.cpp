@@ -117,6 +117,11 @@ AAC_Frame_Processor::~AAC_Frame_Processor() {
 }
 
 void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
+    if (N == 0) { 
+        LOG_ERROR("Received an empty buffer");
+        return;
+    }
+
     // If the buffer size changed reset our accumulated DAB logical frames
     if (prev_nb_dab_frame_bytes != N) {
         prev_nb_dab_frame_bytes = N;
@@ -273,15 +278,20 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
     // process each access unit through the AAC decoder
     for (int i = 0; i < num_aus; i++) {
-        const uint16_t nb_au_bytes = au_start[i+1] - au_start[i];
+        const int nb_au_bytes = static_cast<int>(au_start[i+1]) - static_cast<int>(au_start[i]);
         uint8_t* au_buf = &buf[au_start[i]];
 
         const auto nb_crc_bytes = sizeof(uint16_t);
-        const uint16_t nb_data_bytes = nb_au_bytes - nb_crc_bytes;
+        const int nb_data_bytes = nb_au_bytes - static_cast<int>(nb_crc_bytes);
+        if (nb_data_bytes < 0) {
+            LOG_ERROR("N={} nb_dab_frame_bytes={}", N, nb_dab_frame_bytes);
+            LOG_ERROR("AU bounds error: num_aus={} nb_au_bytes={} nb_data_bytes={}", 
+                num_aus, nb_au_bytes, nb_data_bytes);
+            return;
+        }
+
         const uint8_t* crc_buf = &au_buf[nb_data_bytes];
         const uint16_t crc_rx = (crc_buf[0] << 8) | crc_buf[1];
-
-
         const uint16_t crc_pred = access_unit_crc_calc->Process(au_buf, nb_data_bytes);
         const bool is_crc_valid = (crc_pred == crc_rx);
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);

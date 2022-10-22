@@ -29,6 +29,7 @@ public:
     MSC_Decoder(const Subchannel _subchannel);
     ~MSC_Decoder();
     // Returns the number of bytes decoded
+    // NOTE: the number of bytes decoded can be 0 if the deinterleaver is still collecting frames
     int DecodeCIF(const uint8_t* buf, const int N);
     const uint8_t* GetDecodedBytes() { return decoded_bytes_buf; }
 private:

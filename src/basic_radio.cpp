@@ -105,9 +105,13 @@ void BasicAudioChannel::Run() {
     const int nb_cif_bytes = N/nb_cifs;
     for (int i = 0; i < nb_cifs; i++) {
         const auto* cif_buf = &buf[nb_cif_bytes*i];
-        const int nb_bytes = msc_decoder->DecodeCIF(cif_buf, nb_cif_bytes);
+        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, nb_cif_bytes);
+        // The MSC decoder can have 0 bytes if the deinterleaver is still collecting frames
+        if (nb_decoded_bytes == 0) {
+            continue;
+        }
         const auto* decoded_buf = msc_decoder->GetDecodedBytes();
-        aac_frame_processor->Process(decoded_buf, nb_bytes);
+        aac_frame_processor->Process(decoded_buf, nb_decoded_bytes);
     }
 }
 
