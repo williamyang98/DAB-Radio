@@ -85,16 +85,7 @@ int MSC_Decoder::DecodeCIF(const uint8_t* buf, const int N) {
 }
 
 int MSC_Decoder::DecodeEEP() {
-    EEP_Descriptor descriptor;
-    if (subchannel.eep_type == EEP_Type::TYPE_A) {
-        if (subchannel.length == 8) {
-            descriptor = EEP_PROT_2A_SPECIAL;
-        } else {
-            descriptor = EEP_PROTECTION_TABLE_TYPE_A[subchannel.eep_prot_level];
-        }
-    } else {
-        descriptor = EEP_PROTECTION_TABLE_TYPE_B[subchannel.eep_prot_level];
-    }
+    const auto descriptor = GetEEPDescriptor(subchannel);
 
     const int n = subchannel.length / descriptor.capacity_unit_multiple;
     int curr_encoded_bit = 0;
@@ -144,7 +135,7 @@ int MSC_Decoder::DecodeEEP() {
 
 // TODO: We don't have any samples to test if UEP decoding works
 int MSC_Decoder::DecodeUEP() {
-    const auto descriptor = UEP_PROTECTION_TABLE[subchannel.uep_prot_index]; 
+    const auto descriptor = GetUEPDescriptor(subchannel);
 
     int curr_encoded_bit = 0;
     int curr_puncture_bit = 0;

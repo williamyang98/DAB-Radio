@@ -90,7 +90,7 @@ const UEP_Descriptor UEP_PROTECTION_TABLE[UEP_PROTECTION_TABLE_SIZE] = {
 struct EEP_Lx_Equation {
     int m;
     int b;
-    inline int GetLx(const int n) {
+    inline int GetLx(const int n) const {
         return m*n + b;
     }
 };
@@ -129,3 +129,24 @@ const EEP_Descriptor EEP_PROTECTION_TABLE_TYPE_B[EEP_PROTECTION_TABLE_SIZE] = {
     {18, {{24, -3}, {0, 3}}, { 4,  3}, 32},   // 3-B
     {15, {{24, -3}, {0, 3}}, { 2,  1}, 32},   // 4-B
 };
+
+static EEP_Descriptor GetEEPDescriptor(const Subchannel& subchannel) {
+    if (subchannel.eep_type == EEP_Type::TYPE_A) {
+        if (subchannel.length == 8) {
+            return EEP_PROT_2A_SPECIAL;
+        } else {
+            return EEP_PROTECTION_TABLE_TYPE_A[subchannel.eep_prot_level];
+        }
+    } 
+    return EEP_PROTECTION_TABLE_TYPE_B[subchannel.eep_prot_level];
+}
+
+static uint32_t CalculateEEPBitrate(const Subchannel& subchannel) {
+    auto& descriptor = GetEEPDescriptor(subchannel);
+    const int n = subchannel.length / descriptor.capacity_unit_multiple;
+    return n * descriptor.bitrate_multiple;
+}
+
+static UEP_Descriptor GetUEPDescriptor(const Subchannel& subchannel) {
+    return UEP_PROTECTION_TABLE[subchannel.uep_prot_index];
+}
