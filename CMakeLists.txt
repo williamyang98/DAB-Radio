@@ -15,6 +15,7 @@ if(WIN32)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 endif(WIN32)
 
+# Our core libraries
 set(OFDM_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/ofdm)
 add_library(ofdm_core STATIC 
     ${OFDM_CORE_DIR}/ofdm_demodulator.cpp
@@ -48,6 +49,7 @@ target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
 
+# Our applications
 add_executable(view_data 
     src/view_data.cpp
     src/gui/render_ofdm_demod.cpp
@@ -68,12 +70,6 @@ include_directories(simulate_transmitter src/)
 set_target_properties(simulate_transmitter PROPERTIES CXX_STANDARD 17)
 target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
 
-add_executable(view_ofdm_sample 
-    src/view_ofdm_sample.cpp)
-include_directories(view_ofdm_sample src/)
-set_target_properties(view_ofdm_sample PROPERTIES CXX_STANDARD 17)
-target_link_libraries(view_ofdm_sample PRIVATE getopt imgui implot kissfft)
-
 add_executable(process_frames
     src/process_frames.cpp
     src/basic_radio.cpp
@@ -85,20 +81,13 @@ set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
 target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp fmt)
 target_compile_definitions(process_frames PRIVATE ELPP_THREAD_SAFE)
 
-add_executable(pcm_play src/pcm_play.cpp)
-set_target_properties(pcm_play PROPERTIES CXX_STANDARD 17)
-target_link_libraries(pcm_play PRIVATE getopt)
-
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(dab_core             PRIVATE "/MP")
 target_compile_options(getopt               PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")
-target_compile_options(view_ofdm_sample     PRIVATE "/MP")
-
 target_compile_options(view_data            PRIVATE "/MP")
 target_compile_options(read_data            PRIVATE "/MP")
 target_compile_options(process_frames       PRIVATE "/MP")
-target_compile_options(pcm_play             PRIVATE "/MP")
 endif(WIN32)
