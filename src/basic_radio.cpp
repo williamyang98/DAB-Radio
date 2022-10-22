@@ -113,6 +113,7 @@ void BasicAudioChannel::Run() {
 
 // Fast information channel
 BasicFICRunner::BasicFICRunner() {
+    misc_info = new DAB_Misc_Info();
     dab_db = new DAB_Database();
     dab_db_updater = new DAB_Database_Updater(dab_db);
     fic_decoder = new FIC_Decoder();
@@ -120,6 +121,7 @@ BasicFICRunner::BasicFICRunner() {
     fig_handler = new Radio_FIG_Handler();
 
     fig_handler->SetUpdater(dab_db_updater);
+    fig_handler->SetMiscInfo(misc_info);
     fig_processor->SetHandler(fig_handler);
     fic_decoder->OnFIB().Attach([this] 
     (const uint8_t* buf, const int N) 
@@ -129,6 +131,7 @@ BasicFICRunner::BasicFICRunner() {
 }
 
 BasicFICRunner::~BasicFICRunner() {
+    delete misc_info;
     delete dab_db;
     delete dab_db_updater;
     delete fic_decoder;
@@ -171,21 +174,30 @@ void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
 
     {
         auto lock = std::scoped_lock(mutex_channels);
-        fic_runner.SetBuffer(fic_buf, nb_fic_bytes);
+        selected_channels_temp.clear();
         for (auto& [_, channel]: channels) {
-            if (channel->is_selected) channel->SetBuffer(msc_buf, nb_msc_bytes);
+            if (channel->is_selected) {
+                selected_channels_temp.push_back(channel.get());
+            }
+        }
+    }
+
+    {
+        fic_runner.SetBuffer(fic_buf, nb_fic_bytes);
+        for (auto& channel: selected_channels_temp) {
+            channel->SetBuffer(msc_buf, nb_msc_bytes);
         }
 
         // Launch all channel threads
         fic_runner.Start();
-        for (auto& [_, channel]: channels) {
-            if (channel->is_selected) channel->Start();
+        for (auto& channel: selected_channels_temp) {
+            channel->Start();
         }
 
         // Join them all now
         fic_runner.Join();
-        for (auto& [_, channel]: channels) {
-            if (channel->is_selected) channel->Join();
+        for (auto& channel: selected_channels_temp) {
+            channel->Join();
         }
     }
 
@@ -193,7 +205,7 @@ void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
 }
 
 void BasicRadio::UpdateDatabase() {
-    auto lock = std::scoped_lock(mutex_db);
+    misc_info = *fic_runner.GetMiscInfo();
     auto* live_db = fic_runner.GetLiveDatabase();
     auto* db_updater = fic_runner.GetDatabaseUpdater();
     
@@ -225,6 +237,7 @@ void BasicRadio::UpdateDatabase() {
     // If the cooldown has been reached, then we consider
     // the databases to be sufficiently stable to copy
     // This is an expensive operation so we should only do it when there are few changes
+    auto lock = std::scoped_lock(mutex_db);
     db_updater->ExtractCompletedDatabase(*valid_dab_db);
 }
 

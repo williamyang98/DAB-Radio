@@ -77,7 +77,8 @@ add_executable(process_frames
     src/process_frames.cpp
     src/basic_radio.cpp
     src/audio/win32_pcm_player.cpp
-    src/gui/render_basic_radio.cpp)
+    src/gui/render_basic_radio.cpp
+    src/gui/imgui_skeleton.cpp)
 include_directories(process_frames src/)
 set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
 target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp fmt)

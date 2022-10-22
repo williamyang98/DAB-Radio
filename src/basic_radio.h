@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <unordered_map>
 #include <memory>
 #include <thread>
@@ -14,6 +15,7 @@
 #include "dab/database/dab_database_updater.h"
 #include "dab/msc/msc_decoder.h"
 #include "dab/audio/aac_frame_processor.h"
+#include "dab/dab_misc_info.h"
 
 #include "audio/pcm_player.h"
 
@@ -65,6 +67,7 @@ protected:
 class BasicFICRunner: public BasicThreadedChannel
 {
 private:
+    DAB_Misc_Info* misc_info;
     DAB_Database* dab_db;
     DAB_Database_Updater* dab_db_updater;
     FIC_Decoder* fic_decoder;
@@ -75,6 +78,7 @@ public:
     ~BasicFICRunner();
     auto GetLiveDatabase(void) { return dab_db; }
     auto GetDatabaseUpdater(void) { return dab_db_updater; }
+    auto GetMiscInfo(void) { return misc_info; }
 protected:
     virtual void Run();
 };
@@ -83,6 +87,7 @@ protected:
 class BasicRadio
 {
 private:
+    DAB_Misc_Info misc_info;
     // keep track of database with completed entries
     DAB_Database* valid_dab_db;
     DAB_Database_Updater::Statistics previous_stats;
@@ -93,14 +98,17 @@ private:
     std::mutex mutex_channels;
     // channels
     BasicFICRunner fic_runner;
+    std::vector<BasicAudioChannel*> selected_channels_temp;
     std::unordered_map<subchannel_id_t, std::unique_ptr<BasicAudioChannel>> channels;
 public:
     BasicRadio();
     ~BasicRadio();
     void ProcessFrame(uint8_t* const buf, const int N);
+    const auto& GetDABMiscInfo(void) { return misc_info; }
     // NOTE: you must get the mutex associated with this
     auto* GetDatabase(void) { return valid_dab_db; }
     auto& GetDatabaseMutex(void) { return mutex_db; }
+    auto GetDatabaseStatistics(void) { return previous_stats; }
     void AddSubchannel(const subchannel_id_t id);
     bool IsSubchannelAdded(const subchannel_id_t id);
     auto& GetChannelsMutex(void) { return mutex_channels; }
