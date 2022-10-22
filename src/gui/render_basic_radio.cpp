@@ -343,7 +343,7 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleController* controller) {
     const auto window_title = fmt::format("Services ({})###Services panel", db->services.size());
     if (ImGui::Begin(window_title.c_str())) {
         auto& search_filter = GlobalFilters.services_filter;
-        search_filter.Draw("", -1.0f);
+        search_filter.Draw("###Services search filter", -1.0f);
         if (ImGui::BeginListBox("###Services list", ImVec2(-1,-1))) {
             for (auto& service: db->services) {
                 const int service_id = static_cast<int>(service.reference);
@@ -353,6 +353,7 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleController* controller) {
                     controller->selected_service = is_selected ? -1 : service_id;
                 }
             }
+            ImGui::EndListBox();
         }
     }
     ImGui::End();
