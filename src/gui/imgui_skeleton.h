@@ -15,6 +15,8 @@ public:
     // Occurs after Imgui::CreateContext
     virtual void AfterImguiContextInit();
     virtual void Render() = 0;
+    // On shutdown of app
+    virtual void AfterShutdown();
 };
 
 int RenderImguiSkeleton(ImguiSkeleton* runner);

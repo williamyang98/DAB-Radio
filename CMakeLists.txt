@@ -50,7 +50,8 @@ include_directories(getopt PUBLIC src/getopt/)
 
 add_executable(view_data 
     src/view_data.cpp
-    src/gui/render_ofdm_demod.cpp)
+    src/gui/render_ofdm_demod.cpp
+    src/gui/imgui_skeleton.cpp)
 include_directories(view_data src/)
 set_target_properties(view_data PROPERTIES CXX_STANDARD 17)
 target_link_libraries(view_data PRIVATE ofdm_core getopt imgui implot)

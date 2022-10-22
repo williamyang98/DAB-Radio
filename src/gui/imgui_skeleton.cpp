@@ -70,6 +70,10 @@ void ImguiSkeleton::AfterImguiContextInit() {
     }
 }
 
+void ImguiSkeleton::AfterShutdown() {
+    // If you are using implot, we can place the DestroyContext call here
+}
+
 // Inject skeleton into our imgui app
 int RenderImguiSkeleton(ImguiSkeleton* runner) {
     // Setup window
@@ -176,6 +180,8 @@ int RenderImguiSkeleton(ImguiSkeleton* runner) {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    runner->AfterShutdown();
+
     glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
