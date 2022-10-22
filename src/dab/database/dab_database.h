@@ -57,6 +57,8 @@ private:
     std::map<lsn_t, std::set<FM_Service*>> lut_link_fm_services;
     std::map<lsn_t, std::set<DRM_Service*>> lut_link_drm_services;
 
+    // (manual) lookup the LSN's connected to a service
+    std::map<service_id_t, std::set<LinkService*>> lut_service_lsn;
 public:
     // Already created
     Ensemble* GetEnsemble() { return &ensemble; }
@@ -75,6 +77,10 @@ public:
     // Calls that don't create an object and can return NULL
     ServiceComponent* GetServiceComponent_Global(const service_component_global_id_t global_id);
     ServiceComponent* GetServiceComponent_Subchannel(const subchannel_id_t subchannel_id);
+    std::set<ServiceComponent*>* GetServiceComponents(const service_id_t service_reference);
+    std::set<LinkService*>* GetServiceLSNs(const service_id_t service_reference);
+    std::set<FM_Service*>* Get_LSN_FM_Services(const lsn_t lsn);
+    std::set<DRM_Service*>* Get_LSN_DRM_Services(const lsn_t lsn);
 
     // Create a linkage between database entities in realtime as they get added
     // This is like a foreign key inside a proper database
@@ -90,6 +96,9 @@ public:
         const lsn_t linkage_set_number, const fm_id_t rds_pi_code);
     LinkResult CreateLink_DRM_Service(
         const lsn_t linkage_set_number, const drm_id_t drm_id);
+    LinkResult CreateLink_Service_LSN(
+        const service_id_t service_reference,
+        const lsn_t linkage_set_number);
 
     // Recreate the lookup tables from the existing entities
     bool RegenerateLookups();

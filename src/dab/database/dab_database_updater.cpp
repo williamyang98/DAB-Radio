@@ -317,7 +317,11 @@ UpdateResult LinkServiceUpdater::SetIsInternational(const bool is_international)
 }
 
 UpdateResult LinkServiceUpdater::SetServiceReference(const service_id_t service_reference) {
-    FORM_FIELD_MACRO(service_reference, LINK_FLAG_SERVICE_REF);
+    FORM_FIELD_MACRO_FULL(service_reference, LINK_FLAG_SERVICE_REF, {
+        parent->GetDatabase()->CreateLink_Service_LSN(
+            service_reference,
+            data->id);
+    });
 }
 
 service_id_t LinkServiceUpdater::GetServiceReference() {

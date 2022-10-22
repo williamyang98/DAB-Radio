@@ -24,7 +24,10 @@ ServiceComponent* DAB_Database::GetServiceComponent(
     const service_component_id_t component_id,
     const bool is_create)
 {
-    GetService(service_reference);
+    auto* service = GetService(service_reference, is_create);
+    if (service == NULL) {
+        return NULL;
+    }
 
     auto& components_table = lut_service_components_table[service_reference];
     auto& components_list = lut_service_components_list[service_reference];
@@ -147,6 +150,38 @@ ServiceComponent* DAB_Database::GetServiceComponent_Subchannel(const subchannel_
     return res->second;
 }
 
+std::set<ServiceComponent*>* DAB_Database::GetServiceComponents(const service_id_t service_reference) {
+    auto res = lut_service_components_list.find(service_reference);
+    if (res == lut_service_components_list.end()) {
+        return NULL;
+    }
+    return &(res->second);
+}
+
+std::set<LinkService*>* DAB_Database::GetServiceLSNs(const service_id_t service_reference) {
+    auto res = lut_service_lsn.find(service_reference);
+    if (res == lut_service_lsn.end()) {
+        return NULL;
+    }
+    return &(res->second);
+}
+
+std::set<FM_Service*>* DAB_Database::Get_LSN_FM_Services(const lsn_t lsn) {
+    auto res = lut_link_fm_services.find(lsn);
+    if (res == lut_link_fm_services.end()) {
+        return NULL;
+    }
+    return &(res->second);
+}
+
+std::set<DRM_Service*>* DAB_Database::Get_LSN_DRM_Services(const lsn_t lsn) {
+    auto res = lut_link_drm_services.find(lsn);
+    if (res == lut_link_drm_services.end()) {
+        return NULL;
+    }
+    return &(res->second);
+}
+
 // Create a linkage between database entities
 // This is like a foreign key inside a proper database
 DAB_Database::LinkResult DAB_Database::CreateLink_ServiceComponent_Global(
@@ -155,7 +190,7 @@ DAB_Database::LinkResult DAB_Database::CreateLink_ServiceComponent_Global(
     const service_component_global_id_t global_id)
 {
     auto res = lut_global_service_components.find(global_id);
-    auto* component = GetServiceComponent(service_reference, component_id);
+    auto* component = GetServiceComponent(service_reference, component_id, true);
     if (res != lut_global_service_components.end()) {
         const bool is_match = (component == res->second);
         return is_match ? NO_CHANGE : CONFLICT;
@@ -170,8 +205,8 @@ DAB_Database::LinkResult DAB_Database::CreateLink_ServiceComponent_Subchannel(
     const service_component_id_t component_id, 
     const subchannel_id_t subchannel_id) 
 {
-    GetSubchannel(subchannel_id);
-    auto* component = GetServiceComponent(service_reference, component_id);
+    GetSubchannel(subchannel_id, true);
+    auto* component = GetServiceComponent(service_reference, component_id, true);
     auto res = lut_subchannel_to_service_component.find(subchannel_id);
     if (res != lut_subchannel_to_service_component.end()) {
         const bool is_match = (component == res->second);
@@ -185,8 +220,8 @@ DAB_Database::LinkResult DAB_Database::CreateLink_ServiceComponent_Subchannel(
 DAB_Database::LinkResult DAB_Database::CreateLink_FM_Service(
     const lsn_t linkage_set_number, const fm_id_t rds_pi_code)
 {
-    GetLinkService(linkage_set_number);
-    auto* fm = Get_FM_Service(rds_pi_code);
+    GetLinkService(linkage_set_number, true);
+    auto* fm = Get_FM_Service(rds_pi_code, true);
     auto& fm_list = lut_link_fm_services[linkage_set_number];
 
     auto res = fm_list.find(fm);
@@ -201,8 +236,8 @@ DAB_Database::LinkResult DAB_Database::CreateLink_FM_Service(
 DAB_Database::LinkResult DAB_Database::CreateLink_DRM_Service(
     const lsn_t linkage_set_number, const drm_id_t drm_id)
 {
-    GetLinkService(linkage_set_number);
-    auto* drm = Get_DRM_Service(drm_id);
+    GetLinkService(linkage_set_number, true);
+    auto* drm = Get_DRM_Service(drm_id, true);
     auto& drm_list = lut_link_drm_services[linkage_set_number];
 
     auto res = drm_list.find(drm);
@@ -211,6 +246,22 @@ DAB_Database::LinkResult DAB_Database::CreateLink_DRM_Service(
     }
 
     drm_list.insert(drm);
+    return ADDED;
+}
+
+DAB_Database::LinkResult DAB_Database::CreateLink_Service_LSN(
+    const service_id_t service_reference,
+    const lsn_t linkage_set_number)
+{
+    auto* link_service = GetLinkService(linkage_set_number, true);
+    auto& lsn_list = lut_service_lsn[service_reference];
+
+    auto res = lsn_list.find(link_service);
+    if (res != lsn_list.end()) {
+        return NO_CHANGE;
+    }
+
+    lsn_list.insert(link_service);
     return ADDED;
 }
 
@@ -240,6 +291,9 @@ bool DAB_Database::RegenerateLookups() {
     // (manual) when fm/drm service given linkage set number
     lut_link_fm_services.clear();
     lut_link_drm_services.clear();
+
+    // (manual) lookup the LSN's connected to a service
+    lut_service_lsn.clear();
 
     bool is_success = true;
 
@@ -315,6 +369,14 @@ bool DAB_Database::RegenerateLookups() {
         const auto lsn = e.linkage_set_number;
         auto& drm_list = lut_link_drm_services[lsn];
         auto [_, rv] = drm_list.insert(&e);
+        is_success = is_success && rv;
+    }
+
+    // (manual) lookup the LSN's connected to a service
+    for (auto& e: link_services) {
+        const auto service_ref = e.service_reference;
+        auto& lsn_list = lut_service_lsn[service_ref];
+        auto [_, rv] = lsn_list.insert(&e);
         is_success = is_success && rv;
     }
 
