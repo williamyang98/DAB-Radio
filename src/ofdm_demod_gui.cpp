@@ -196,7 +196,7 @@ void usage() {
         "\t    If no file is provided then stdin is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-S toggle step mode (default: false)]\n"
-        "\t[-D toggle frame output (default: false)]\n"
+        "\t[-D toggle frame output (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -206,7 +206,7 @@ int main(int argc, char** argv)
     int block_size = 8192;
     int transmission_mode = 1;
     bool is_step_mode = false;
-    bool is_frame_output = false;
+    bool is_frame_output = true;
     char* rd_filename = NULL;
 
     int opt; 
@@ -233,7 +233,7 @@ int main(int argc, char** argv)
             is_step_mode = true;
             break;
         case 'D':
-            is_frame_output = true;
+            is_frame_output = false;
             break;
         case 'h':
         default:
