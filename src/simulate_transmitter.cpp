@@ -1,3 +1,7 @@
+// This application produces a dummy OFDM signal with mode I,II,III,IV parameters
+// No information is encoded in this signal
+// It is only used to test if the OFDM demodulator is working correctly
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <complex>

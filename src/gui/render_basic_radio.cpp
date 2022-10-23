@@ -346,6 +346,9 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleController* controller) {
         search_filter.Draw("###Services search filter", -1.0f);
         if (ImGui::BeginListBox("###Services list", ImVec2(-1,-1))) {
             for (auto& service: db->services) {
+                if (!search_filter.PassFilter(service.label.c_str())) {
+                    continue;
+                }
                 const int service_id = static_cast<int>(service.reference);
                 const bool is_selected = (service_id == controller->selected_service);
                 auto label = fmt::format("{}###{}", service.label, service.reference);

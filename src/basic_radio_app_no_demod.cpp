@@ -1,3 +1,6 @@
+// Basic radio without the OFDM demodulator
+// Only has the DAB digital decoder
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -53,13 +56,13 @@ public:
     virtual GLFWwindow* Create_GLFW_Window(void) {
         return glfwCreateWindow(
             1280, 720, 
-            "Basic DAB Radio", 
+            "Basic DAB Radio (No OFDM demodulator)", 
             NULL, NULL);
     }
     virtual void AfterImguiContextInit() {
         ImguiSkeleton::AfterImguiContextInit();
         auto& io = ImGui::GetIO();
-        io.IniFilename =  "imgui_process_frames.ini";
+        io.IniFilename =  "imgui_basic_radio_no_demod.ini";
         io.Fonts->AddFontFromFileTTF("res/Roboto-Regular.ttf", 15.0f);
         {
             static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA };
@@ -88,7 +91,7 @@ private:
 
 void usage() {
     fprintf(stderr, 
-        "process_frames, decoded DAB frame data\n\n"
+        "basic_radio_app_no_demod, decodes logical OFDM frame as a DAB transmission into a basic radio\n\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
         "\t[-h (show usage)]\n"

@@ -1,3 +1,5 @@
+// Basic radio app that includes the OFDM demodulator and the DAB digital decoder
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -41,6 +43,8 @@ private:
     const int block_size;
     std::complex<uint8_t>* rd_in_raw;
     std::complex<float>* rd_in_float;
+    // We need this if the rtl_sdr.exe app drops a byte and causes the I and Q channels to swap
+    bool flag_rd_byte_offset = false;
 
     // Double buffer our demodulator frame data to radio thread
     uint8_t* frame_double_buffer;
@@ -177,16 +181,40 @@ public:
             ImGui::DockSpace(dockspace_id);
             RenderSourceBuffer(rd_in_float, block_size);
             RenderOFDMDemodulator(ofdm_demod, ofdm_sym_mapper);
+            RenderAppControls();
         }
         ImGui::End();
     }
     virtual void AfterShutdown() {
         ImPlot::DestroyContext();
     }
+// Controls for reading raw IQ values
+private:
+    void RenderAppControls() {
+        if (ImGui::Begin("Input controls")) {
+            ImGui::Text(
+                "If the impulse response doesn't have a very sharp peak then we have a byte desync\n"
+                "This arises when the rtl_sdr.exe app drops a byte, causing the I and Q channels to swap\n"
+                "Although we still get a correlation peak from the phase reference symbol, the phase information is incorrect\n",
+                "This causes havoc on the fine frequency correction and time synchronisation\n"
+                "Press the offset input stream button to correct this desynchronisation");
+            if (ImGui::Button("Offset input stream")) {
+                flag_rd_byte_offset = true;
+            }
+        }
+    }
 // Runner threads for the OFDM demodulator and DAB radio decoder
 private:
     void RunnerThread_OFDM_Demod() {
         while (is_running) {
+            // Resynchronise the IQ values if the rtl_sdr.exe app dropped a byte
+            if (flag_rd_byte_offset) {
+                uint8_t dummy = 0x00;
+                auto nb_read = fread(&dummy, sizeof(uint8_t), 1, fp_in);
+                flag_rd_byte_offset = false;
+            }
+
+            // Read raw 8bit IQ values and convert them to floating point
             const auto nb_read = fread((void*)rd_in_raw, sizeof(std::complex<uint8_t>), block_size, fp_in);
             if (nb_read != block_size) {
                 fprintf(stderr, "Failed to read in %d bytes, got %llu bytes\n", 
@@ -226,7 +254,7 @@ void usage() {
         "process_frames, decoded DAB frame data\n\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
-        "\t[-b block size (default: 128000)]\n"
+        "\t[-b block size (default: 8192)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -234,7 +262,7 @@ void usage() {
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     char* rd_filename = NULL;
-    int block_size = 128000;
+    int block_size = 8192;
 
     int opt; 
     while ((opt = getopt(argc, argv, "i:b:h")) != -1) {

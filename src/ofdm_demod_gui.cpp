@@ -1,3 +1,5 @@
+// Reads in raw IQ values from rtl_sdr and converts it into a digital OFDM frame
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -39,7 +41,10 @@ private:
     bool flag_step = false;
     bool flag_apply_rd_offset = false;
     bool flag_dump_frame = false;
+    // runner thread
+    std::thread* runner_thread;
 public:
+    // External controls
     bool is_wait_step = false;
     bool is_always_dump_frame = false;
 public:
@@ -52,17 +57,101 @@ public:
         buf_rd_raw = new std::complex<float>[block_size];
 
         demod_state = OFDM_Demodulator::State::WAITING_NULL;
-        demod->On_OFDM_Frame().Attach([this](const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
-            OnOFDMFrame(phases, nb_carriers, nb_symbols);
-        });
+        {
+            using namespace std::placeholders;
+            demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
+        }
+
+        is_running = false;
+        runner_thread = NULL;
     }
     ~App() {
         is_running = false;
+        fclose(fp_in);
+        runner_thread->join();
+        delete runner_thread;
         delete [] buf_rd;
         delete [] buf_rd_raw;
     }
-    void Run() {
+    void Start() {
+        if (is_running) {
+            return;
+        }
         is_running = true;
+        runner_thread = new std::thread([this]() {
+            RunnerThread();
+        });
+    }
+    inline OFDM_Demodulator::State GetDemodulatorState() const { return demod_state; }
+private:
+    void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
+        assert(mapper->GetTotalCarriers() == nb_carriers);
+        assert(mapper->GetTotalSymbols() == nb_symbols);
+        mapper->ProcessRawFrame(phases);
+        if (flag_dump_frame || is_always_dump_frame) {
+            const auto buf = mapper->GetOutputBuffer();
+            const auto N = mapper->GetOutputBufferSize();
+            fwrite(buf, sizeof(uint8_t), N, stdout);
+            flag_dump_frame = false;
+        }
+    }
+// Imgui skeleton code
+public:
+    virtual GLFWwindow* Create_GLFW_Window(void) {
+        return glfwCreateWindow(
+            1280, 720, 
+            "OFDM Demodulator GUI", 
+            NULL, NULL);
+    }
+    virtual void AfterImguiContextInit() {
+        ImPlot::CreateContext();
+        ImguiSkeleton::AfterImguiContextInit();
+        auto& io = ImGui::GetIO();
+        io.IniFilename =  "imgui_ofdm_demod.ini";
+        io.Fonts->AddFontFromFileTTF("res/Roboto-Regular.ttf", 15.0f);
+        {
+            static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA };
+            ImFontConfig icons_config;
+            icons_config.MergeMode = true;
+            icons_config.PixelSnapH = true;
+            io.Fonts->AddFontFromFileTTF("res/font_awesome.ttf", 16.0f, &icons_config, icons_ranges);
+        }
+        ImGuiSetupCustomConfig();
+    }
+
+    virtual void Render() {
+        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+        RenderSourceBuffer(buf_rd_raw, block_size);
+        RenderOFDMDemodulator(demod, mapper);
+        RenderAppControls();
+    }
+    virtual void AfterShutdown() {
+        ImPlot::DestroyContext();
+    }
+private:
+    void RenderAppControls() {
+        if (ImGui::Begin("Input controls")) {
+            if (ImGui::Button("Offset input stream")) {
+                flag_apply_rd_offset = true;
+            }
+            ImGui::Checkbox("Enable stepping", &is_wait_step);
+            if (is_wait_step) {
+                if (ImGui::Button("Step")) {
+                    flag_step = true;
+                }
+            }             
+
+            ImGui::Checkbox("Enable continuous frame dump", &is_always_dump_frame);
+            if (!is_always_dump_frame) {
+                if (ImGui::Button("Dump next block")) {
+                    flag_dump_frame = true;
+                }
+            } 
+        }
+        ImGui::End();
+    }
+private:
+    void RunnerThread() {
         while (is_running) {
             while (!(flag_step) && (is_wait_step)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(30));
@@ -96,84 +185,12 @@ public:
             demod_state = demod->GetState();
         }
     }
-    void Stop() {
-        is_running = false;
-    }
-    inline OFDM_Demodulator::State GetDemodulatorState() const { return demod_state; }
-public:
-    virtual GLFWwindow* Create_GLFW_Window(void) {
-        return glfwCreateWindow(
-            1280, 720, 
-            "OFDM Demodulator Telemetry", 
-            NULL, NULL);
-    }
-    virtual void AfterImguiContextInit() {
-        ImPlot::CreateContext();
-
-        ImguiSkeleton::AfterImguiContextInit();
-        auto& io = ImGui::GetIO();
-        io.IniFilename =  "imgui.ini";
-        io.Fonts->AddFontFromFileTTF("res/Roboto-Regular.ttf", 15.0f);
-        {
-            static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA };
-            ImFontConfig icons_config;
-            icons_config.MergeMode = true;
-            icons_config.PixelSnapH = true;
-            io.Fonts->AddFontFromFileTTF("res/font_awesome.ttf", 16.0f, &icons_config, icons_ranges);
-        }
-        ImGuiSetupCustomConfig();
-    }
-
-    virtual void Render() {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
-        RenderSourceBuffer(buf_rd_raw, block_size);
-        RenderOFDMDemodulator(demod, mapper);
-
-        if (ImGui::Begin("Input controls")) {
-            if (ImGui::Button("Offset input stream")) {
-                flag_apply_rd_offset = true;
-            }
-            ImGui::Checkbox("Enable stepping", &is_wait_step);
-            if (is_wait_step) {
-                if (ImGui::Button("Step")) {
-                    flag_step = true;
-                }
-            }             
-
-            ImGui::Checkbox("Enable continuous frame dump", &is_always_dump_frame);
-            if (!is_always_dump_frame) {
-                if (ImGui::Button("Dump next block")) {
-                    flag_dump_frame = true;
-                }
-            } 
-        }
-        ImGui::End();
-    }
-
-    virtual void AfterShutdown() {
-        ImPlot::DestroyContext();
-    }
-private:
-    void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
-        assert(mapper->GetTotalCarriers() == nb_carriers);
-        assert(mapper->GetTotalSymbols() == nb_symbols);
-        mapper->ProcessRawFrame(phases);
-        if (flag_dump_frame || is_always_dump_frame) {
-            const auto buf = mapper->GetOutputBuffer();
-            const auto N = mapper->GetOutputBufferSize();
-            OutputBuffer(buf, N);
-            flag_dump_frame = false;
-        }
-    }
-    void OutputBuffer(const uint8_t* buf, const int N) {
-        fwrite(buf, sizeof(uint8_t), N, stdout);
-    }
 };
 
 
 void usage() {
     fprintf(stderr, 
-        "view_data, runs OFDM demodulation on raw IQ values with GUI\n\n"
+        "ofdm_demod_gui, runs OFDM demodulation on raw IQ values with GUI\n\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
@@ -257,14 +274,9 @@ int main(int argc, char** argv)
     auto app = new App(&ofdm_demod, &ofdm_mapper, fp_in, block_size);
     app->is_wait_step = is_step_mode;
     app->is_always_dump_frame = is_frame_output;
-    auto proc_thread = new std::thread([&app]() {
-        app->Run();
-    });
+    app->Start();
 
     RenderImguiSkeleton(app);
-    
-    app->Stop();
-    proc_thread->join();
     delete app;
 
     return 0;

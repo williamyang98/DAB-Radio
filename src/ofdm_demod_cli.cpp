@@ -1,21 +1,20 @@
+// Reads in raw IQ values from rtl_sdr and converts it into a digital OFDM frame
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <complex>
+#include <assert.h>
 
 #include <io.h>
 #include <fcntl.h>
 
-#include <assert.h>
-
-#include "./getopt/getopt.h"
-
-#include "ofdm_demodulator.h"
-#include "ofdm_symbol_mapper.h"
-
-#include "dab_ofdm_params_ref.h"
-#include "dab_prs_ref.h"
-#include "dab_mapper_ref.h"
+#include "getopt/getopt.h"
+#include "ofdm/ofdm_demodulator.h"
+#include "ofdm/ofdm_symbol_mapper.h"
+#include "ofdm/dab_ofdm_params_ref.h"
+#include "ofdm/dab_prs_ref.h"
+#include "ofdm/dab_mapper_ref.h"
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
@@ -26,7 +25,7 @@
 
 void usage() {
     fprintf(stderr, 
-        "read_data, runs OFDM demodulation on raw IQ values\n\n"
+        "ofdm_demod_cli, runs OFDM demodulation on raw IQ values\n\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
