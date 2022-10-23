@@ -81,6 +81,21 @@ set_target_properties(process_frames PROPERTIES CXX_STANDARD 17)
 target_link_libraries(process_frames PRIVATE getopt dab_core imgui easyloggingpp fmt)
 target_compile_definitions(process_frames PRIVATE ELPP_THREAD_SAFE)
 
+add_executable(basic_radio_app
+    src/basic_radio_app.cpp
+    src/basic_radio.cpp
+    src/gui/render_basic_radio.cpp
+    src/gui/render_ofdm_demod.cpp
+    src/gui/imgui_skeleton.cpp
+    src/audio/win32_pcm_player.cpp)
+include_directories(basic_radio_app src/)
+set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
+target_link_libraries(basic_radio_app PRIVATE 
+    ofdm_core dab_core 
+    getopt imgui implot 
+    easyloggingpp fmt)
+target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
+
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(dab_core             PRIVATE "/MP")
@@ -90,4 +105,5 @@ target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(view_data            PRIVATE "/MP")
 target_compile_options(read_data            PRIVATE "/MP")
 target_compile_options(process_frames       PRIVATE "/MP")
+target_compile_options(basic_radio_app      PRIVATE "/MP")
 endif(WIN32)
