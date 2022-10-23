@@ -4,4 +4,4 @@ data/
 imgui.ini
 *.ini
 *.log
-*.txt
+logs.txt
