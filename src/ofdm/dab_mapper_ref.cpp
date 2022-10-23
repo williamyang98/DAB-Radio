@@ -1,10 +1,17 @@
 #include "dab_mapper_ref.h"
 #include <assert.h>
 
+// DOC: ETSI EN 300 401
+// Referring to clause 14.6 - Frequency interleaving
+// Before the OFDM symbol is sent for packing, the order of the carriers are scrambled
+// This is done so that selective fading doesn't destroy contiguous parts of the OFDM symbol bits
 void get_DAB_mapper_ref(int* carrier_map, const int nb_carriers, const int nb_fft) {
     const int N = nb_fft;
     const int K = N/4;
 
+
+    // Referring to clause 14.6.1
+    // The equation for mode I transmissions on generating this PI table is given
     // PI_TABLE is a 1 to 1 mapping for the N-fft
     // It goes from -F <= f <= F
     // DC is positioned at index=N/2
@@ -17,6 +24,8 @@ void get_DAB_mapper_ref(int* carrier_map, const int nb_carriers, const int nb_ff
     const int DC_index = N/2;
     const int start_index = DC_index - nb_carriers/2;
     const int end_index = DC_index + nb_carriers/2;
+
+    // Referring to clause 14.6.1 - We follow the specified rule for constructing our carrier map table
     // copy all the values that are inbetween the desired carrier range
     // -F <= f <= F where f =/= 0
     // We copy these inorder from the PI_TABLE mapping

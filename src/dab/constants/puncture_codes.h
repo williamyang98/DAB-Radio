@@ -2,6 +2,11 @@
 #include <stdint.h>
 #include <assert.h>
 
+// DOC: ETSI EN 300 401
+// Clause 11.1.2 - Puncturing procedure
+// Table 13 - Puncturing vectors for the PI_TABLE
+// Under table 13 is the puncture code for the 24bit tail bits which we call PI_X
+
 const uint8_t PI_TABLE[24][32] = {
     {1,1,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0},
     {1,1,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,1,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0},

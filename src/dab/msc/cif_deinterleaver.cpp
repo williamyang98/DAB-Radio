@@ -2,7 +2,8 @@
 
 constexpr int TOTAL_CIF_DEINTERLEAVE = 16;
 
-// Referring to ETSI EN 300 401
+// DOC: ETSI EN 300 401
+// Clause 12 - Time interleaving
 // Deinterleaving indices copied from table 21
 const int CIF_INDICES_OFFSETS[TOTAL_CIF_DEINTERLEAVE] = {
     0,8,4,12, 2,10,6,14, 1,9,5,13, 3,11,7,15
@@ -54,6 +55,13 @@ bool CIF_Deinterleaver::Deinterleave(uint8_t* out_bits_buf) {
         const int frame_index = ((curr_frame-1) -i + TOTAL_CIF_DEINTERLEAVE) % TOTAL_CIF_DEINTERLEAVE;
         BUFFER_LOOKUP[i] = &bits_buffer[frame_index*nb_bits];
     }
+
+    // DOC: ETSI EN 300 401
+    // Clause 12 - Time interleaving
+    // Referring to this section, we can reconstruct a frame 
+    // from all the stored frames in our circular buffer
+    // TODO: The specification also states that on a multiplex reconfiguration occurs the deinterleaving changes
+    //       Implement a way to handle this
 
     // Deinterleave and store in output bits buffer
     for (int i = 0; i < nb_bits; i++) {

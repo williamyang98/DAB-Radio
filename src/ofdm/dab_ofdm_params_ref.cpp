@@ -2,6 +2,9 @@
 
 #include <stdlib.h>
 
+// DOC: doc/DAB_parameters.pdf
+// Each transmission mode has a set of known parameters
+// These parameters are always determined relative to a sampling frequency of 2.048MHz
 OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
     OFDM_Params p; 
     switch (transmission_mode) {

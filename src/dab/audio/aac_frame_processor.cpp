@@ -64,7 +64,8 @@ int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
 }
 
 AAC_Frame_Processor::AAC_Frame_Processor() {
-    // For the following polynomials refer to ETSI TS 102 563 
+    // DOC: ETSI TS 102 563 
+    // For the following polynomials refer to the above document
 
     // Refer to the section below table 2 in clause 5.2
     // Generator polynomial for the the fire code

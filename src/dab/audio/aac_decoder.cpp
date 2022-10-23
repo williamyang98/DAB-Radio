@@ -185,10 +185,9 @@ void AAC_Decoder::GenerateBitfileConfig() {
 
     const uint8_t sample_rate_index = get_sr_index(params.sampling_frequency);
 
-    // Referring to ETSI TS 102 563 
-    // In Table 4 it states that when the SBR flag is used
-    // that the sampling rate of the AAC core is half the 
-    // sampling rate of the DAC
+    // DOC: ETSI TS 102 563 
+    // In Table 4 it states that when the SBR flag is used that 
+    // the sampling rate of the AAC core is half the sampling rate of the DAC
     const uint32_t core_sample_rate = 
         params.is_SBR ? (params.sampling_frequency/2) : params.sampling_frequency;
     const uint8_t core_sample_rate_index = get_sr_index(core_sample_rate);
@@ -203,7 +202,7 @@ void AAC_Decoder::GenerateBitfileConfig() {
     bit_pusher.Push(mp4_bitfile_config, core_sample_rate_index, 4);
     bit_pusher.Push(mp4_bitfile_config, channel_config, 4);
 
-    // Referring to ETSI TS 102 563 
+    // DOC: ETSI TS 102 563 
     // In clause 5.1 it states that the 960 transform must be used
     // In libfaad2 you can accomplish this by setting the following bit
     // to change the transform type

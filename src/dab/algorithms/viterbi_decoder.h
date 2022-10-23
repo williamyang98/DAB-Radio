@@ -2,6 +2,11 @@
 
 #include <stdint.h>
 
+// A general viterbi decoder implementation
+// API and datamembers are inspired by matlab's implementation
+// TODO: Replace this with the more efficient implementation by the SPIRAL project
+//       Link is here: https://www.spiral.net/software/viterbi.html
+
 class Trellis 
 {
 public:

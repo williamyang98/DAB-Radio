@@ -93,6 +93,8 @@ int MSC_Decoder::DecodeEEP() {
     int curr_decoded_bit = 0;
     ViterbiDecoder::DecodeResult res;
 
+    // DOC: ETSI EN 300 401
+    // Clause 11.3.2 - Equal Error Protection (EEP) coding  
     vitdec->Reset();
     const int TOTAL_PUNCTURE_CODES = 2;
     for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
@@ -142,6 +144,8 @@ int MSC_Decoder::DecodeUEP() {
     int curr_decoded_bit = 0;
     ViterbiDecoder::DecodeResult res;
 
+    // DOC: ETSI EN 300 401
+    // Clause 11.3.1 - Unequal Error Protection (UEP) coding 
     vitdec->Reset();
     const int TOTAL_PUNCTURE_CODES = 4;
     for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {

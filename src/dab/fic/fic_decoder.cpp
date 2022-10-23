@@ -20,6 +20,11 @@ FIC_Decoder::FIC_Decoder()
   nb_decoded_bytes(288/3)
 {
     {
+        // DOC: ETSI EN 300 401
+        // Clause 5.2.1 - Fast Information Block (FIB)
+        // CRC16 Polynomial is given by:
+        // G(x) = x^16 + x^12 + x^5 + 1
+        // POLY = 0b 0001 0000 0010 0001 = 0x1021
         const uint16_t crc16_poly = 0x1021;
         crc16_calc = new CRC_Calculator<uint16_t>(crc16_poly);
         crc16_calc->SetInitialValue(0xFFFF);    // initial value all 1s
@@ -76,6 +81,9 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
 
     ViterbiDecoder::DecodeResult res;
 
+    // DOC: ETSI EN 300 401
+    // Clause 11.2 - Coding in the fast information channel
+    // PI_16, PI_15 and PI_X are used
     auto PI_16 = GetPunctureCode(16);
     auto PI_15 = GetPunctureCode(15);
 

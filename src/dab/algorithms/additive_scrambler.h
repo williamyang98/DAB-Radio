@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+// DOC: ETSI EN 300 401
+// Clause 10 - Energy dispersal
 // Generates the pseudo random binary stream that is used for energy dispersal
 // The polynomial: G(x) = 1 + x^-5 + x^-9 is hard coded in
 // This is fine since it is used for both the FIC and MSC in the OFDM frame

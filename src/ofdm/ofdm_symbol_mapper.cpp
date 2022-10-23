@@ -5,7 +5,25 @@
 
 #include "ofdm_symbol_mapper.h"
 
-// static const uint8_t QPSK_GRAY_CODE[4] = {3,1,0,2};
+// DOC: ETSI EN 300 401
+// Referring to clause 14.5 - QPSK symbol mapper
+// The OFDM demodulator produces the following association: 
+//      0 = 0b00 = -3pi/4
+//      1 = 0b01 =  -pi/4
+//      2 = 0b10 =   pi/4
+//      3 = 0b11 =  3pi/4
+// The bits are actually associated by the equation
+//      phi = 1/sqrt(2) * [ (1-2*b0) + (1-2*b1)*1j ]
+// This gives an actually mapping from bits to phase of:
+//      0 = 0b00 =   pi/4
+//      1 = 0b01 =  3pi/4
+//      2 = 0b10 =  -pi/4
+//      3 = 0b11 = -3pi/4
+// Hence to map from our OFDM demodulator phase to the actually bit mapping is
+//      -3pi/4:  0 -> 3
+//       -pi/4:  1 -> 2
+//        pi/4:  2 -> 0
+//       3pi/4:  3 -> 1
 static const uint8_t QPSK_GRAY_CODE[4] = {3,2,0,1};
 
 OFDM_Symbol_Mapper::OFDM_Symbol_Mapper(
@@ -56,6 +74,11 @@ void OFDM_Symbol_Mapper::ProcessRawFrame(const uint8_t* phases)
     }
 }
 
+// DOC: ETSI EN 300 401
+// Referring to clause 14.5 - QPSK symbol mapper 
+// After frequency interleaving the bits are distributed in a unique manner
+// For an OFDM symbol with 2K bits, the nth symbol uses bits i and i+K
+// This is done to distribute the bits so that they are heavily correlated with the strength of one subcarrier
 void OFDM_Symbol_Mapper::ProcessSymbol(const uint8_t* phases, uint8_t* sym_out_buf)
 {
     // perform carrier mapping and bit extraction

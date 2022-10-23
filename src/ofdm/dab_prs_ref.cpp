@@ -10,6 +10,14 @@ struct PRS_Table_Entry {
     int n;
 };
 
+// DOC: ETSI EN 300 401
+// Referring to clause 14.3.2 - Phase reference symbol 
+// The phase reference symbol is construction using two tables
+// Table 23 which contains PRS_Table_Entry, and Table 24 which contains a list of h-values
+
+// DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+// For the other transmission modes including I,II,III,IV refer to appendix B
+// This detailed document provides the required tables for these other transmission modes as well
 static const PRS_Table_Entry PRS_PARAMS_MODE_I[] = {
     {-768, -737, 0, 1},
     {-736, -705, 1, 2},
@@ -149,6 +157,10 @@ void get_DAB_PRS_reference(const int transmission_mode,
         buf[i] = std::complex<float>(0,0);
     }
 
+    // DOC: ETSI EN 300 401
+    // Referring to clause 14.3.2 - Phase reference symbol 
+    // The equation for constructing the PRS in terms of a list of phases for each subcarrier is given
+    // In our demodulator code this is equivalent to the FFT result
     int p_table_index = 0;
     const int k_min = p_table[0].k_min;
     const int k_max = -k_min; 
@@ -180,7 +192,7 @@ void get_DAB_PRS_reference(const int transmission_mode,
         if (k >= e.k_max) {
             p_table_index++;
         }
-        // 0th bin of fft is the DC value which is 0
+        // NOTE: 0th bin of fft is the DC value which is 0
         buf[k] = prs;
     }
 }

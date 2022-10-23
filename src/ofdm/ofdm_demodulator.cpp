@@ -1,3 +1,9 @@
+// DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+// Referring to clause 3.10 - Reception side
+//        up to clause 3.15 - Differential demodulator
+// These clauses provide extremely detailed explanations of how to synchronise and interpret the OFDM frame
+
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 
@@ -140,6 +146,11 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
         auto buf = &block[curr_index];
         const int N_remain = N-curr_index;
         switch (state) {
+
+        // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+        // Clause 3.12: Timing synchronisation
+        // Clause 3.12.1: Symbol timing synchronisation
+        // Clause 3.12.2: Frame synchronisation
         case WAITING_NULL:
             {
                 const int nb_read = FindNullSync(buf, N_remain);
@@ -156,6 +167,17 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
                 }
             }
             break;
+
+        // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+        // Clause 3.13: Frequency offset estimation and correction
+        // Clause 3.13.1: Fractional frequency offset estimation
+        // TODO: Clause 3.13.2: Integral frequency offset estimation (not implemented yet)
+        // Clause 3.14: OFDM symbol demodulator
+        // Clause 3.14.1: Cyclic prefix removal
+        // Clause 3.14.2: FFT
+        // Clause 3.14.3: Zero padding removal from FFT (Only include the carriers that are associated with this OFDM transmitter)
+        // Clause 3.15: Differential demodulator
+        // NOTE: Clause 3.16: Data demapper is done in ofdm_symbol_mapper.h
         case READING_OFDM_FRAME:
             {
                 const int nb_read = ReadOFDMSymbols(buf, N_remain);
@@ -173,6 +195,11 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
                 } 
             }
             break;
+
+        // DOC: ETSI EN 300 401
+        // Clause 14.8 Transmitter Identification Information signal 
+        // TODO: The NULL symbol contains the TII signal. 
+        // We can decode this to get transmitter information
         case READING_NULL_SYMBOL:
             {
                 const int nb_read = ReadNullSymbol(buf, N_remain);
@@ -226,11 +253,14 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
 {
     const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
     auto pll_buf = ofdm_sym_pll_buf; 
+
+    // Clause 3.14.1 - Cyclic prefix removal
     auto pll_fft_rd_buf = &pll_buf[params.nb_cyclic_prefix];
 
     // apply pll
     freq_dt = ApplyPLL(sym, pll_buf, params.nb_symbol_period, freq_dt);
 
+    // Clause 3.14.2 - FFT
     // calculate fft and get differential qpsk result
     kiss_fft(fft_cfg, 
         (kiss_fft_cpx*)pll_fft_rd_buf, 
@@ -239,6 +269,7 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
     // update the magnitude average
     UpdateMagnitudeAverage(curr_sym_fft_buf);
 
+    // Clause 3.15 - Differential demodulator
     // get the dqpsk result we have at least one symbol
     if (curr_ofdm_symbol > 0) {
         const int curr_dqsk_index = curr_ofdm_symbol-1;
@@ -256,6 +287,9 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
             const float y = x*2.0f/(float)M_PI + 1.5f;
             return static_cast<uint8_t>(std::round(y) + 4.0f) % 4;
         };
+
+        // Clause 3.14.3 - Zero padding removal
+        // We store the subcarriers that carry information
 
         // -N/2 <= x <= -1
         for (int i = 0; i < M; i++) {
@@ -299,6 +333,7 @@ void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym)
         return;
     }
 
+    // Clause 3.13.1 - Fraction frequency offset estimation
     // determine the phase error using cyclic prefix
     auto cyclic_prefix_correlation = std::complex<float>(0,0);
     for (int i = 0; i < params.nb_cyclic_prefix; i++) {
@@ -370,8 +405,11 @@ void OFDM_Demodulator::ProcessNullSymbol(std::complex<float>* sym)
 int OFDM_Demodulator::FindNullSync(
     std::complex<float>* block, const int N)
 {
+    // Clause 3.12.2 - Frame synchronisation using power detection
     // method 2: null power detection then correlation
     // we run this if we dont have an initial estimate for the prs index
+    // this can occur if we just started the demodulator 
+    // OR if the PRS impulse response didn't have a sufficiently large peak
     if (null_search_prs_index == -1) {
         const int K = cfg.signal_l1.nb_samples;
         const int M = N-K;
@@ -423,7 +461,8 @@ int OFDM_Demodulator::FindNullSync(
         ApplyPLL(buf, buf, params.nb_fft);
     }
 
-    // for the PRS we calculate the impulse response for fine time frame synchronisation
+    // Clause 3.12.1 - Symbol timing synchronisation
+    // To synchronise to start of the PRS we calculate the impulse response 
     kiss_fft(fft_cfg, 
         (kiss_fft_cpx*)(null_prs_linearise_buf->GetData()), 
         (kiss_fft_cpx*)prs_fft_actual);
@@ -541,6 +580,10 @@ void OFDM_Demodulator::UpdateMagnitudeAverage(std::complex<float>* Y)
     }
 }
 
+// Given the fine frequency offset, compensate by multiplying with
+// a complex local oscillator with the opposite frequency
+// TODO: Optimise the implementation of this since it is extremely slow
+//       Can use a precalculated lookup table, etc...
 float OFDM_Demodulator::ApplyPLL(
     const std::complex<float>* x, std::complex<float>* y, 
     const int N, const float dt0)

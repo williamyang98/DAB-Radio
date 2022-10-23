@@ -1,7 +1,8 @@
 #pragma once
-
 #include <stdint.h>
 
+// DOC: ETSI EN 300 401
+// The following tables and constants were taken from the above doc
 struct UEP_Descriptor {
     uint16_t subchannel_size; 
     uint16_t bitrate;
@@ -13,8 +14,8 @@ struct UEP_Descriptor {
 
 constexpr int UEP_PROTECTION_TABLE_SIZE = 64;
 
-// Information is taken from ETSI EN 300 401
-// Combination of Table 8 and Table 15 data
+// Combination of Table 8 (subchannel size, bitrate and protection level) 
+//            and Table 15 (puncture codes and padding bits)
 const UEP_Descriptor UEP_PROTECTION_TABLE[UEP_PROTECTION_TABLE_SIZE] = {
     {  16,  32, 5, { 3,  4,  17, 0}, { 5,  3,  2,  0}, 0 },
     {  21,  32, 4, { 3,  3,  18, 0}, {11,  6,  5,  0}, 0 },
@@ -82,8 +83,8 @@ const UEP_Descriptor UEP_PROTECTION_TABLE[UEP_PROTECTION_TABLE_SIZE] = {
     { 416, 384, 1, {12, 28, 245, 3}, {24, 20, 14, 23}, 8 },
 };
 
-// EEP
-
+// DOC: ETSI EN 300 401
+// Clause 11.3.2 - Equal Error Protection (EEP) coding 
 // The number of 128bit blocks associated to a puncture code is given by a linear equation
 // This takes the form of Lx = m*n+b
 // Where n = An integer constants calculated from capacity_unit_multiple
@@ -98,6 +99,8 @@ struct EEP_Lx_Equation {
 // EEP doesn't have a fixed subchannel size
 // Each protection profile scales to the provided subchannel size in the long form
 struct EEP_Descriptor {
+    // DOC: ETSI EN 300 401
+    // Clause 6.2.1 - Basic sub-channel organization
     // Subchannel capacity is a multiple of a constant
     // CU = K*n, where K is provided by protection profile
     // n = An integer constant that is used for various calculations for the protection profile
@@ -110,7 +113,8 @@ struct EEP_Descriptor {
 
 constexpr int EEP_PROTECTION_TABLE_SIZE = 4;
 
-// Taken from Table 9 and 18
+// Taken from Table  9 (capacity unit multiplier) and 
+//            Table 18 (puncture codes and bitrate multiple)
 const EEP_Descriptor EEP_PROTECTION_TABLE_TYPE_A[EEP_PROTECTION_TABLE_SIZE] = {
     {12, {{6, -3}, {0, 3}}, {24, 23}, 8},   // 1-A
     { 8, {{2, -3}, {4, 3}}, {14, 13}, 8},   // 2-A
@@ -122,7 +126,8 @@ const EEP_Descriptor EEP_PROTECTION_TABLE_TYPE_A[EEP_PROTECTION_TABLE_SIZE] = {
 const EEP_Descriptor EEP_PROT_2A_SPECIAL = 
     { 8, {{0,  5}, {0, 1}}, {13, 12}, 8};
 
-// Taken from Table 10 and 20
+// Taken from Table 10 (capacity unit multiplier) and 
+//            Table 20 (puncture codes and bitrate multiple)
 const EEP_Descriptor EEP_PROTECTION_TABLE_TYPE_B[EEP_PROTECTION_TABLE_SIZE] = {
     {27, {{24, -3}, {0, 3}}, {10,  9}, 32},   // 1-B
     {21, {{24, -3}, {0, 3}}, { 6,  5}, 32},   // 2-B
@@ -130,6 +135,10 @@ const EEP_Descriptor EEP_PROTECTION_TABLE_TYPE_B[EEP_PROTECTION_TABLE_SIZE] = {
     {15, {{24, -3}, {0, 3}}, { 2,  1}, 32},   // 4-B
 };
 
+// DOC: ETSI EN 300 401
+// Clause 11.3.2 - Equal Error Protection (EEP) coding
+// Table 18 - There is a special case for EEP 2-A when the subchannel multiple constant (n) is 1
+// This occurs when the subchannel has 8*n = 8 capacity units
 static EEP_Descriptor GetEEPDescriptor(const Subchannel& subchannel) {
     if (subchannel.eep_type == EEP_Type::TYPE_A) {
         if (subchannel.length == 8) {
@@ -141,6 +150,12 @@ static EEP_Descriptor GetEEPDescriptor(const Subchannel& subchannel) {
     return EEP_PROTECTION_TABLE_TYPE_B[subchannel.eep_prot_level];
 }
 
+// DOC: ETSI EN 300 401
+// Clause 6.2.1 - Basic sub-channel organization
+// Clause 11.3.2 - Equal Error Protection (EEP) coding
+// Bitrate is calculated from the subchannel's total capacity units, and two constants
+//       n = CU / k0
+// bitrate = k1*n = k1/k0 * CU
 static uint32_t CalculateEEPBitrate(const Subchannel& subchannel) {
     auto& descriptor = GetEEPDescriptor(subchannel);
     const int n = subchannel.length / descriptor.capacity_unit_multiple;

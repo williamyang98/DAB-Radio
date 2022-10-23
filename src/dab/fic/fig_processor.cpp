@@ -1,3 +1,8 @@
+// DOC: ETSI EN 300 401
+// Clause 5.2.2.5 - Summary of available FIGs
+// Tables 3,4,5 - Provides the associated clause in the document to fig x/x
+// All the logic in this file is completely based on the descriptions in these clauses
+
 #include "fig_processor.h"
 #include "fig_handler_interface.h"
 

@@ -1,6 +1,10 @@
 #pragma once
 #include <stdint.h>
 
+// DOC: ETSI EN 300 401
+// The size of these fields were derived from the length of the bitfields that carry them
+// These are found in Clause 5.2 to Clause 8 
+
 typedef uint16_t ensemble_id_t;             // 12bits
 typedef uint32_t service_id_t;              // 12 to 20bits
 typedef uint8_t  service_component_id_t;    // 4bits
