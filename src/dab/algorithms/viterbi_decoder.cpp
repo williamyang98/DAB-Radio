@@ -194,7 +194,7 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Decode(
                 for (int i = 0; i < L; i++) {
                     uint8_t r = transition_res.output[i] ^ depunctured_output_buf[i];
                     // ignore punctured sections in depunctured code
-                    dist_error += (r * curr_puncture_code[i]);
+                    dist_error += (r & curr_puncture_code[i]);
                 }
 
                 // if the dist error is better, we update that path

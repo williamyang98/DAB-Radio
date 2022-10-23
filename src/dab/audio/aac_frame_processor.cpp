@@ -17,6 +17,10 @@ constexpr int NB_RS_MESSAGE_BYTES = 120;
 constexpr int NB_RS_DATA_BYTES    = 110;
 constexpr int NB_RS_PARITY_BYTES  = 10;
 
+// NOTE: We need to pad the RS(120,110) code to RS(255,245)
+// This is done by padding 135 zero symbols to the left of the message
+constexpr int NB_RS_PADDING_BYTES = 255 - NB_RS_MESSAGE_BYTES;
+
 // Helper function to read 12bit segments from a buffer
 // It returns the number of bytes that were read (rounded up to nearest byte)
 int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
@@ -91,9 +95,8 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     const int galois_field_poly = 0b100011101;
     // The Phil Karn reed solmon decoder works with the 2^8 Galois field
     // Therefore we need to use the RS(255,245) decoder
-    // As according to the spec we should insert 135 padding bits
-    const int nb_padding_bits = 255-NB_RS_MESSAGE_BYTES;
-    rs_decoder = new Reed_Solomon_Decoder(8, galois_field_poly, 0, 1, 10, nb_padding_bits);
+    // As according to the spec we should insert 135 padding symbols (bytes)
+    rs_decoder = new Reed_Solomon_Decoder(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
     rs_encoded_buf = new uint8_t[NB_RS_MESSAGE_BYTES]{0};
     // Reed solomon code can correct up to floor(t/2) symbols that were wrong
     // where t = the number of parity symbols
@@ -102,6 +105,8 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     state = State::WAIT_FRAME_START;
     curr_dab_frame = 0;
     super_frame_buf = new uint8_t[MAX_SUPER_FRAME_SIZE];
+    is_synced_superframe = false;
+    nb_desync_count = 0;
 }
 
 AAC_Frame_Processor::~AAC_Frame_Processor() {
@@ -130,12 +135,24 @@ void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
         state = State::WAIT_FRAME_START;
     }
 
+    // if our superframes fail validation too many times
+    // then we resort to waiting for the firecode to be valid
+    if (nb_desync_count >= nb_desync_max_count) {
+        nb_desync_count = 0;
+        is_synced_superframe = false;
+    }
+
+    // if we are synced to the superframe
+    // then skip non reed solomon corrected firecode search
+    if (is_synced_superframe) {
+        state = State::COLLECT_FRAMES;
+    }
+
     if (state == State::WAIT_FRAME_START) {
         if (!CalculateFirecode(buf, N)) {
             return;
         }
         state = State::COLLECT_FRAMES;
-        curr_dab_frame = 0;
     }
 
     AccumulateFrame(buf, N);
@@ -144,6 +161,7 @@ void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
     if (curr_dab_frame == TOTAL_DAB_FRAMES) {
         ProcessSuperFrame(N);
         state = State::WAIT_FRAME_START;
+        curr_dab_frame = 0;
     }
 }
 
@@ -182,22 +200,36 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         const int error_count = rs_decoder->Decode(
             rs_encoded_buf, rs_error_positions, 0);
 
-        LOG_MESSAGE("[reed-solomon] index={} error_count={}", i, error_count);
+        LOG_MESSAGE("[reed-solomon] index={}/{} error_count={}", i, N, error_count);
         // rs decoder returns -1 to indicate too many errors
         if (error_count < 0) {
             LOG_ERROR("Too many errors for reed solomon to correct");
             obs_rs_error.Notify(i, N);
+            nb_desync_count++;
             return;
         }
         // correct any errors
         for (int j = 0; j < error_count; j++) {
-            const int k = rs_error_positions[j];
+            // NOTE: Phil Karn's reed solmon decoder returns the position of errors 
+            // with the amount of padding added onto it
+            const int k = rs_error_positions[j] - NB_RS_PADDING_BYTES;
             if (k < 0) {
+                LOG_ERROR("[reed-solomon] Got a negative error index {} in DAB frame {}/{}", k, i, N);
                 continue;
             }
             super_frame_buf[i + k*N] = rs_encoded_buf[k];
         }
     }
+
+    // validate the firecode
+    if (!CalculateFirecode(super_frame_buf, N)) {
+        nb_desync_count++;
+        return;
+    }
+
+    // if validated, reset resynchronisation counter
+    nb_desync_count = 0;
+    is_synced_superframe = true;
 
     // Decode audio superframe header
     auto* buf = super_frame_buf;

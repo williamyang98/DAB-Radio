@@ -30,6 +30,9 @@ private:
     uint8_t* super_frame_buf;
     int prev_nb_dab_frame_bytes = 0;
     uint8_t prev_superframe_descriptor = 0x00;
+    bool is_synced_superframe = false;
+    int nb_desync_count = 0;
+    const int nb_desync_max_count = 10;
     // callback signatures
     // frame_index, crc_got, crc_calculated
     Observable<const int, const uint16_t, const uint16_t> obs_firecode_error;
