@@ -21,6 +21,8 @@ Run <code>./get_live_data.sh -c [your_dab_channel] | ./basic_radio_app.exe</code
 
 Refer to the code inside <code>./get_live_data.sh</code> for the list of possible frequency blocks where your DAB ensemble exists in.
 
+Inside the GUI app go to the subchannels tab and wait for the database to update. Your list of radio stations will pop up. Click on any of them to start playing them. You can play multiple radio stations simulataneously.
+
 [Wohnort](http://www.wohnort.org/dab/australia.html) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are <code>[9A,9B,9C]</code>.
 
 If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page. These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in the application list.
