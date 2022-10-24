@@ -28,7 +28,15 @@ Inside the GUI app go to the subchannels tab and wait for the database to update
 If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page. These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in the application list.
 
 ### Method 2
-Clone the repository and build the applications using cmake. NOTE that the application was written for Windows and will not work with other platforms.
+Clone the repository using the command
+
+<code>git clone https://github.com/FiendChain/DAB-Radio.git --recurse-submodules -j8</code>
+
+Build the applications using cmake. 
+
+<code>cmake . -B build -DCMAKE_BUILD_TYPE=Release</code>
+
+NOTE that the application was written for Windows and will not work with other platforms.
 
 But the core algorithms are platform independent. You just need to write code to support other platforms. This includes the imgui GUI code, and the 16bit PCM audio player.
 
