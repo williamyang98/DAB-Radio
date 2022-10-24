@@ -23,7 +23,8 @@ add_library(ofdm_core STATIC
     ${OFDM_CORE_DIR}/ofdm_symbol_mapper.cpp
     ${OFDM_CORE_DIR}/dab_prs_ref.cpp
     ${OFDM_CORE_DIR}/dab_ofdm_params_ref.cpp
-    ${OFDM_CORE_DIR}/dab_mapper_ref.cpp)
+    ${OFDM_CORE_DIR}/dab_mapper_ref.cpp
+    ${OFDM_CORE_DIR}/quantized_oscillator.cpp)
 include_directories(ofdm_core PUBLIC ${OFDM_CORE_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_core PRIVATE kissfft)

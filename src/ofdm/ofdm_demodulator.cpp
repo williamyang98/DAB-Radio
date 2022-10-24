@@ -8,14 +8,20 @@
 #include <cmath>
 
 #include "ofdm_demodulator.h"
-
 #include <kiss_fft.h>
 #include <cassert>
 
-#include "dab_prs_ref.h"
-
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
+
+#define USE_PLL_TABLE 1
+
+#if USE_PLL_TABLE
+#include "quantized_oscillator.h"
+// Frequency resolution of table can't be too small otherwise we end up with a large table
+// This could cause inefficient memory access and caching
+static auto PLL_TABLE = QuantizedOscillator(10, static_cast<int>(Fs));
+#endif
 
 OFDM_Demodulator::OFDM_Demodulator(
         const struct OFDM_Params _ofdm_params,
@@ -381,6 +387,11 @@ void OFDM_Demodulator::ProcessNullSymbol(std::complex<float>* sym)
 {
     const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
     auto* rd_buf = &sym[params.nb_null_period-params.nb_fft];
+    is_read_null_symbol = true;
+
+    if (!cfg.toggle_flags.is_update_tii_sym_mag) {
+        return;
+    }
 
     // apply pll
     ApplyPLL(rd_buf, null_sym_pll_buf, params.nb_fft);
@@ -393,13 +404,11 @@ void OFDM_Demodulator::ProcessNullSymbol(std::complex<float>* sym)
     // NOTE:Ignore the magnitude contribution of the NULL symbol
     // This is not representative of the data symbol spectrum    
     // UpdateMagnitudeAverage(null_sym_fft_buf);
-    
+
     for (int i = 0; i < params.nb_fft; i++) {
         const int j = (i + params.nb_fft/2) % params.nb_fft;
         null_sym_data[i] = 20.0f*std::log10(std::abs(null_sym_fft_buf[j]));
     }
-
-    is_read_null_symbol = true;
 }
 
 int OFDM_Demodulator::FindNullSync(
@@ -570,6 +579,10 @@ float OFDM_Demodulator::CalculateL1Average(
 
 void OFDM_Demodulator::UpdateMagnitudeAverage(std::complex<float>* Y)
 {
+    if (!cfg.toggle_flags.is_update_data_sym_mag) {
+        return;
+    }
+
     const float beta = cfg.data_sym_magnitude_update_beta;
     for (int i = 0; i < params.nb_fft; i++) {
         auto&v = ofdm_magnitude_avg[i];
@@ -588,6 +601,8 @@ float OFDM_Demodulator::ApplyPLL(
     const std::complex<float>* x, std::complex<float>* y, 
     const int N, const float dt0)
 {
+    #if !USE_PLL_TABLE
+
     float dt = dt0;
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
@@ -597,4 +612,19 @@ float OFDM_Demodulator::ApplyPLL(
         dt += 2.0f * (float)M_PI * freq_fine_offset * Ts;
     }
     return dt;
+
+    #else
+
+    const int K = PLL_TABLE.GetFrequencyResolution();
+    const int M = PLL_TABLE.GetTableSize();
+    const int step = static_cast<int>(freq_fine_offset) / K;
+
+    int dt = static_cast<int>(dt0);
+    for (int i = 0; i < N; i++) {
+        y[i] = x[i] * PLL_TABLE.At(static_cast<int>(dt));
+        dt = (dt + step + M) % M;
+    }
+    return static_cast<float>(dt);
+
+    #endif
 }
