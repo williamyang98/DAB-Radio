@@ -271,6 +271,12 @@ int main(int argc, char** argv)
     delete [] ofdm_prs_ref;
     delete [] ofdm_mapper_ref;
 
+    {
+        auto& cfg = ofdm_demod.GetConfig();
+        cfg.toggle_flags.is_update_data_sym_mag = true;
+        cfg.toggle_flags.is_update_tii_sym_mag = true;
+    }
+
     auto app = new App(&ofdm_demod, &ofdm_mapper, fp_in, block_size);
     app->is_wait_step = is_step_mode;
     app->is_always_dump_frame = is_frame_output;

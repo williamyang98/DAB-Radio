@@ -124,6 +124,12 @@ private:
             ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::DoubleBufferFrameData, this, _1, _2, _3));
         } 
 
+        {
+            auto& cfg = ofdm_demod->GetConfig();
+            cfg.toggle_flags.is_update_data_sym_mag = true;
+            cfg.toggle_flags.is_update_tii_sym_mag = true;
+        }
+
         delete [] ofdm_prs_ref;
         delete [] ofdm_mapper_ref;
     }

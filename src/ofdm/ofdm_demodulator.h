@@ -26,6 +26,10 @@ public:
         } null_l1_search;
         float impulse_peak_threshold_db = 20.0f;
         float data_sym_magnitude_update_beta = 0.1f;
+        struct {
+            bool is_update_data_sym_mag = false;
+            bool is_update_tii_sym_mag = false;
+        } toggle_flags;
     };
     enum State {
         WAITING_NULL,
@@ -105,13 +109,19 @@ public:
     inline int GetTotalFramesDesync(void) const { return total_frames_desync; }
     inline OFDM_Params GetOFDMParams(void) const { return params; }
     inline bool& GetIsUpdateFineFrequency(void) { return is_update_fine_freq; }
+
     inline float* GetNullSymbolMagnitude(void) { return null_sym_data; }
     inline float* GetFrameMagnitudeAverage(void) { return ofdm_magnitude_avg; }
     inline float* GetFrameDataPhases(void) { return ofdm_frame_raw; }
     inline uint8_t* GetFrameDataPhasesPred(void) { return ofdm_frame_pred; }
     inline float* GetImpulseResponse(void) { return prs_impulse_response; }
-    inline float GetSignalAverage(void) { return signal_l1_average; }
+
+    inline float GetSignalAverage(void) const { return signal_l1_average; }
     inline int GetCurrentOFDMSymbol(void) const { return curr_ofdm_symbol; }
+    
+    inline auto& GetConfig(void) { return cfg; }
+    inline void SetConfig(const Config _cfg) { cfg = _cfg; }
+
     inline auto& On_OFDM_Frame(void) { return obs_on_ofdm_frame; }
 private:
     void ProcessBlockWithoutUpdate(std::complex<float>* block, const int N);
