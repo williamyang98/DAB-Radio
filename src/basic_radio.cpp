@@ -17,6 +17,7 @@ BasicThreadedChannel::BasicThreadedChannel() {
     is_start = false;
     is_join = false;
     is_running = true;
+    is_terminated = false;
     runner_thread = new std::thread([this]() {
         RunnerThread();
     });
@@ -24,6 +25,8 @@ BasicThreadedChannel::BasicThreadedChannel() {
 
 BasicThreadedChannel::~BasicThreadedChannel() {
     Stop();
+    Join();
+    runner_thread->join();
     delete runner_thread;
 }
 
@@ -39,12 +42,25 @@ void BasicThreadedChannel::Start() {
 }
 
 void BasicThreadedChannel::Join() {
+    // Wait for complete termination
+    if (!is_running) {
+        if (is_terminated) {
+            return;
+        }
+        
+        auto lock = std::unique_lock(mutex_terminate);
+        cv_terminate.wait(lock, [this]() { return is_terminated; });
+        return;
+    }
     auto lock = std::unique_lock(mutex_join);
     cv_join.wait(lock, [this]() { return is_join; });
     is_join = false;
 }
 
 void BasicThreadedChannel::Stop() {
+    if (!is_running) {
+        return;
+    }
     is_running = false;
     Start();
 }
@@ -57,6 +73,9 @@ void BasicThreadedChannel::RunnerThread() {
             is_start = false;
         }
         if (!is_running) {
+            auto lock = std::scoped_lock(mutex_join);
+            is_join = true;
+            cv_join.notify_all();
             break;
         }
         Run();
@@ -66,6 +85,10 @@ void BasicThreadedChannel::RunnerThread() {
             cv_join.notify_all();
         }
     }
+
+    auto lock = std::scoped_lock(mutex_terminate);
+    is_terminated = true;
+    cv_terminate.notify_all();
 }
 
 // Audio channel on the MSC
@@ -92,6 +115,8 @@ BasicAudioChannel::BasicAudioChannel(const Subchannel _subchannel)
 }
 
 BasicAudioChannel::~BasicAudioChannel() {
+    Stop();
+    Join();
     delete msc_decoder;
     delete aac_frame_processor;
     delete pcm_player;
@@ -135,6 +160,8 @@ BasicFICRunner::BasicFICRunner() {
 }
 
 BasicFICRunner::~BasicFICRunner() {
+    Stop();
+    Join();
     delete misc_info;
     delete dab_db;
     delete dab_db_updater;
@@ -156,10 +183,13 @@ void BasicFICRunner::Run() {
 }
 
 BasicRadio::BasicRadio() {
+    fic_runner = new BasicFICRunner();
     valid_dab_db = new DAB_Database();
 }
 
 BasicRadio::~BasicRadio() {
+    channels.clear();
+    delete fic_runner;
     delete valid_dab_db;
 }
 
@@ -187,19 +217,19 @@ void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
     }
 
     {
-        fic_runner.SetBuffer(fic_buf, nb_fic_bytes);
+        fic_runner->SetBuffer(fic_buf, nb_fic_bytes);
         for (auto& channel: selected_channels_temp) {
             channel->SetBuffer(msc_buf, nb_msc_bytes);
         }
 
         // Launch all channel threads
-        fic_runner.Start();
+        fic_runner->Start();
         for (auto& channel: selected_channels_temp) {
             channel->Start();
         }
 
         // Join them all now
-        fic_runner.Join();
+        fic_runner->Join();
         for (auto& channel: selected_channels_temp) {
             channel->Join();
         }
@@ -209,9 +239,9 @@ void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
 }
 
 void BasicRadio::UpdateDatabase() {
-    misc_info = *fic_runner.GetMiscInfo();
-    auto* live_db = fic_runner.GetLiveDatabase();
-    auto* db_updater = fic_runner.GetDatabaseUpdater();
+    misc_info = *(fic_runner->GetMiscInfo());
+    auto* live_db = fic_runner->GetLiveDatabase();
+    auto* db_updater = fic_runner->GetDatabaseUpdater();
     
     auto curr_stats = db_updater->GetStatistics();
     const bool is_changed = (previous_stats != curr_stats);

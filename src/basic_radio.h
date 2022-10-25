@@ -24,6 +24,7 @@ class BasicThreadedChannel
 {
 private:
     bool is_running;
+    bool is_terminated;
     bool is_start;
     bool is_join;
     std::thread* runner_thread;
@@ -31,11 +32,13 @@ private:
     std::condition_variable cv_start;
     std::mutex mutex_join;
     std::condition_variable cv_join;
+    std::mutex mutex_terminate;
+    std::condition_variable cv_terminate;
     uint8_t* buf;
     int nb_bytes;
 public:
     BasicThreadedChannel();
-    ~BasicThreadedChannel();
+    virtual ~BasicThreadedChannel();
     void SetBuffer(uint8_t* const _buf, const int N);
     inline uint8_t* GetBuffer() { return buf; }
     inline int GetBufferLength() { return nb_bytes; }
@@ -97,7 +100,7 @@ private:
     std::mutex mutex_db;
     std::mutex mutex_channels;
     // channels
-    BasicFICRunner fic_runner;
+    BasicFICRunner* fic_runner;
     std::vector<BasicAudioChannel*> selected_channels_temp;
     std::unordered_map<subchannel_id_t, std::unique_ptr<BasicAudioChannel>> channels;
 public:

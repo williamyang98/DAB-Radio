@@ -208,6 +208,7 @@ private:
                 flag_rd_byte_offset = true;
             }
         }
+        ImGui::End();
     }
 // Runner threads for the OFDM demodulator and DAB radio decoder
 private:

@@ -46,10 +46,10 @@ public:
         });
     }
     ~App() {
-        delete radio;
-        delete [] buf;
         is_running = false;
         radio_thread->join();
+        delete [] buf;
+        delete radio;
         delete radio_thread;
     }
 public:
