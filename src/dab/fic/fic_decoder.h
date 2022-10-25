@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include "../observable.h"
 
-class Trellis;
+typedef int16_t viterbi_bit_t;
+
 class ViterbiDecoder;
 class AdditiveScrambler;
 template <typename T>
@@ -13,12 +14,10 @@ class CRC_Calculator;
 class FIC_Decoder 
 {
 private:
-    Trellis* trellis;
     ViterbiDecoder* vitdec;
     AdditiveScrambler* scrambler;
     CRC_Calculator<uint16_t>* crc16_calc;
-    uint8_t* encoded_bits;
-    uint8_t* decoded_bits;
+    viterbi_bit_t* encoded_bits;
     uint8_t* decoded_bytes;
 
     const int nb_encoded_bytes;

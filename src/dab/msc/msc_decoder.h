@@ -3,8 +3,9 @@
 
 #include "database/dab_database_entities.h"
 
+typedef int16_t viterbi_bit_t;
+
 class CIF_Deinterleaver;
-class Trellis;
 class ViterbiDecoder;
 class AdditiveScrambler;
 
@@ -17,12 +18,10 @@ private:
     // Internal buffers
     const int nb_encoded_bits;
     const int nb_encoded_bytes;
-    uint8_t* encoded_bits_buf;
-    uint8_t* decoded_bits_buf;
+    viterbi_bit_t* encoded_bits_buf;
     uint8_t* decoded_bytes_buf;
     // Decoders and deinterleavers
     CIF_Deinterleaver* deinterleaver;
-    Trellis* trellis;
     ViterbiDecoder* vitdec;
     AdditiveScrambler* scrambler;
 public:

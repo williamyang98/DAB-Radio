@@ -32,35 +32,22 @@ FIC_Decoder::FIC_Decoder()
     }
 
 
-    // const uint8_t CONV_CODES[L] = {133,171,145,133};
-    // const uint8_t CONV_CODES[L] = {155, 117, 123, 155};
-    // NOTE: above is in octal form, we want it to be in binary form
-    // 155 = 1 5 5 = 001 101 101 = 0110 1101
-    // const uint8_t CONV_CODES[L] = {0b01011011, 0b01111001, 0b01100101, 0b01011011};
-    const int L = 4;
-    const int K = 7;
-    const int traceback_length = 15;
-    const uint8_t CONV_CODES[L] = {0b1101101, 0b1001111, 0b1010011, 0b1101101};
-    trellis = new Trellis(CONV_CODES, L, K);
-    vitdec = new ViterbiDecoder(trellis, traceback_length);
-
+    const uint8_t POLYS[4] = { 109, 79, 83, 109 };
+    vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
     scrambler = new AdditiveScrambler();
     scrambler->SetSyncword(0xFFFF);
 
-    encoded_bits = new uint8_t[nb_encoded_bits];
-    decoded_bits = new uint8_t[nb_decoded_bits];
+    encoded_bits = new viterbi_bit_t[nb_encoded_bits];
     decoded_bytes = new uint8_t[nb_decoded_bytes];
 }
 
 FIC_Decoder::~FIC_Decoder() {
     // delete crc16_table;
     delete crc16_calc;
-    delete trellis;
     delete vitdec;
     delete scrambler;
 
     delete [] encoded_bits;
-    delete [] decoded_bits;
     delete [] decoded_bytes;
 }
 
@@ -70,7 +57,8 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
     for (int i = 0; i < nb_encoded_bytes; i++) {
         const uint8_t b = encoded_bytes[i];
         for (int j = 0; j < 8; j++) {
-            encoded_bits[8*i + j] = (b >> j) & 0b1;
+            const uint8_t v = (b >> j) & 0b1;
+            encoded_bits[8*i + j] = v ? 255 : 0;
         }
     }
 
@@ -79,62 +67,46 @@ void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_ind
     int curr_puncture_bit = 0;
     int curr_decoded_bit = 0;
 
-    ViterbiDecoder::DecodeResult res;
-
     // DOC: ETSI EN 300 401
     // Clause 11.2 - Coding in the fast information channel
     // PI_16, PI_15 and PI_X are used
     auto PI_16 = GetPunctureCode(16);
     auto PI_15 = GetPunctureCode(15);
 
+    ViterbiDecoder::DecodeResult res;
+
     vitdec->Reset();
-    res = vitdec->Decode(
-        &encoded_bits[curr_encoded_bit], nb_encoded_bits-curr_encoded_bit, 
-        PI_16, 32, 
-        &decoded_bits[curr_decoded_bit], nb_decoded_bits-curr_decoded_bit,
-        128*21, false);
+    res = vitdec->Update(
+        &encoded_bits[curr_encoded_bit], 128*21,
+        PI_16, 32);
     curr_encoded_bit += res.nb_encoded_bits;
     curr_puncture_bit += res.nb_puncture_bits;
     curr_decoded_bit += res.nb_decoded_bits;
 
-    res = vitdec->Decode(
-        &encoded_bits[curr_encoded_bit], nb_encoded_bits-curr_encoded_bit, 
-        PI_15, 32, 
-        &decoded_bits[curr_decoded_bit], nb_decoded_bits-curr_decoded_bit,
-        128*3, false);
+    res = vitdec->Update(
+        &encoded_bits[curr_encoded_bit], 128*3,
+        PI_15, 32);
     curr_encoded_bit += res.nb_encoded_bits;
     curr_puncture_bit += res.nb_puncture_bits;
     curr_decoded_bit += res.nb_decoded_bits;
 
-    res = vitdec->Decode(
-        &encoded_bits[curr_encoded_bit], nb_encoded_bits-curr_encoded_bit, 
-        PI_X, 24, 
-        &decoded_bits[curr_decoded_bit], nb_decoded_bits-curr_decoded_bit,
-        24, true);
+    res = vitdec->Update(
+        &encoded_bits[curr_encoded_bit], 24,
+        PI_X, 24);
     curr_encoded_bit += res.nb_encoded_bits;
     curr_puncture_bit += res.nb_puncture_bits;
     curr_decoded_bit += res.nb_decoded_bits;
 
-    const uint32_t error = vitdec->GetPathError();
+    const auto error = vitdec->GetPathError();
+    vitdec->GetTraceback(decoded_bytes, nb_decoded_bits);
 
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_decoded_bits);
     LOG_MESSAGE("puncture: {}", curr_puncture_bit);
     LOG_MESSAGE("error:    {}", error);
 
-    // pack into bytes for further processing
-    // NOTE: we are placing the bits in reversed order for correct bit order
-    for (int i = 0; i < nb_decoded_bytes; i++) {
-        auto& b = decoded_bytes[i];
-        b = 0x00;
-        for (int j = 0; j < 8; j++) {
-            b |= (decoded_bits[8*i + j] << (7-j));
-        }
-    }
-
-    scrambler->Reset();
-
     // descrambler
+    scrambler->Reset();
     for (int i = 0; i < nb_decoded_bytes; i++) {
         uint8_t b = scrambler->Process();
         decoded_bytes[i] ^= b;

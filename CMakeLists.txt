@@ -32,6 +32,7 @@ target_link_libraries(ofdm_core PRIVATE kissfft)
 set(DAB_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dab)
 add_library(dab_core STATIC
     ${DAB_CORE_DIR}/algorithms/viterbi_decoder.cpp
+    ${DAB_CORE_DIR}/algorithms/phil_karn_viterbi_decoder.cpp
     ${DAB_CORE_DIR}/algorithms/reed_solomon_decoder.cpp
     ${DAB_CORE_DIR}/fic/fic_decoder.cpp
     ${DAB_CORE_DIR}/fic/fig_processor.cpp
