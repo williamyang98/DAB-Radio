@@ -11,7 +11,6 @@
 
 #include "getopt/getopt.h"
 #include "ofdm/ofdm_demodulator.h"
-#include "ofdm/ofdm_symbol_mapper.h"
 #include "ofdm/dab_ofdm_params_ref.h"
 #include "ofdm/dab_prs_ref.h"
 #include "ofdm/dab_mapper_ref.h"
@@ -104,19 +103,11 @@ int main(int argc, char** argv)
     auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
     get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
 
-    auto ofdm_demod = OFDM_Demodulator(ofdm_params, ofdm_prs_ref);
-    auto ofdm_mapper = OFDM_Symbol_Mapper(
-        ofdm_mapper_ref, ofdm_params.nb_data_carriers, 
-        ofdm_params.nb_frame_symbols-1);
+    auto ofdm_demod = OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
 
-    const auto on_ofdm_frame = [&ofdm_mapper, &fp_out](const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
-        assert(ofdm_mapper.GetTotalCarriers() == nb_carriers);
-        assert(ofdm_mapper.GetTotalSymbols() == nb_symbols);
-        ofdm_mapper.ProcessRawFrame(phases);
-
-        const auto buf = ofdm_mapper.GetOutputBuffer();
-        const int N = ofdm_mapper.GetOutputBufferSize(); 
-        fwrite(buf, sizeof(uint8_t), N, fp_out);
+    const auto on_ofdm_frame = [&fp_out, &ofdm_demod](const viterbi_bit_t* bits, const int nb_carriers, const int nb_symbols) {
+        const int N = ofdm_demod.Get_OFDM_Frame_Total_Bits();
+        fwrite(bits, sizeof(viterbi_bit_t), N, fp_out);
     };
     ofdm_demod.On_OFDM_Frame().Attach(on_ofdm_frame);
 
@@ -137,7 +128,7 @@ int main(int argc, char** argv)
             buf_rd_raw[i] = std::complex<float>(I, Q);
         }
 
-        ofdm_demod.ProcessBlock(buf_rd_raw, block_size);
+        ofdm_demod.Process(buf_rd_raw, block_size);
     }
 
     delete [] buf_rd;

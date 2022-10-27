@@ -11,8 +11,7 @@
 #include "./getopt/getopt.h"
 
 #include <complex>
-#include "ofdm_demodulator.h"
-#include "ofdm_symbol_mapper.h"
+#include "ofdm/ofdm_demodulator.h"
 
 #include "dab_ofdm_params_ref.h"
 #include "dab_prs_ref.h"
@@ -33,9 +32,8 @@ private:
     std::complex<float>* buf_rd_raw;
     const int block_size;
     // objects
-    OFDM_Demodulator* demod;
-    OFDM_Symbol_Mapper* mapper;
-    OFDM_Demodulator::State demod_state;
+    OFDM_Demod* demod;
+    OFDM_Demod::State demod_state;
     // runner state
     bool is_running = true;
     bool flag_step = false;
@@ -48,15 +46,15 @@ public:
     bool is_wait_step = false;
     bool is_always_dump_frame = false;
 public:
-    App(OFDM_Demodulator* _demod, OFDM_Symbol_Mapper* _mapper, 
+    App(OFDM_Demod* _demod,
         FILE* const _fp_in, const int _block_size)
-    : demod(_demod), mapper(_mapper),
+    : demod(_demod),
       fp_in(_fp_in), block_size(_block_size)
     {
         buf_rd = new std::complex<uint8_t>[block_size];
         buf_rd_raw = new std::complex<float>[block_size];
 
-        demod_state = OFDM_Demodulator::State::WAITING_NULL;
+        demod_state = OFDM_Demod::State::FINDING_NULL_POWER_DIP;
         {
             using namespace std::placeholders;
             demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
@@ -82,16 +80,12 @@ public:
             RunnerThread();
         });
     }
-    inline OFDM_Demodulator::State GetDemodulatorState() const { return demod_state; }
+    inline OFDM_Demod::State GetDemodulatorState() const { return demod_state; }
 private:
-    void OnOFDMFrame(const uint8_t* phases, const int nb_carriers, const int nb_symbols) {
-        assert(mapper->GetTotalCarriers() == nb_carriers);
-        assert(mapper->GetTotalSymbols() == nb_symbols);
-        mapper->ProcessRawFrame(phases);
+    void OnOFDMFrame(const viterbi_bit_t* phases, const int nb_carriers, const int nb_symbols) {
         if (flag_dump_frame || is_always_dump_frame) {
-            const auto buf = mapper->GetOutputBuffer();
-            const auto N = mapper->GetOutputBufferSize();
-            fwrite(buf, sizeof(uint8_t), N, stdout);
+            const int N = demod->Get_OFDM_Frame_Total_Bits();
+            fwrite(phases, sizeof(viterbi_bit_t), N, stdout);
             flag_dump_frame = false;
         }
     }
@@ -120,9 +114,8 @@ public:
     }
 
     virtual void Render() {
-        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
         RenderSourceBuffer(buf_rd_raw, block_size);
-        RenderOFDMDemodulator(demod, mapper);
+        RenderOFDMDemodulator(demod);
         RenderAppControls();
     }
     virtual void AfterShutdown() {
@@ -181,7 +174,7 @@ private:
                 buf_rd_raw[i] = std::complex<float>(I, Q);
             }
 
-            demod->ProcessBlock(buf_rd_raw, block_size);
+            demod->Process(buf_rd_raw, block_size);
             demod_state = demod->GetState();
         }
     }
@@ -262,12 +255,7 @@ int main(int argc, char** argv)
     auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
     get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
 
-    auto ofdm_demod = OFDM_Demodulator(ofdm_params, ofdm_prs_ref);
-    // due to differential encoding, the PRS doesn't count 
-    auto ofdm_mapper = OFDM_Symbol_Mapper(
-        ofdm_mapper_ref, ofdm_params.nb_data_carriers, 
-        ofdm_params.nb_frame_symbols-1);
-
+    auto ofdm_demod = OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
     delete [] ofdm_prs_ref;
     delete [] ofdm_mapper_ref;
 
@@ -277,7 +265,7 @@ int main(int argc, char** argv)
         cfg.toggle_flags.is_update_tii_sym_mag = true;
     }
 
-    auto app = new App(&ofdm_demod, &ofdm_mapper, fp_in, block_size);
+    auto app = new App(&ofdm_demod, fp_in, block_size);
     app->is_wait_step = is_step_mode;
     app->is_always_dump_frame = is_frame_output;
     app->Start();

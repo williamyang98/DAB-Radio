@@ -13,7 +13,6 @@
 #include "dab/logging.h"
 
 #include "ofdm/ofdm_demodulator.h"
-#include "ofdm/ofdm_symbol_mapper.h"
 #include "ofdm/dab_ofdm_params_ref.h"
 #include "ofdm/dab_prs_ref.h"
 #include "ofdm/dab_mapper_ref.h"
@@ -47,16 +46,15 @@ private:
     bool flag_rd_byte_offset = false;
 
     // Double buffer our demodulator frame data to radio thread
-    uint8_t* frame_double_buffer;
-    int nb_frame_bytes;
+    viterbi_bit_t* frame_double_buffer;
+    int nb_frame_bits;
     bool is_double_buffer_ready = false;
     std::mutex mutex_double_buffer;
     std::condition_variable cv_double_buffer;
 
     // Blocks that make our radio
     bool is_running;
-    OFDM_Demodulator* ofdm_demod;
-    OFDM_Symbol_Mapper* ofdm_sym_mapper;
+    OFDM_Demod* ofdm_demod;
     BasicRadio* radio;
 
     // Separate threads for the radio, and raw IQ to OFDM frame demodulator
@@ -97,7 +95,6 @@ public:
         }
         delete radio;
         delete ofdm_demod;
-        delete ofdm_sym_mapper;
         delete [] rd_in_raw;
         delete [] rd_in_float;
         delete [] frame_double_buffer;
@@ -111,14 +108,10 @@ private:
         get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
         auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
         get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
-        ofdm_demod = new OFDM_Demodulator(ofdm_params, ofdm_prs_ref);
-        // due to differential encoding, the PRS doesn't count 
-        ofdm_sym_mapper = new OFDM_Symbol_Mapper(
-            ofdm_mapper_ref, ofdm_params.nb_data_carriers, 
-            ofdm_params.nb_frame_symbols-1);
+        ofdm_demod = new OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
 
-        nb_frame_bytes = ofdm_sym_mapper->GetOutputBufferSize();
-        frame_double_buffer = new uint8_t[nb_frame_bytes];
+        nb_frame_bits = ofdm_demod->Get_OFDM_Frame_Total_Bits();
+        frame_double_buffer = new viterbi_bit_t[nb_frame_bits];
         {
             using namespace std::placeholders;
             ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::DoubleBufferFrameData, this, _1, _2, _3));
@@ -133,16 +126,10 @@ private:
         delete [] ofdm_prs_ref;
         delete [] ofdm_mapper_ref;
     }
-    void DoubleBufferFrameData(const uint8_t* buf, const int nb_carriers, const int nb_symbols) {
-        assert(ofdm_sym_mapper->GetTotalCarriers() == nb_carriers);
-        assert(ofdm_sym_mapper->GetTotalSymbols() == nb_symbols);
-        ofdm_sym_mapper->ProcessRawFrame(buf);
-
-        const auto frame_buf = ofdm_sym_mapper->GetOutputBuffer();
-
+    void DoubleBufferFrameData(const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
         auto lock = std::scoped_lock(mutex_double_buffer);
-        for (int i = 0; i < nb_frame_bytes; i++) {
-            frame_double_buffer[i] = frame_buf[i];
+        for (int i = 0; i < nb_frame_bits; i++) {
+            frame_double_buffer[i] = buf[i];
         }
         is_double_buffer_ready = true;
         cv_double_buffer.notify_one();
@@ -186,7 +173,7 @@ public:
             ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
             ImGui::DockSpace(dockspace_id);
             RenderSourceBuffer(rd_in_float, block_size);
-            RenderOFDMDemodulator(ofdm_demod, ofdm_sym_mapper);
+            RenderOFDMDemodulator(ofdm_demod);
             RenderAppControls();
         }
         ImGui::End();
@@ -236,7 +223,7 @@ private:
                 rd_in_float[i] = std::complex<float>(I, Q);
             }
 
-            ofdm_demod->ProcessBlock(rd_in_float, block_size);
+            ofdm_demod->Process(rd_in_float, block_size);
         }
     }    
     void RunnerThread_Radio() {
@@ -251,7 +238,7 @@ private:
                 break;
             }
 
-            radio->ProcessFrame(frame_double_buffer, nb_frame_bytes);
+            radio->Process(frame_double_buffer, nb_frame_bits);
         }
     }
 };
@@ -310,10 +297,10 @@ int main(int argc, char** argv) {
 
     el::Configurations defaultConf;
     defaultConf.setToDefault();
-    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, "true");
-    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, "true");
-    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "true");
-    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "true");
+    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "false");
     el::Loggers::reconfigureAllLoggers(defaultConf);
 
     auto app = new App(fp_in, block_size);

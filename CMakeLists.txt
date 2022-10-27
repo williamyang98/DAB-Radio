@@ -19,8 +19,8 @@ endif(WIN32)
 set(OFDM_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/ofdm)
 add_library(ofdm_core STATIC 
     ${OFDM_CORE_DIR}/ofdm_demodulator.cpp
+    ${OFDM_CORE_DIR}/ofdm_demodulator_threads.cpp
     ${OFDM_CORE_DIR}/ofdm_modulator.cpp
-    ${OFDM_CORE_DIR}/ofdm_symbol_mapper.cpp
     ${OFDM_CORE_DIR}/dab_prs_ref.cpp
     ${OFDM_CORE_DIR}/dab_ofdm_params_ref.cpp
     ${OFDM_CORE_DIR}/dab_mapper_ref.cpp

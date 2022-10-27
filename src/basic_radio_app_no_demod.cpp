@@ -27,8 +27,8 @@ class App: public ImguiSkeleton
 private:
     // Number of bytes per OFDM frame in transmission mode I
     // NOTE: we are hard coding this because all other transmission modes have been deprecated
-    const int nb_buf_bytes = 75*1536*2/8;
-    uint8_t* buf;
+    const int nb_buf_bits = 75*1536*2;
+    viterbi_bit_t* bits_buf;
     FILE* const fp_in;
 
     bool is_running;
@@ -39,7 +39,7 @@ public:
     : fp_in(_fp_in) 
     {
         radio = new BasicRadio();
-        buf = new uint8_t[nb_buf_bytes];
+        bits_buf = new viterbi_bit_t[nb_buf_bits];
         is_running = true;
         radio_thread = new std::thread([this]() {
             RunnerThread();
@@ -48,7 +48,7 @@ public:
     ~App() {
         is_running = false;
         radio_thread->join();
-        delete [] buf;
+        delete [] bits_buf;
         delete radio;
         delete radio_thread;
     }
@@ -79,12 +79,12 @@ public:
 private:
     void RunnerThread() {
         while (is_running) {
-            const auto nb_read = fread(buf, sizeof(uint8_t), nb_buf_bytes, fp_in);
-            if (nb_read != nb_buf_bytes) {
-                fprintf(stderr, "Failed to read %d bytes\n", nb_buf_bytes);
+            const auto nb_read = fread(bits_buf, sizeof(viterbi_bit_t), nb_buf_bits, fp_in);
+            if (nb_read != nb_buf_bits) {
+                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, nb_buf_bits);
                 break;
             }
-            radio->ProcessFrame(buf, nb_buf_bytes);
+            radio->Process(bits_buf, nb_buf_bits);
         }
     }    
 };
