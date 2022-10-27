@@ -248,6 +248,7 @@ void usage() {
         "process_frames, decoded DAB frame data\n\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
+        "\t[-v Enable logging (default: false)]\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -257,15 +258,19 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     char* rd_filename = NULL;
     int block_size = 8192;
+    bool is_logging = false;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "i:b:h")) != -1) {
+    while ((opt = getopt(argc, argv, "i:b:vh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
             break;
         case 'b':
             block_size = (int)(atof(optarg));
+            break;
+        case 'v':
+            is_logging = true;
             break;
         case 'h':
         default:
@@ -296,11 +301,12 @@ int main(int argc, char** argv) {
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");
 
     el::Configurations defaultConf;
+    const char* logging_level = is_logging ? "true" : "false";
     defaultConf.setToDefault();
-    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, "false");
-    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
-    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, "false");
-    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, logging_level);
+    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, logging_level);
+    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, logging_level);
+    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, logging_level);
     el::Loggers::reconfigureAllLoggers(defaultConf);
 
     auto app = new App(fp_in, block_size);
