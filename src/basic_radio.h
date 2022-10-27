@@ -34,13 +34,13 @@ private:
     std::condition_variable cv_join;
     std::mutex mutex_terminate;
     std::condition_variable cv_terminate;
-    uint8_t* buf;
+    viterbi_bit_t* buf;
     int nb_bytes;
 public:
     BasicThreadedChannel();
     virtual ~BasicThreadedChannel();
-    void SetBuffer(uint8_t* const _buf, const int N);
-    inline uint8_t* GetBuffer() { return buf; }
+    void SetBuffer(viterbi_bit_t* const _buf, const int N);
+    inline viterbi_bit_t* GetBuffer() { return buf; }
     inline int GetBufferLength() { return nb_bytes; }
     void Start();
     void Join();
@@ -106,7 +106,7 @@ private:
 public:
     BasicRadio();
     ~BasicRadio();
-    void ProcessFrame(uint8_t* const buf, const int N);
+    void Process(viterbi_bit_t* const buf, const int N);
     const auto& GetDABMiscInfo(void) { return misc_info; }
     // NOTE: you must get the mutex associated with this
     auto* GetDatabase(void) { return valid_dab_db; }

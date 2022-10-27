@@ -17,7 +17,7 @@ public:
         delete [] buf;
     }
     // Read the data from a source buffer and append it to this buffer
-    int ConsumeBuffer(T* src, const int N) {
+    int ConsumeBuffer(const T* src, const int N) {
         const int N_required = capacity-length;
         const int nb_read = (N_required >= N) ? N : N_required;
         for (int i = 0; i < nb_read; i++) {

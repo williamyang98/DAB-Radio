@@ -17,7 +17,7 @@ public:
     CIF_Deinterleaver(const int _nb_bytes);
     ~CIF_Deinterleaver();
     // Consume a buffer of nb_bytes and store 
-    void Consume(const uint8_t* bytes_buf); 
+    void Consume(const deinterleaver_bit_t* bits_buf); 
     // Output the deinterleaved bits into a bits array
     bool Deinterleave(deinterleaver_bit_t* out_bits_buf);
 };

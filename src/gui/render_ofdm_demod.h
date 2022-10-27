@@ -2,8 +2,7 @@
 
 #include <complex>
 
-class OFDM_Demodulator;
-class OFDM_Symbol_Mapper;
+class OFDM_Demod;
 
 void RenderSourceBuffer(std::complex<float>* buf_raw, const int block_size);
-void RenderOFDMDemodulator(OFDM_Demodulator* demod, OFDM_Symbol_Mapper* mapper);
+void RenderOFDMDemodulator(OFDM_Demod* demod);

@@ -30,7 +30,7 @@ BasicThreadedChannel::~BasicThreadedChannel() {
     delete runner_thread;
 }
 
-void BasicThreadedChannel::SetBuffer(uint8_t* const _buf, const int N) {
+void BasicThreadedChannel::SetBuffer(viterbi_bit_t* const _buf, const int N) {
     buf = _buf;
     nb_bytes = N;
 }
@@ -127,10 +127,10 @@ void BasicAudioChannel::Run() {
     const int N = GetBufferLength();
 
     const int nb_cifs = 4;
-    const int nb_cif_bytes = N/nb_cifs;
+    const int nb_cif_bits = N/nb_cifs;
     for (int i = 0; i < nb_cifs; i++) {
-        const auto* cif_buf = &buf[nb_cif_bytes*i];
-        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, nb_cif_bytes);
+        const auto* cif_buf = &buf[nb_cif_bits*i];
+        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, nb_cif_bits);
         // The MSC decoder can have 0 bytes if the deinterleaver is still collecting frames
         if (nb_decoded_bytes == 0) {
             continue;
@@ -175,9 +175,9 @@ void BasicFICRunner::Run() {
     const int N = GetBufferLength();
 
     const int nb_fics = 4;
-    const int nb_fic_bytes = N/nb_fics;
+    const int nb_fic_bits = N/nb_fics;
     for (int i = 0; i < nb_fics; i++) {
-        const auto* fic_buf = &buf[nb_fic_bytes*i];
+        const auto* fic_buf = &buf[nb_fic_bits*i];
         fic_decoder->DecodeFIBGroup(fic_buf, i);
     }
 }
@@ -193,18 +193,18 @@ BasicRadio::~BasicRadio() {
     delete valid_dab_db;
 }
 
-void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
-    const int nb_frame_length = 28800;
+void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
+    const int nb_frame_bits = 1536*2*(76-1);
     const int nb_symbols = 75;
-    const int nb_sym_length = nb_frame_length / nb_symbols;
+    const int nb_sym_length = nb_frame_bits / nb_symbols;
     const int nb_fic_symbols = 3;
     const int nb_msc_symbols = nb_symbols - nb_fic_symbols;
 
-    const int nb_fic_bytes = nb_fic_symbols*nb_sym_length;
-    const int nb_msc_bytes = nb_msc_symbols*nb_sym_length;
+    const int nb_fic_bits = nb_fic_symbols*nb_sym_length;
+    const int nb_msc_bits = nb_msc_symbols*nb_sym_length;
 
     auto* fic_buf = &buf[0];
-    auto* msc_buf = &buf[nb_fic_bytes];
+    auto* msc_buf = &buf[nb_fic_bits];
 
     {
         auto lock = std::scoped_lock(mutex_channels);
@@ -217,9 +217,9 @@ void BasicRadio::ProcessFrame(uint8_t* const buf, const int N) {
     }
 
     {
-        fic_runner->SetBuffer(fic_buf, nb_fic_bytes);
+        fic_runner->SetBuffer(fic_buf, nb_fic_bits);
         for (auto& channel: selected_channels_temp) {
-            channel->SetBuffer(msc_buf, nb_msc_bytes);
+            channel->SetBuffer(msc_buf, nb_msc_bits);
         }
 
         // Launch all channel threads

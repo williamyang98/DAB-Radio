@@ -1,22 +1,14 @@
-// DOC: docs/DAB_implementation_in_SDR_detailed.pdf
-// Referring to clause 3.10 - Reception side
-//        up to clause 3.15 - Differential demodulator
-// These clauses provide extremely detailed explanations of how to synchronise and interpret the OFDM frame
-
-
 #define _USE_MATH_DEFINES
 #include <cmath>
-#include <complex>
 
 #include "ofdm_demodulator.h"
+#include "ofdm_demodulator_threads.h"
 #include <kiss_fft.h>
-#include <cassert>
 
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
 
 #define USE_PLL_TABLE 1
-
 #if USE_PLL_TABLE
 #include "quantized_oscillator.h"
 // Frequency resolution of table can't be too small otherwise we end up with a large table
@@ -27,155 +19,173 @@ static auto PLL_TABLE = QuantizedOscillator(5, static_cast<int>(Fs));
 // argument of complex number using floating points
 // std::arg promotes the real and imaginary components to float which introduces a performance penalty
 static inline float cargf(const std::complex<float>& x) {
-    return std::atan2f(x.imag(), x.real());
+    return std::atan2(x.imag(), x.real());
 }
 
-// conversion of phase-delta to value between 0 to 4
-//  0 = -3pi/4 
-//  1 =  -pi/4 
-//  2 =   pi/4 
-//  3 =  3pi/4
-static uint8_t map_phase(float x) {
-    // y = (x*4/pi + 3) / 2
-    // y = x*2/pi + 1.5
-    const float y = x*2.0f/(float)M_PI + 1.5f;
-    return static_cast<uint8_t>(std::round(y) + 4.0f) % 4;
-};
+static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
+    // DOC: ETSI EN 300 401
+    // Referring to clause 14.5 - QPSK symbol mapper
+    // phi = (1-2*b0) + (1-2*b1)*1j 
+    // x0 = 1-2*b0, x1 = 1-2*b1
+    // b = (1-x)/2
 
+    // NOTE: Phil Karn's viterbi decoder is configured so that [b,b'] => {(0,0), (1,256)}
+    // Where b is the logical bit value, and b' is the value used for soft decision decoding
+    // b' = b*256 = 128 - 128*b
+    return 128 - static_cast<viterbi_bit_t>(128.0f*x);
+}
 
-OFDM_Demodulator::OFDM_Demodulator(
-        const struct OFDM_Params _ofdm_params,
-        const std::complex<float>* _ofdm_prs_ref)
-: params(_ofdm_params)
+OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _prs_fft_ref, const int* _carrier_mapper)
+:   params(_params), 
+    null_power_dip_buffer(_params.nb_null_period),
+    correlation_time_buffer(_params.nb_null_period + _params.nb_symbol_period)
 {
-    fft_cfg = kiss_fft_alloc(params.nb_fft ,false , 0, 0);
+    // NOTE: Using the FFT as an IFFT will cause the result to be reversed in time
+    // Separate configurations for FFT and IFFT
+    fft_cfg = kiss_fft_alloc(params.nb_fft, false, 0, 0);
+    ifft_cfg = kiss_fft_alloc(params.nb_fft, true, 0, 0);
 
-    total_frames_read = 0;
+    // Initial state of demodulator
+    state = State::FINDING_NULL_POWER_DIP;
     total_frames_desync = 0;
-
-
-    // Fine frequency synchronisation variables
-    freq_fine_offset = 0.0f;
-    freq_dt = 0.0f;
-    is_update_fine_freq = true;
-
-    // Process OFDM symbols to get subcarrier data
-    curr_ofdm_symbol = 0;
-    ofdm_sym_wrap_buf = new ReconstructionBuffer<std::complex<float>>(params.nb_symbol_period);
-    ofdm_sym_pll_buf = new std::complex<float>[params.nb_symbol_period];
-    curr_sym_fft_buf = new std::complex<float>[params.nb_fft];
-    last_sym_fft_buf = new std::complex<float>[params.nb_fft];
-    {
-        // we have one less symbol due to the differential encoding between symbols
-        const int N = params.nb_data_carriers*(params.nb_frame_symbols-1);
-        ofdm_frame_raw = new float[N];
-        ofdm_frame_pred = new uint8_t[N];
-    }
-    ofdm_magnitude_avg = new float[params.nb_fft];
-    for (int i = 0; i < params.nb_fft; i++) {
-        ofdm_magnitude_avg[i] = 0.0f;
-    }
-
-    // Process null symbol to get TII information from spectrum
-    null_sym_wrap_buf = new ReconstructionBuffer<std::complex<float>>(params.nb_null_period);
-    null_sym_pll_buf = new std::complex<float>[params.nb_null_period];
-    null_sym_fft_buf = new std::complex<float>[params.nb_fft];
-    null_sym_data = new float[params.nb_fft];
-    is_read_null_symbol = false;
-
-    // Fine time synchronisation using power detection
-    is_found_prs = false;
-    {
-        const int N = params.nb_null_period + params.nb_symbol_period;
-        null_search_buf = new CircularBuffer<std::complex<float>>(N);
-        null_search_prs_index = -1;
-    }
-    {
-        const int N = params.nb_null_period + params.nb_symbol_period;
-        null_prs_linearise_buf = new ReconstructionBuffer<std::complex<float>>(N);
-    }
-
-    // Fine time synchronisation using PRS correlation
-    prs_fft_reference = new std::complex<float>[params.nb_fft];
-    prs_fft_actual = new std::complex<float>[params.nb_fft];
-    prs_impulse_response = new float[params.nb_fft];
+    total_frames_read = 0;
+    freq_fine_offset = 0;
     is_null_start_found = false;
     is_null_end_found = false;
-    signal_l1_average = 0.0f;
+    signal_l1_average = 0;
+    is_running = true;
 
-    // PRS correlation in time domain is the conjugate product in frequency domain
-    for (int i = 0; i < params.nb_fft; i++) {
-        prs_fft_reference[i] = std::conj(_ofdm_prs_ref[i]);
+    // Copy over the frequency domain values of our PRS (phase reference symbol) 
+    // Correlation in time domain is the conjugate product in frequency domain
+    {
+        const int N = params.nb_fft;
+        auto* buf = new std::complex<float>[N];
+        for (int i = 0; i < N; i++) {
+            buf[i] = std::conj(_prs_fft_ref[i]);
+        }
+        correlation_prs_fft_reference = buf;
     }
 
-    // initial state 
-    state = State::WAITING_NULL;
+    // DOC: ETSI EN 300 401
+    // Referring to clause 14.5 - QPSK symbol mapper
+    // Our subcarriers for each symbol are distributed according to a one to one rule
+    {
+        const int N = params.nb_data_carriers;
+        auto* buf = new int[N];
+        for (int i = 0; i < N; i++) {
+            buf[i] = _carrier_mapper[i];
+        }
+        carrier_mapper = buf;
+    }
+
+    // Double buffer ingest so our reader thread isn't blocked and drops samples from rtl_sdr.exe
+    {
+        const int N = params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period;
+        active_buffer   = new ReconstructionBuffer<std::complex<float>>(N);
+        inactive_buffer = new ReconstructionBuffer<std::complex<float>>(N);
+    }
+
+    // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
+    pipeline_fft_buffer   = new std::complex<float>[params.nb_fft*(params.nb_frame_symbols+1)];
+    pipeline_dqpsk_buffer = new float[params.nb_fft*(params.nb_symbol_period-1)];
+    {
+        const int N = params.nb_data_carriers*(params.nb_frame_symbols-1)*2;
+        pipeline_out_bits = new viterbi_bit_t[N];
+    }
+    pipeline_fft_mag_buffer = new float[params.nb_fft];
+
+    // Data structures used for fine frequency synchronisation using the PRS correlation
+    correlation_impulse_response = new float[params.nb_fft];
+    correlation_fft_buffer = new std::complex<float>[params.nb_fft];
+
+    // Setup our multithreaded processing pipeline
+    coordinator_thread = new OFDM_Demod_Coordinator_Thread();
+    {
+        const int nb_threads = static_cast<int>(std::thread::hardware_concurrency());
+        // const int nb_threads = 1;
+        // const int nb_threads = 16;
+        const int nb_all_syms = params.nb_frame_symbols+1;
+        const int nb_sym_per_thread = nb_all_syms/nb_threads;
+        for (int i = 0; i < nb_threads; i++) {
+            const int symbol_start = i*nb_sym_per_thread;
+            const bool is_last_thread = (i == (nb_threads-1));
+            const int symbol_end = is_last_thread ? nb_all_syms : (i+1)*nb_sym_per_thread;
+            pipelines.push_back(std::make_unique<OFDM_Demod_Pipeline_Thread>(
+                symbol_start, symbol_end
+            ));
+        }
+    }
+    threads.push_back(std::make_unique<std::thread>(
+        [this]() {
+            while (is_running) {
+                CoordinatorThread();
+            }
+        }
+    ));
+    for (auto& pipeline: pipelines) {
+        threads.push_back(std::make_unique<std::thread>(
+            [this, &pipeline]() {
+                while (is_running) {
+                    PipelineThread(pipeline.get());
+                }
+            }
+        ));
+    }
 }
 
-OFDM_Demodulator::~OFDM_Demodulator()
-{
+OFDM_Demod::~OFDM_Demod() {
+    // join all threads
+    is_running = false;
+    coordinator_thread->Start();
+    for (auto& pipeline: pipelines) {
+        pipeline->Start();
+    }
+    for (auto& thread: threads) {
+        thread->join();
+    }
+    delete coordinator_thread;
+
+    // pipeline data structures
+    delete [] pipeline_fft_buffer;
+    delete [] pipeline_dqpsk_buffer;
+    delete [] pipeline_out_bits;
+    delete [] pipeline_fft_mag_buffer;
+    delete [] carrier_mapper;
+
+    // PRS correlation data structures
+    delete [] correlation_impulse_response;
+    delete [] correlation_fft_buffer;
+    delete [] correlation_prs_fft_reference;
+
+    // double buffer 
+    delete active_buffer;
+    delete inactive_buffer;
+
+    // fft/ifft buffers
     kiss_fft_free(fft_cfg);
-
-    // average spectrum of ofdm symbols
-    delete [] ofdm_magnitude_avg;
-
-    // ofdm symbol buffers
-    delete ofdm_sym_wrap_buf;
-    delete [] ofdm_sym_pll_buf;
-    delete [] curr_sym_fft_buf;
-    delete [] last_sym_fft_buf;
-    delete [] ofdm_frame_raw;
-    delete [] ofdm_frame_pred;
-
-    // null symbol buffers
-    delete null_sym_wrap_buf;
-    delete [] null_sym_pll_buf;
-    delete [] null_sym_data;
-    delete [] null_sym_fft_buf;
-
-    // null search buffers
-    delete null_search_buf;
-    delete null_prs_linearise_buf;
-    delete [] prs_fft_reference;
-    delete [] prs_fft_actual;
-    delete [] prs_impulse_response;
+    kiss_fft_free(ifft_cfg);
 }
 
-void OFDM_Demodulator::ProcessBlock(
-    std::complex<float>* block, const int N)
-{
-    UpdateSignalAverage(block, N);
-    ProcessBlockWithoutUpdate(block, N);
-}
+void OFDM_Demod::Process(const std::complex<float>* buf, const int N) {
+    UpdateSignalAverage(buf, N);
 
-void OFDM_Demodulator::ProcessBlockWithoutUpdate(
-    std::complex<float>* block, const int N)
-{
     int curr_index = 0;
     while (curr_index < N) {
-        auto buf = &block[curr_index];
+        auto* block = &buf[curr_index];
         const int N_remain = N-curr_index;
+
         switch (state) {
 
         // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
-        // Clause 3.12: Timing synchronisation
         // Clause 3.12.1: Symbol timing synchronisation
+        case State::FINDING_NULL_POWER_DIP:
+            curr_index += FindNullPowerDip(block, N_remain);
+            break;
+
+        // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
         // Clause 3.12.2: Frame synchronisation
-        case WAITING_NULL:
-            {
-                const int nb_read = FindNullSync(buf, N_remain);
-                curr_index += nb_read;
-                if (is_found_prs) {
-                    state = State::READING_OFDM_FRAME;
-                    curr_ofdm_symbol = 0;
-                    freq_dt = 0.0f;
-                    ofdm_sym_wrap_buf->Reset();
-                    // backtrack and process partial/whole PRS symbol
-                    ProcessBlockWithoutUpdate(
-                        null_prs_linearise_buf->GetData(),
-                        null_prs_linearise_buf->Length());
-                }
-            }
+        case State::CALCULATE_PRS_CORRELATION:
+            curr_index += FindPRSCorrelation(block, N_remain);
             break;
 
         // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
@@ -187,183 +197,16 @@ void OFDM_Demodulator::ProcessBlockWithoutUpdate(
         // Clause 3.14.2: FFT
         // Clause 3.14.3: Zero padding removal from FFT (Only include the carriers that are associated with this OFDM transmitter)
         // Clause 3.15: Differential demodulator
-        // NOTE: Clause 3.16: Data demapper is done in ofdm_symbol_mapper.h
-        case READING_OFDM_FRAME:
-            {
-                const int nb_read = ReadOFDMSymbols(buf, N_remain);
-                curr_index += nb_read;
-                if (curr_ofdm_symbol == params.nb_frame_symbols) {
-                    // differential encoding means dqsk data symbols is one less than total symbols
-                    obs_on_ofdm_frame.Notify(ofdm_frame_pred, params.nb_data_carriers, params.nb_frame_symbols-1);
-                    state = State::READING_NULL_SYMBOL;
-                    total_frames_read++;
-
-                    is_read_null_symbol = false;
-                    null_sym_wrap_buf->Reset();
-                    null_prs_linearise_buf->Reset();
-                } 
-            }
-            break;
-
         // DOC: ETSI EN 300 401
-        // Clause 14.8 Transmitter Identification Information signal 
-        // TODO: The NULL symbol contains the TII signal. 
-        // We can decode this to get transmitter information
-        case READING_NULL_SYMBOL:
-            {
-                const int nb_read = ReadNullSymbol(buf, N_remain);
-                curr_index += nb_read;
-                if (is_read_null_symbol) {
-                    state = State::WAITING_NULL;
-                    // reset null search buffer
-                    null_search_buf->Reset();
-                    null_search_prs_index = params.nb_null_period;
-                    null_prs_linearise_buf->Reset();
-                    // reset flags
-                    is_found_prs = false;
-                    is_null_start_found = false;
-                    is_null_end_found = false;
-                    // backtrack and process null data for null search
-                    if (null_sym_wrap_buf->IsEmpty()) {
-                        ProcessBlockWithoutUpdate(buf, params.nb_null_period);
-                    } else {
-                        ProcessBlockWithoutUpdate(
-                            null_sym_wrap_buf->GetData(), 
-                            null_sym_wrap_buf->Length());
-                    }
-                }
-            }
+        // Referring to clause 14.5 - QPSK symbol mapper 
+        case State::READING_BUFFER:
+            curr_index += FillBuffer(block, N_remain);
             break;
         }
     }
 }
 
-int OFDM_Demodulator::ReadOFDMSymbols(std::complex<float>* block, const int N) {
-    const int M = params.nb_symbol_period;
-    // If we need to build up the symbol 
-    if (!ofdm_sym_wrap_buf->IsEmpty() || (N < M)) {
-        const int nb_read = ofdm_sym_wrap_buf->ConsumeBuffer(block, N);
-        if (ofdm_sym_wrap_buf->IsFull()) {
-            ProcessOFDMSymbol(ofdm_sym_wrap_buf->GetData());
-            ofdm_sym_wrap_buf->Reset();
-        }
-        return nb_read;
-    }
-
-    ProcessOFDMSymbol(block);
-    return M;
-}
-
-int OFDM_Demodulator::ReadNullSymbol(std::complex<float>* block, const int N) {
-    const int M = params.nb_null_period;
-    // If we need to build up the null symbol 
-    if (!null_sym_wrap_buf->IsEmpty() || (N < M)) {
-        const int nb_read = null_sym_wrap_buf->ConsumeBuffer(block, N);
-        if (null_sym_wrap_buf->IsFull()) {
-            ProcessNullSymbol(null_sym_wrap_buf->GetData());
-            null_sym_wrap_buf->Reset();
-        }
-        return nb_read;
-    }
-
-    ProcessNullSymbol(block);
-    return M;
-}
-
-void OFDM_Demodulator::ProcessOFDMSymbol(std::complex<float>* sym) {
-    const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
-    auto pll_buf = ofdm_sym_pll_buf; 
-
-    // Clause 3.14.1 - Cyclic prefix removal
-    auto pll_fft_rd_buf = &pll_buf[params.nb_cyclic_prefix];
-
-    // Clause 3.14.2 - FFT
-    // calculate fft and get differential qpsk result
-    freq_dt = ApplyPLL(sym, pll_buf, params.nb_symbol_period, freq_dt);
-    kiss_fft(fft_cfg, 
-        (kiss_fft_cpx*)pll_fft_rd_buf, 
-        (kiss_fft_cpx*)curr_sym_fft_buf);
-    UpdateMagnitudeAverage(curr_sym_fft_buf);
-
-    // Clause 3.15 - Differential demodulator
-    // get the dqpsk result we have at least one symbol
-    if (curr_ofdm_symbol > 0) {
-        const int curr_dqsk_index = curr_ofdm_symbol-1;
-        const int M = params.nb_data_carriers/2;
-        const int N_fft = params.nb_fft;
-
-        const int offset = curr_dqsk_index*params.nb_data_carriers;
-        auto* ofdm_raw = &ofdm_frame_raw[offset];
-        auto* ofdm_pred = &ofdm_frame_pred[offset];
-
-        // Clause 3.14.3 - Zero padding removal
-        // We store the subcarriers that carry information
-        for (int i = -M, subcarrier_index = 0; i <= M; i++) {
-            // The DC bin carries no information
-            if (i == 0) {
-                continue;
-            }
-            const int fft_index = (N_fft+i) % N_fft;
-
-            // arg(z1*~z0) = arg(z1)+arg(~z0) = arg(z1)-arg(z0)
-            const auto phase_delta_vec = 
-                curr_sym_fft_buf[fft_index] * 
-                std::conj(last_sym_fft_buf[fft_index]);
-
-            const float phase_delta = cargf(phase_delta_vec);
-            ofdm_raw[subcarrier_index] = phase_delta;
-            ofdm_pred[subcarrier_index] = map_phase(phase_delta);
-            subcarrier_index++;
-        }
-    }
-    // swap fft buffers
-    auto tmp = curr_sym_fft_buf;
-    curr_sym_fft_buf = last_sym_fft_buf;
-    last_sym_fft_buf = tmp;
-
-    curr_ofdm_symbol++;
-
-    if (!is_update_fine_freq) {
-        return;
-    }
-
-    // Clause 3.13.1 - Fraction frequency offset estimation
-    // determine the phase error using cyclic prefix
-    const float cyclic_error = CalculateCyclicPhaseError(pll_buf);
-    const float fine_freq_adjust = cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
-    freq_fine_offset -= cfg.fine_freq_update_beta*fine_freq_adjust;
-    freq_fine_offset = std::fmodf(freq_fine_offset, ofdm_freq_spacing/2.0f);
-}
-
-void OFDM_Demodulator::ProcessNullSymbol(std::complex<float>* sym) {
-    const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
-    auto* rd_buf = &sym[params.nb_null_period-params.nb_fft];
-    is_read_null_symbol = true;
-
-    if (!cfg.toggle_flags.is_update_tii_sym_mag) {
-        return;
-    }
-
-    // Get TII (transmission identification information)
-    ApplyPLL(rd_buf, null_sym_pll_buf, params.nb_fft);
-    kiss_fft(fft_cfg, 
-        (kiss_fft_cpx*)null_sym_pll_buf, 
-        (kiss_fft_cpx*)null_sym_fft_buf);
-    for (int i = 0; i < params.nb_fft; i++) {
-        const int j = (i + params.nb_fft/2) % params.nb_fft;
-        null_sym_data[i] = 20.0f*std::log10(std::abs(null_sym_fft_buf[j]));
-    }
-}
-
-int OFDM_Demodulator::FindNullSync(std::complex<float>* block, const int N) {
-    if (null_search_prs_index == -1) {
-        return FindNullSync_Power(block, N);
-    } else {
-        return FindNullSync_Correlation(block, N);
-    }
-}
-
-int OFDM_Demodulator::FindNullSync_Power(std::complex<float>* block, const int N) {
+int OFDM_Demod::FindNullPowerDip(const std::complex<float>* buf, const int N) {
     // Clause 3.12.2 - Frame synchronisation using power detection
     // we run this if we dont have an initial estimate for the prs index
     // This can occur if:
@@ -380,8 +223,8 @@ int OFDM_Demodulator::FindNullSync_Power(std::complex<float>* block, const int N
     // if the loop doesn't exit then we copy all samples into circular buffer
     int nb_read = N;
     for (int i = 0; i < M; i+=K) {
-        auto* buf = &block[i];
-        const float l1_avg = CalculateL1Average(buf, K);
+        auto* block = &buf[i];
+        const float l1_avg = CalculateL1Average(block, K);
         if (is_null_start_found) {
             if (l1_avg > null_end_thresh) {
                 is_null_end_found = true;
@@ -395,61 +238,66 @@ int OFDM_Demodulator::FindNullSync_Power(std::complex<float>* block, const int N
         }
     }
 
-    null_search_buf->ConsumeBuffer(block, nb_read, true);
-    if (is_null_end_found) {
-        // Remember the index into the circular buffer where the PRS starts
-        null_search_prs_index = null_search_buf->GetIndex();
-        // Adjust the head of the circular buffer so it points to the start of the NULL symbol
-        null_search_buf->SetLength(params.nb_null_period);
-    }
-    return nb_read;
-}
-
-int OFDM_Demodulator::FindNullSync_Correlation(std::complex<float>* block, const int N) {
-    // Clause 3.12.1 - Symbol timing synchronisation
-    // To synchronise to start of the PRS we calculate the impulse response 
-
-    // Get a window of samples that should encompass the null and PRS symbol
-    // This is done so that even if the frame is horribly desynced
-    // we should still be able to have enough of the PRS to do time domain correlation
-    if (!null_search_buf->IsFull()) {
-        const int nb_read = null_search_buf->ConsumeBuffer(block, N);
+    null_power_dip_buffer.ConsumeBuffer(buf, nb_read, true);
+    if (!is_null_end_found) {
         return nb_read;
     }
 
-    // Move the circular buffer into a flat array for the FFT
-    {
-        for (int i = 0; i < params.nb_fft; i++) {
-            const int j = null_search_prs_index+i;
-            null_prs_linearise_buf->At(i) = null_search_buf->At(j);
-        }
-        auto buf = null_prs_linearise_buf->GetData();
-        ApplyPLL(buf, buf, params.nb_fft);
+    // Copy null symbol into correlation buffer
+    // This is done since our captured null symbol may actually contain parts of the PRS 
+    // We do this so we can guarantee the full PRS is attained after fine time synchronisation using correlation
+    const int L = null_power_dip_buffer.Length();
+    const int start_index = null_power_dip_buffer.GetIndex();
+    for (int i = 0; i < L; i++) {
+        const int j = i+start_index;
+        correlation_time_buffer.At(i) = null_power_dip_buffer.At(j);
+    }
+    
+    is_null_start_found = false;
+    is_null_end_found = false;
+    correlation_time_buffer.SetLength(L);
+    null_power_dip_buffer.SetLength(0);
+    state = State::CALCULATE_PRS_CORRELATION;
+
+    return nb_read;
+}
+
+int OFDM_Demod::FindPRSCorrelation(const std::complex<float>* buf, const int N) {
+    // Clause 3.12.1 - Symbol timing synchronisation
+    // To synchronise to start of the PRS we calculate the impulse response 
+    const int nb_read = correlation_time_buffer.ConsumeBuffer(buf, N);
+    if (!correlation_time_buffer.IsFull()) {
+        return nb_read;
+    }
+
+    auto* corr_time_buf = correlation_time_buffer.GetData();
+    auto* corr_prs_buf = &corr_time_buf[params.nb_null_period];
+    for (int i = 0; i < params.nb_fft; i++) {
+        correlation_fft_buffer[i] = corr_prs_buf[i];
     }
 
     // Correlation in time domain is done by doing multiplication in frequency domain
-    auto* prs_fft_estimate = null_prs_linearise_buf->GetData();
-    kiss_fft(fft_cfg, (kiss_fft_cpx*)prs_fft_estimate, (kiss_fft_cpx*)prs_fft_actual);
+    ApplyPLL(correlation_fft_buffer, correlation_fft_buffer, params.nb_fft, 0);
+    kiss_fft(fft_cfg, (kiss_fft_cpx*)correlation_fft_buffer, (kiss_fft_cpx*)correlation_fft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
-        prs_fft_actual[i] = prs_fft_actual[i] * prs_fft_reference[i];
+        correlation_fft_buffer[i] *= correlation_prs_fft_reference[i];
     }
 
     // Get IFFT to get our correlation result
-    // NOTE: The result is actually flipped in time domain, so we unflip it
-    kiss_fft(fft_cfg, (kiss_fft_cpx*)prs_fft_actual, (kiss_fft_cpx*)prs_fft_actual);
+    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_fft_buffer, (kiss_fft_cpx*)correlation_fft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
-        const auto& v = prs_fft_actual[i];
+        const auto& v = correlation_fft_buffer[i];
         const float A = 20.0f*std::log10(std::abs(v));
-        prs_impulse_response[params.nb_fft-i-1] = A;
+        correlation_impulse_response[i] = A;
     }
 
     // calculate if we have a valid impulse response
     // if the peak is at least X dB above the mean, then we use that as our PRS starting index
     float impulse_avg = 0.0f;
-    float impulse_max_value = prs_impulse_response[0];
+    float impulse_max_value = correlation_impulse_response[0];
     int impulse_max_index = 0;
     for (int i = 0; i < params.nb_fft; i++) {
-        const float v = prs_impulse_response[i];
+        const float v = correlation_impulse_response[i];
         impulse_avg += v;
         if (v > impulse_max_value) {
             impulse_max_value = v;
@@ -461,88 +309,186 @@ int OFDM_Demodulator::FindNullSync_Correlation(std::complex<float>* block, const
     // If the main lobe is insufficiently powerful we do not have a valid impulse response
     // This probably means we had a severe desync and should restart
     if ((impulse_max_value - impulse_avg) < cfg.impulse_peak_threshold_db) {
-        null_search_prs_index = -1;
-        null_search_buf->Reset();
-        null_prs_linearise_buf->Reset();
-        is_found_prs = false;
-        is_null_start_found = false;
-        is_null_end_found = false;
+        state = State::FINDING_NULL_POWER_DIP;
+        correlation_time_buffer.SetLength(0);
         total_frames_desync++;
 
         // NOTE: We also reset fine frequency synchronisation since an incorrect value
         // can reduce performance of fine time synchronisation using the impulse response
         freq_fine_offset = 0.0f;
         signal_l1_average = 0.0f;
-        return 0;
+        return nb_read;
     }
 
     // The PRS correlation lobe occurs just after the cyclic prefix
     // We actually want the index at the start of the cyclic prefix, so we adjust offset for that
     const int offset = impulse_max_index - params.nb_cyclic_prefix;
-    const int actual_prs_index = (null_search_prs_index + offset + null_search_buf->Capacity());
+    const int prs_start_index = params.nb_null_period + offset;
+    const int prs_length = params.nb_symbol_period - offset;
 
-    const int available_prs_length = params.nb_symbol_period - offset;
-    null_prs_linearise_buf->SetLength(available_prs_length);
-    for (int i = 0; i < available_prs_length; i++) {
-        const int j = actual_prs_index+i;
-        null_prs_linearise_buf->At(i) = null_search_buf->At(j);
+    inactive_buffer->SetLength(prs_length);
+    for (int i = 0; i < prs_length; i++) {
+        const int j = prs_start_index+i;
+        inactive_buffer->At(i) = correlation_time_buffer.At(j);
     }
-    is_found_prs = true; 
-    return 0;
+
+    correlation_time_buffer.SetLength(0);
+    state = State::READING_BUFFER;
+    return nb_read;
 }
 
-float OFDM_Demodulator::CalculateL1Average(std::complex<float>* block, const int N) {
-    float l1_avg = 0.0f;
-    for (int i = 0; i < N; i++) {
-        auto& v = block[i];
-        l1_avg += std::abs(v.real()) + std::abs(v.imag());
+int OFDM_Demod::FillBuffer(const std::complex<float>* buf, const int N) {
+    const int nb_read = inactive_buffer->ConsumeBuffer(buf, N);
+    if (!inactive_buffer->IsFull()) {
+        return nb_read;
     }
-    l1_avg /= (float)N;
-    return l1_avg;
+
+    // Copy the null symbol so we can use it in the PRS correlation step
+    auto* block = inactive_buffer->GetData();
+    const int M = inactive_buffer->Capacity();
+    auto* null_sym = &block[M-params.nb_null_period];
+    correlation_time_buffer.SetLength(params.nb_null_period);
+    for (int i = 0; i < params.nb_null_period; i++) {
+        correlation_time_buffer.At(i) = null_sym[i];
+    }
+
+    coordinator_thread->Wait();
+    // double buffer
+    auto tmp = active_buffer;
+    active_buffer = inactive_buffer;
+    inactive_buffer = tmp;
+    inactive_buffer->SetLength(0);
+    // launch all our worker threads
+    coordinator_thread->Start();
+
+    state = State::CALCULATE_PRS_CORRELATION;
+    return nb_read;
 }
 
-float OFDM_Demodulator::CalculateCyclicPhaseError(const std::complex<float>* sym) {
-    auto error_vec = std::complex<float>(0,0);
-    for (int i = 0; i < params.nb_cyclic_prefix; i++) {
-        error_vec += std::conj(sym[i]) * sym[params.nb_fft+i];
+void OFDM_Demod::CoordinatorThread() {
+    coordinator_thread->WaitStart();
+    if (!is_running) {
+        return;
     }
-    return cargf(error_vec);
+    for (auto& pipeline: pipelines) {
+        pipeline->Start();
+    }
+
+    // We wait for all workers to complete the FFT 
+    // so we can perform differential QPSK decoding
+    for (auto& pipeline: pipelines) {
+        pipeline->WaitFFT();
+    }
+
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    // while we are synchronised update our fine frequency offset
+    float average_cyclic_error = 0;
+    for (auto& pipeline: pipelines) {
+        const float cyclic_error = pipeline->GetAveragePhaseError();
+        average_cyclic_error += cyclic_error;
+    }
+    average_cyclic_error /= static_cast<float>(params.nb_frame_symbols);
+    UpdateFineFrequencyOffset(average_cyclic_error);
+
+    for (auto& pipeline: pipelines) {
+        pipeline->StartDQPSK();
+    }
+    for (auto& pipeline: pipelines) {
+        pipeline->WaitEnd();
+    }
+
+    total_frames_read++;
+    obs_on_ofdm_frame.Notify(pipeline_out_bits, params.nb_data_carriers, params.nb_frame_symbols-1);
+    coordinator_thread->SignalEnd();
 }
 
-void OFDM_Demodulator::UpdateSignalAverage(std::complex<float>* block, const int N) {
-    const int K = cfg.signal_l1.nb_samples;
-    const int M = N-K;
-    const int L = K*cfg.signal_l1.nb_decimate;
-    const float beta = cfg.signal_l1.update_beta;
+void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
+    const int symbol_start = thread_data->GetSymbolStart();
+    const int symbol_end = thread_data->GetSymbolEnd();
+    const int total_symbols = symbol_end-symbol_start;
+    const int symbol_end_no_null = std::min(symbol_end, params.nb_frame_symbols);
+    const int total_symbols_no_null = symbol_end_no_null-symbol_start;
+    const int symbol_end_dqpsk = std::min(symbol_end, params.nb_frame_symbols-1);
 
-    for (int i = 0; i < M; i+=L) {
-        auto* buf = &block[i];
-        const float l1_avg = CalculateL1Average(buf, K);
-        signal_l1_average = 
-            (beta)*signal_l1_average +
-            (1.0f-beta)*l1_avg;
-    }
-}
-
-
-void OFDM_Demodulator::UpdateMagnitudeAverage(std::complex<float>* Y) {
-    if (!cfg.toggle_flags.is_update_data_sym_mag) {
+    thread_data->WaitStart();
+    if (!is_running) {
         return;
     }
 
-    const float beta = cfg.data_sym_magnitude_update_beta;
-    for (int i = 0; i < params.nb_fft; i++) {
-        auto&v = ofdm_magnitude_avg[i];
-        const int j = (i+params.nb_fft/2) % params.nb_fft;
+    // Cyclic prefix correlation
+    const int nb_sym_length = params.nb_symbol_period;
+    const int nb_prefix_length = params.nb_cyclic_prefix;
+    const int nb_data_length = nb_sym_length - nb_prefix_length;
 
-        const float x = 20.0f*std::log10(std::abs(Y[j]));
-        v = (1.0f-beta)*v + beta*x;
+    const int nb_fft_length = params.nb_fft;
+    const int nb_subcarriers = params.nb_data_carriers;
+    const int nb_viterbi_bits = nb_subcarriers*2;
+
+    auto* pipeline_time_buffer = active_buffer->GetData();
+    auto* symbols_time_buf = &pipeline_time_buffer[symbol_start*nb_sym_length];
+
+    // Correct for frequency offset in our signal
+    {
+        const float dt_start = CalculateTimeOffset(symbol_start*nb_sym_length);
+        const int N = nb_sym_length*total_symbols;
+        ApplyPLL(symbols_time_buf, symbols_time_buf, N, dt_start); 
     }
+
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    // get phase error using cyclic prefix (ignore null symbol)
+    float total_phase_error = 0.0f;
+    for (int i = symbol_start; i < symbol_end_no_null; i++) {
+        auto* sym_buf = &pipeline_time_buffer[i*nb_sym_length];
+        const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
+        total_phase_error += cyclic_error;
+    }
+    thread_data->GetAveragePhaseError() = total_phase_error;
+
+    // Clause 3.14.2 - FFT
+    // calculate fft (include null symbol)
+    for (int i = symbol_start; i < symbol_end; i++) {
+        auto* sym_buf = &pipeline_time_buffer[i*nb_sym_length];
+        // Clause 3.14.1 - Cyclic prefix removal
+        auto* data_buf = &sym_buf[nb_prefix_length];
+        auto* fft_buf = &pipeline_fft_buffer[i*nb_fft_length];
+        kiss_fft(fft_cfg, 
+            (kiss_fft_cpx*)data_buf,
+            (kiss_fft_cpx*)fft_buf);
+    }
+
+    // Synchronise rest of worker threads here to calculate the DQPSK
+    thread_data->SignalFFT();
+    thread_data->WaitDQPSK();
+
+
+    // Clause 3.15 - Differential demodulator
+    // perform our differential qpsk decoding
+    for (int i = symbol_start; i < symbol_end_dqpsk; i++) {
+        auto* fft_buf_0 = &pipeline_fft_buffer[ i   *nb_fft_length];
+        auto* fft_buf_1 = &pipeline_fft_buffer[(i+1)*nb_fft_length];
+        auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*nb_subcarriers];
+        CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_buf);
+    }
+
+    // Map phase to viterbi bit
+    for (int i = symbol_start; i < symbol_end_dqpsk; i++) {
+        auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*nb_subcarriers];
+        auto* viterbi_bit_buf = &pipeline_out_bits[i*nb_viterbi_bits];
+        CalculateViterbiBits(dqpsk_buf, viterbi_bit_buf);
+    }
+
+    // TODO: optional - and we need to calculate the average
+    // Calculate symbol magnitude (include null symbol)
+    // for (int i = symbol_start; i < symbol_end; i++) {
+    //     auto* fft_buf = &pipeline_fft_buffer[i*nb_fft_length];
+    //     auto* fft_mag_buf = &pipeline_fft_mag_buffer[i*nb_fft_length];
+    //     CalculateMagnitude(fft_buf, fft_mag_buf);
+    // }
+
+    thread_data->SignalEnd();
 }
 
-// Given the fine frequency offset, compensate by multiplying with
-// a complex local oscillator with the opposite frequency
-float OFDM_Demodulator::ApplyPLL(
+float OFDM_Demod::ApplyPLL(
     const std::complex<float>* x, std::complex<float>* y, 
     const int N, const float dt0)
 {
@@ -565,6 +511,7 @@ float OFDM_Demodulator::ApplyPLL(
     const int step = static_cast<int>(freq_fine_offset) / K;
 
     int dt = static_cast<int>(dt0);
+    dt = ((dt % M) + M) % M;
     for (int i = 0; i < N; i++) {
         y[i] = x[i] * PLL_TABLE.At(static_cast<int>(dt));
         dt = (dt + step + M) % M;
@@ -572,4 +519,115 @@ float OFDM_Demodulator::ApplyPLL(
     return static_cast<float>(dt);
 
     #endif
+}
+
+float OFDM_Demod::CalculateTimeOffset(const int i) {
+    // Given the index of the first sample, calculate the value we pass to ApplyPLL
+    #if !USE_PLL_TABLE
+    return 2.0f * (float)M_PI * freq_fine_offset * Ts * (float)i;
+    #else
+    const int K = PLL_TABLE.GetFrequencyResolution();
+    const int M = PLL_TABLE.GetTableSize();
+    const int step = static_cast<int>(freq_fine_offset) / K;
+    return static_cast<float>((step*i) % M);
+    #endif
+}
+
+float OFDM_Demod::CalculateCyclicPhaseError(const std::complex<float>* sym) {
+    // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    const int N = params.nb_cyclic_prefix;
+    const int M = params.nb_fft;
+    auto error_vec = std::complex<float>(0,0);
+    for (int i = 0; i < N; i++) {
+        error_vec += std::conj(sym[i]) * sym[M+i];
+    }
+    return cargf(error_vec);
+}
+
+void OFDM_Demod::CalculateDQPSK(
+    const std::complex<float>* in0, 
+    const std::complex<float>* in1, 
+    float* out)
+{
+    const int M = params.nb_data_carriers/2;
+    const int N_fft = params.nb_fft;
+
+    // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+    // Clause 3.14.3 - Zero padding removal
+    // We store the subcarriers that carry information
+    for (int i = -M, subcarrier_index = 0; i <= M; i++) {
+        // The DC bin carries no information
+        if (i == 0) {
+            continue;
+        }
+        const int fft_index = (N_fft+i) % N_fft;
+
+        // arg(z1*~z0) = arg(z1)+arg(~z0) = arg(z1)-arg(z0)
+        const auto phase_delta_vec = in1[fft_index] * std::conj(in0[fft_index]);
+        const float phase_delta = cargf(phase_delta_vec);
+
+        out[subcarrier_index] = phase_delta;
+        subcarrier_index++;
+    }
+}
+
+void OFDM_Demod::CalculateViterbiBits(const float* phase_buf, viterbi_bit_t* bit_buf) {
+    const int N = params.nb_data_carriers;
+
+    // DOC: ETSI EN 300 401
+    // Referring to clause 14.5 - QPSK symbol mapper 
+    // Deinterleave the subcarriers using carrier mapper
+    // For an OFDM symbol with 2K bits, the nth symbol uses bits i and i+K
+    for (int i = 0; i < N; i++) {
+        const int j = carrier_mapper[i];
+        const float phase = phase_buf[j];
+        bit_buf[i]   = convert_to_viterbi_bit(std::cos(phase));
+        bit_buf[N+i] = convert_to_viterbi_bit(-std::sin(phase));
+    }
+}
+
+void OFDM_Demod::UpdateFineFrequencyOffset(const float cyclic_error) {
+    // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    // determine the phase error using cyclic prefix
+    const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
+    const float fine_freq_adjust = cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
+    freq_fine_offset -= cfg.fine_freq_update_beta*fine_freq_adjust;
+    freq_fine_offset = std::fmodf(freq_fine_offset, ofdm_freq_spacing/2.0f);
+}
+
+void OFDM_Demod::CalculateMagnitude(const std::complex<float>* fft_buf, float* mag_buf) {
+    const int N = params.nb_fft;
+    const int M = N/2;
+    for (int i = 0; i < N; i++) {
+        const int j = (i+M) % N;
+        const float x = 20.0f*std::log10(std::abs(fft_buf[j]));
+        mag_buf[i] = x;
+    }
+}
+
+float OFDM_Demod::CalculateL1Average(const std::complex<float>* block, const int N) {
+    float l1_avg = 0.0f;
+    for (int i = 0; i < N; i++) {
+        auto& v = block[i];
+        l1_avg += std::abs(v.real()) + std::abs(v.imag());
+    }
+    l1_avg /= (float)N;
+    return l1_avg;
+}
+
+void OFDM_Demod::UpdateSignalAverage(const std::complex<float>* block, const int N) {
+    const int K = cfg.signal_l1.nb_samples;
+    const int M = N-K;
+    const int L = K*cfg.signal_l1.nb_decimate;
+    const float beta = cfg.signal_l1.update_beta;
+
+    for (int i = 0; i < M; i+=L) {
+        auto* buf = &block[i];
+        const float l1_avg = CalculateL1Average(buf, K);
+        signal_l1_average = 
+            (beta)*signal_l1_average +
+            (1.0f-beta)*l1_avg;
+    }
 }

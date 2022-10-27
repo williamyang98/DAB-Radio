@@ -20,7 +20,7 @@ public:
     }
     // Read the data from a source buffer and append it to this buffer
     // We can forcefully read all the data
-    inline int ConsumeBuffer(T* src, const int N, const bool read_all=false) {
+    inline int ConsumeBuffer(const T* src, const int N, const bool read_all=false) {
         int nb_read;
         if (read_all) {
             nb_read = N;

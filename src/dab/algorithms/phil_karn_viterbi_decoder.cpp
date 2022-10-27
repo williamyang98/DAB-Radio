@@ -183,7 +183,7 @@ vitdec_t* create_viterbi(const uint8_t polys[CODE_RATE], const int len) {
     for (int state = 0; state < NUMSTATES/2; state++) {
         for (int i = 0; i < CODE_RATE; i++) {
             const int v = parity((state << 1) & polys[i]);
-            vp->BranchTable[i].buf[state] = v ? 255 : 0;
+            vp->BranchTable[i].buf[state] = v ? 256 : 0;
         }
     }
 

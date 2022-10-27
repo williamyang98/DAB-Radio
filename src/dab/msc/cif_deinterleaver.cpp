@@ -20,17 +20,13 @@ CIF_Deinterleaver::~CIF_Deinterleaver() {
     delete [] bits_buffer;
 }
 
-void CIF_Deinterleaver::Consume(const uint8_t* bytes_buf) {
+void CIF_Deinterleaver::Consume(const deinterleaver_bit_t* bits_buf) {
     const int nb_bits = nb_bytes*8;
 
     // Append data into circular buffer
     auto* curr_bits_buf = &bits_buffer[nb_bits*curr_frame];
-    for (int i = 0; i < nb_bytes; i++) {
-        const uint8_t b = bytes_buf[i];
-        for (int j = 0; j < 8; j++) {
-            const uint8_t v = (b >> j) & 0b1;
-            curr_bits_buf[8*i + j] = v ? 255 : 0;
-        }
+    for (int i = 0; i < nb_bits; i++) {
+        curr_bits_buf[i] = bits_buf[i];
     }
 
     // Advance frame

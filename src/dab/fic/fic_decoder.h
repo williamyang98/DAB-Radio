@@ -17,7 +17,6 @@ private:
     ViterbiDecoder* vitdec;
     AdditiveScrambler* scrambler;
     CRC_Calculator<uint16_t>* crc16_calc;
-    viterbi_bit_t* encoded_bits;
     uint8_t* decoded_bytes;
 
     const int nb_encoded_bytes;
@@ -30,6 +29,6 @@ private:
 public:
     FIC_Decoder();
     ~FIC_Decoder();
-    void DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_index);
+    void DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index);
     auto& OnFIB(void) { return obs_on_fib; }
 };

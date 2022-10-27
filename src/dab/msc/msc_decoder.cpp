@@ -41,9 +41,9 @@ MSC_Decoder::~MSC_Decoder() {
     delete scrambler;
 }
 
-int MSC_Decoder::DecodeCIF(const uint8_t* buf, const int N) {
-    const int start_byte = subchannel.start_address*NB_CU_BYTES;
-    const auto* subchannel_buf = &buf[start_byte];
+int MSC_Decoder::DecodeCIF(const viterbi_bit_t* buf, const int N) {
+    const int start_bit = subchannel.start_address*NB_CU_BITS;
+    const auto* subchannel_buf = &buf[start_bit];
     deinterleaver->Consume(subchannel_buf);
 
     // Deinterleaver doesn't have enough frames

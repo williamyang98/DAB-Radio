@@ -37,7 +37,6 @@ FIC_Decoder::FIC_Decoder()
     scrambler = new AdditiveScrambler();
     scrambler->SetSyncword(0xFFFF);
 
-    encoded_bits = new viterbi_bit_t[nb_encoded_bits];
     decoded_bytes = new uint8_t[nb_decoded_bytes];
 }
 
@@ -47,21 +46,11 @@ FIC_Decoder::~FIC_Decoder() {
     delete vitdec;
     delete scrambler;
 
-    delete [] encoded_bits;
     delete [] decoded_bytes;
 }
 
 // Each group contains 3 fibs (fast information blocks)
-void FIC_Decoder::DecodeFIBGroup(const uint8_t* encoded_bytes, const int cif_index) {
-    // unpack bits
-    for (int i = 0; i < nb_encoded_bytes; i++) {
-        const uint8_t b = encoded_bytes[i];
-        for (int j = 0; j < 8; j++) {
-            const uint8_t v = (b >> j) & 0b1;
-            encoded_bits[8*i + j] = v ? 255 : 0;
-        }
-    }
-
+void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index) {
     // viterbi decoding
     int curr_encoded_bit = 0;
     int curr_puncture_bit = 0;
