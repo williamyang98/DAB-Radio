@@ -54,13 +54,14 @@ But the core algorithms are platform independent. You just need to write code to
 ### Optimisations
 - Make OFDM demodulator more performant
     - ~~Replace use of cosf and sinf in phase locked loop for fine freq compensation~~
+    - ~~Added multithreading to improve performance~~
     - Reduce overhead due to complex multiplication
 - Make DAB frame decoder more performant
-    - Replace inefficient general viterbi decoder with the SPIRAL project's implementation found [here](https://www.spiral.net/software/viterbi.html). 
+    - ~~Replace inefficient general viterbi decoder with the SPIRAL project's implementation found [here](https://www.spiral.net/software/viterbi.html).~~
 - Profile other parts of the code that are excessively slow
 - Error correction
-    - Use soft decision Viterbi decoding to improve error correction at low SNR
-    - Increase the traceback length of the Viterbi decoder (Not preferrable due to currently slow implementation)
+    - ~~Use soft decision Viterbi decoding to improve error correction at low SNR~~
+    - ~~Increase the traceback length of the Viterbi decoder (Not preferrable due to currently slow implementation)~~
     - Determine how to use the firecode CRC16 in the AAC super frame to correct errors
 
 ### Features
