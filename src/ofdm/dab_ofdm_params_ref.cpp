@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 // DOC: doc/DAB_parameters.pdf
+// Clause A1.1 - System parameters
 // Each transmission mode has a set of known parameters
 // These parameters are always determined relative to a sampling frequency of 2.048MHz
 OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
@@ -22,17 +23,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
     case 2:
         {
             p.nb_frame_symbols = 76;
-            p.nb_symbol_period = 1276;
-            p.nb_null_period = 1328;
-            p.nb_fft = 1024;
-            p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
-            p.nb_data_carriers = 768;
-            p.freq_carrier_spacing = 2000;
-        }
-        break;
-    case 3:
-        {
-            p.nb_frame_symbols = 76;
             p.nb_symbol_period = 638;
             p.nb_null_period = 664;
             p.nb_fft = 512;
@@ -41,7 +31,7 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.freq_carrier_spacing = 4000;
         }
         break;
-    case 4:
+    case 3:
         break;
         {
             p.nb_frame_symbols = 153;
@@ -52,6 +42,17 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_data_carriers = 192;
             p.freq_carrier_spacing = 8000;
         }
+    case 4:
+        {
+            p.nb_frame_symbols = 76;
+            p.nb_symbol_period = 1276;
+            p.nb_null_period = 1328;
+            p.nb_fft = 1024;
+            p.nb_cyclic_prefix = p.nb_symbol_period-p.nb_fft;
+            p.nb_data_carriers = 768;
+            p.freq_carrier_spacing = 2000;
+        }
+        break;
     default:
         // TODO: handle errors
         exit(1);
