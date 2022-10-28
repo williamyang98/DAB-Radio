@@ -16,6 +16,7 @@
 #include "dab/msc/msc_decoder.h"
 #include "dab/audio/aac_frame_processor.h"
 #include "dab/dab_misc_info.h"
+#include "dab/constants/dab_parameters.h"
 
 #include "audio/pcm_player.h"
 
@@ -56,12 +57,13 @@ class BasicAudioChannel: public BasicThreadedChannel
 public:
     bool is_selected = false;
 private:
+    const DAB_Parameters params;
     const Subchannel subchannel;
     MSC_Decoder* msc_decoder;
     AAC_Frame_Processor* aac_frame_processor;
     PCM_Player* pcm_player;
 public:
-    BasicAudioChannel(const Subchannel _subchannel);
+    BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel);
     ~BasicAudioChannel();
 protected:
     virtual void Run();
@@ -70,6 +72,7 @@ protected:
 class BasicFICRunner: public BasicThreadedChannel
 {
 private:
+    const DAB_Parameters params;
     DAB_Misc_Info* misc_info;
     DAB_Database* dab_db;
     DAB_Database_Updater* dab_db_updater;
@@ -77,7 +80,7 @@ private:
     FIG_Processor* fig_processor;
     Radio_FIG_Handler* fig_handler;
 public:
-    BasicFICRunner();
+    BasicFICRunner(const DAB_Parameters _params);
     ~BasicFICRunner();
     auto GetLiveDatabase(void) { return dab_db; }
     auto GetDatabaseUpdater(void) { return dab_db_updater; }
@@ -90,6 +93,7 @@ protected:
 class BasicRadio
 {
 private:
+    const DAB_Parameters params;
     DAB_Misc_Info misc_info;
     // keep track of database with completed entries
     DAB_Database* valid_dab_db;
@@ -104,7 +108,7 @@ private:
     std::vector<BasicAudioChannel*> selected_channels_temp;
     std::unordered_map<subchannel_id_t, std::unique_ptr<BasicAudioChannel>> channels;
 public:
-    BasicRadio();
+    BasicRadio(const DAB_Parameters _params);
     ~BasicRadio();
     void Process(viterbi_bit_t* const buf, const int N);
     const auto& GetDABMiscInfo(void) { return misc_info; }

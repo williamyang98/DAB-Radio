@@ -19,7 +19,6 @@ private:
     CRC_Calculator<uint16_t>* crc16_calc;
     uint8_t* decoded_bytes;
 
-    const int nb_encoded_bytes;
     const int nb_encoded_bits;
     const int nb_decoded_bytes;
     const int nb_decoded_bits;
@@ -27,7 +26,8 @@ private:
     // fib buffer, length of fib in bytes
     Observable<const uint8_t*, const int> obs_on_fib;
 public:
-    FIC_Decoder();
+    // number of bits in FIB (fast information block) group per CIF (common interleaved frame)
+    FIC_Decoder(const int _nb_encoded_bits);
     ~FIC_Decoder();
     void DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index);
     auto& OnFIB(void) { return obs_on_fib; }

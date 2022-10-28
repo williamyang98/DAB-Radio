@@ -38,7 +38,8 @@ public:
     App(FILE* const _fp_in)
     : fp_in(_fp_in) 
     {
-        radio = new BasicRadio();
+        const int transmission_mode = 1;
+        radio = new BasicRadio(get_dab_parameters(transmission_mode));
         bits_buf = new viterbi_bit_t[nb_buf_bits];
         is_running = true;
         radio_thread = new std::thread([this]() {

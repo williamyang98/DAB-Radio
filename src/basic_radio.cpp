@@ -92,8 +92,8 @@ void BasicThreadedChannel::RunnerThread() {
 }
 
 // Audio channel on the MSC
-BasicAudioChannel::BasicAudioChannel(const Subchannel _subchannel) 
-: subchannel(_subchannel) {
+BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel) 
+: params(_params), subchannel(_subchannel) {
     msc_decoder = new MSC_Decoder(subchannel);
     aac_frame_processor = new AAC_Frame_Processor();
     pcm_player = new Win32_PCM_Player();
@@ -126,11 +126,15 @@ void BasicAudioChannel::Run() {
     const auto* buf = GetBuffer();
     const int N = GetBufferLength();
 
-    const int nb_cifs = 4;
-    const int nb_cif_bits = N/nb_cifs;
-    for (int i = 0; i < nb_cifs; i++) {
-        const auto* cif_buf = &buf[nb_cif_bits*i];
-        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, nb_cif_bits);
+    if (N != params.nb_msc_bits) {
+        LOG_ERROR("[basic-audio-channel] Got incorrect number of MSC bits {}/{}",
+            N, params.nb_msc_bits);
+        return;
+    }
+
+    for (int i = 0; i < params.nb_cifs; i++) {
+        const auto* cif_buf = &buf[params.nb_cif_bits*i];
+        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, params.nb_cif_bits);
         // The MSC decoder can have 0 bytes if the deinterleaver is still collecting frames
         if (nb_decoded_bytes == 0) {
             continue;
@@ -141,11 +145,13 @@ void BasicAudioChannel::Run() {
 }
 
 // Fast information channel
-BasicFICRunner::BasicFICRunner() {
+BasicFICRunner::BasicFICRunner(const DAB_Parameters _params) 
+: params(_params)
+{
     misc_info = new DAB_Misc_Info();
     dab_db = new DAB_Database();
     dab_db_updater = new DAB_Database_Updater(dab_db);
-    fic_decoder = new FIC_Decoder();
+    fic_decoder = new FIC_Decoder(params.nb_fib_cif_bits);
     fig_processor = new FIG_Processor();
     fig_handler = new Radio_FIG_Handler();
 
@@ -174,16 +180,22 @@ void BasicFICRunner::Run() {
     const auto* buf = GetBuffer();
     const int N = GetBufferLength();
 
-    const int nb_fics = 4;
-    const int nb_fic_bits = N/nb_fics;
-    for (int i = 0; i < nb_fics; i++) {
-        const auto* fic_buf = &buf[nb_fic_bits*i];
-        fic_decoder->DecodeFIBGroup(fic_buf, i);
+    if (N != params.nb_fic_bits) {
+        LOG_ERROR("[fic-runner] Got incorrect number of bits in fic {]/{}",
+            N, params.nb_fic_bits);
+        return;
+    }
+
+    for (int i = 0; i < params.nb_cifs; i++) {
+        const auto* fib_cif_buf = &buf[params.nb_fib_cif_bits*i];
+        fic_decoder->DecodeFIBGroup(fib_cif_buf, i);
     }
 }
 
-BasicRadio::BasicRadio() {
-    fic_runner = new BasicFICRunner();
+BasicRadio::BasicRadio(const DAB_Parameters _params)
+: params(_params) 
+{
+    fic_runner = new BasicFICRunner(params);
     valid_dab_db = new DAB_Database();
 }
 
@@ -194,18 +206,13 @@ BasicRadio::~BasicRadio() {
 }
 
 void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
-    const int nb_frame_bits = 1536*2*(76-1);
-    const int nb_symbols = 75;
-    const int nb_sym_length = nb_frame_bits / nb_symbols;
-    const int nb_fic_symbols = 3;
-    const int nb_msc_symbols = nb_symbols - nb_fic_symbols;
-
-    const int nb_fic_bits = nb_fic_symbols*nb_sym_length;
-    const int nb_msc_bits = nb_msc_symbols*nb_sym_length;
+    if (N != params.nb_frame_bits) {
+        LOG_ERROR("Got incorrect number of frame bits {}/{}", N, params.nb_frame_bits);
+        return;
+    }
 
     auto* fic_buf = &buf[0];
-    auto* msc_buf = &buf[nb_fic_bits];
-
+    auto* msc_buf = &buf[params.nb_fic_bits];
     {
         auto lock = std::scoped_lock(mutex_channels);
         selected_channels_temp.clear();
@@ -217,9 +224,9 @@ void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
     }
 
     {
-        fic_runner->SetBuffer(fic_buf, nb_fic_bits);
+        fic_runner->SetBuffer(fic_buf, params.nb_fic_bits);
         for (auto& channel: selected_channels_temp) {
-            channel->SetBuffer(msc_buf, nb_msc_bits);
+            channel->SetBuffer(msc_buf, params.nb_msc_bits);
         }
 
         // Launch all channel threads
@@ -313,7 +320,7 @@ void BasicRadio::AddSubchannel(const subchannel_id_t id) {
 
     // create our instance
     LOG_MESSAGE("Added subchannel {}", id);
-    res = channels.insert({id, std::make_unique<BasicAudioChannel>(*subchannel)}).first;
+    res = channels.insert({id, std::make_unique<BasicAudioChannel>(params, *subchannel)}).first;
     res->second->is_selected = true;
 }
 

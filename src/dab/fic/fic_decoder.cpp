@@ -11,13 +11,12 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(##__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(##__VA_ARGS__)
 
-FIC_Decoder::FIC_Decoder()
+FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits)
 // NOTE: 1/3 coding rate after puncturing and 1/4 code
-// For mode I transmission these parameters are constant
-: nb_encoded_bytes(288),
-  nb_encoded_bits(288*8),
-  nb_decoded_bits(288*8/3),
-  nb_decoded_bytes(288/3)
+// For all transmission modes these parameters are constant
+: nb_encoded_bits(_nb_encoded_bits),
+  nb_decoded_bits(_nb_encoded_bits/3),
+  nb_decoded_bytes(_nb_encoded_bits/(8*3))
 {
     {
         // DOC: ETSI EN 300 401
@@ -31,9 +30,19 @@ FIC_Decoder::FIC_Decoder()
         crc16_calc->SetFinalXORValue(0xFFFF);   // transmitted crc is 1s complemented
     }
 
+    {
+        // DOC: ETSI EN 300 401
+        // Clause 11.1 - Convolutional code
+        // Clause 11.1.1 - Mother code
+        // Octal form | Binary form | Reversed binary | Decimal form |
+        //     133    | 001 011 011 |    110 110 1    |      109     |
+        //     171    | 001 111 001 |    100 111 1    |       79     |
+        //     145    | 001 100 101 |    101 001 1    |       83     |
+        //     133    | 001 011 011 |    110 110 1    |      109     |
+        const uint8_t POLYS[4] = { 109, 79, 83, 109 };
+        vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
+    }
 
-    const uint8_t POLYS[4] = { 109, 79, 83, 109 };
-    vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
     scrambler = new AdditiveScrambler();
     scrambler->SetSyncword(0xFFFF);
 
@@ -49,6 +58,17 @@ FIC_Decoder::~FIC_Decoder() {
     delete [] decoded_bytes;
 }
 
+// Helper macro to run viterbi decoder with parameters
+#define VITDEC_RUN(L, PI, PI_len)\
+{\
+    res = vitdec->Update(\
+        &encoded_bits[curr_encoded_bit], L,\
+        PI, PI_len);\
+    curr_encoded_bit += res.nb_encoded_bits;\
+    curr_puncture_bit += res.nb_puncture_bits;\
+    curr_decoded_bit += res.nb_decoded_bits;\
+}
+
 // Each group contains 3 fibs (fast information blocks)
 void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index) {
     // viterbi decoding
@@ -62,29 +82,18 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
     auto PI_16 = GetPunctureCode(16);
     auto PI_15 = GetPunctureCode(15);
 
+    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/4 - 6;
+    if (nb_decoded_bits != nb_decoded_bits_mode_I) {
+        LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
+        LOG_ERROR("ETSI EN 300 401 standard only gives the puncture codes used in transmission mode I");
+        return;
+    }
+
     ViterbiDecoder::DecodeResult res;
-
     vitdec->Reset();
-    res = vitdec->Update(
-        &encoded_bits[curr_encoded_bit], 128*21,
-        PI_16, 32);
-    curr_encoded_bit += res.nb_encoded_bits;
-    curr_puncture_bit += res.nb_puncture_bits;
-    curr_decoded_bit += res.nb_decoded_bits;
-
-    res = vitdec->Update(
-        &encoded_bits[curr_encoded_bit], 128*3,
-        PI_15, 32);
-    curr_encoded_bit += res.nb_encoded_bits;
-    curr_puncture_bit += res.nb_puncture_bits;
-    curr_decoded_bit += res.nb_decoded_bits;
-
-    res = vitdec->Update(
-        &encoded_bits[curr_encoded_bit], 24,
-        PI_X, 24);
-    curr_encoded_bit += res.nb_encoded_bits;
-    curr_puncture_bit += res.nb_puncture_bits;
-    curr_decoded_bit += res.nb_decoded_bits;
+    VITDEC_RUN(128*21, PI_16, 32);
+    VITDEC_RUN(128*3,  PI_15, 32);
+    VITDEC_RUN(24,     PI_X,  24);
 
     const auto error = vitdec->GetPathError();
     vitdec->GetTraceback(decoded_bytes, nb_decoded_bits);

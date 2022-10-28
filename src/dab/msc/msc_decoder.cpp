@@ -27,8 +27,19 @@ MSC_Decoder::MSC_Decoder(const Subchannel _subchannel)
 
     deinterleaver = new CIF_Deinterleaver(nb_encoded_bytes);
 
-    const uint8_t POLYS[4] = { 109, 79, 83, 109 };
-    vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
+    {
+        // DOC: ETSI EN 300 401
+        // Clause 11.1 - Convolutional code
+        // Clause 11.1.1 - Mother code
+        // Octal form | Binary form | Reversed binary | Decimal form |
+        //     133    | 001 011 011 |    110 110 1    |      109     |
+        //     171    | 001 111 001 |    100 111 1    |       79     |
+        //     145    | 001 100 101 |    101 001 1    |       83     |
+        //     133    | 001 011 011 |    110 110 1    |      109     |
+        const uint8_t POLYS[4] = { 109, 79, 83, 109 };
+        vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
+    }
+
     scrambler = new AdditiveScrambler();
     scrambler->SetSyncword(0xFFFF);
 }
@@ -43,6 +54,13 @@ MSC_Decoder::~MSC_Decoder() {
 
 int MSC_Decoder::DecodeCIF(const viterbi_bit_t* buf, const int N) {
     const int start_bit = subchannel.start_address*NB_CU_BITS;
+    const int end_bit = start_bit + nb_encoded_bits;
+    if (end_bit > N) {
+        LOG_ERROR("Subchannel bits {}:{} overflows MSC channel with {} bits", 
+            start_bit, end_bit, N);
+        return 0;
+    }
+
     const auto* subchannel_buf = &buf[start_bit];
     deinterleaver->Consume(subchannel_buf);
 
