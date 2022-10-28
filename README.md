@@ -1,6 +1,8 @@
 # Introduction
 An implementation of a DAB (digital audio broadcasting) radio using software defined radio. 
 
+For a description of what software defined radio is refer to this [link](https://www.rtl-sdr.com/about-rtl-sdr/). 
+
 This repository contains applications that:
 1. Demodulate the OFDM (orthogonal frequency division multiplexed) raw IQ signals into a digital frame
 2. Decode DAB digital OFDM frames for use into a radio application
