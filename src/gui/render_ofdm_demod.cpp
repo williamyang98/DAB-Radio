@@ -21,8 +21,7 @@ void RenderSourceBuffer(std::complex<float>* buf_raw, const int block_size)
 void RenderOFDMDemodulator(OFDM_Demod* demod)
 {
     const auto params = demod->GetOFDMParams();
-    {
-        ImGui::Begin("DQPSK data");
+    if (ImGui::Begin("DQPSK data")) {
         const int total_symbols = params.nb_frame_symbols;
         static int symbol_index = 0;
 
@@ -51,11 +50,25 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
 
             ImPlot::EndPlot();
         }
-        ImGui::End();
     }
+    ImGui::End();
 
-    {
-        ImGui::Begin("Impulse response");
+    if (ImGui::Begin("Constellation")) {
+        if (ImPlot::BeginPlot("Constellation", ImVec2(-1,0), ImPlotFlags_Equal)) {
+            const int total_carriers = params.nb_data_carriers;
+            const int nb_symbols = params.nb_frame_symbols-1;
+            const int nb_points = nb_symbols * total_carriers;
+            auto* buf = reinterpret_cast<float*>(demod->GetFrameDataVec());
+
+            const float marker_size = 1.5f;
+            ImPlot::SetNextMarkerStyle(0, marker_size);
+            ImPlot::PlotScatter("IQ", &buf[0], &buf[1], std::min(nb_points, 3000), 0, 0, 2*sizeof(float));
+            ImPlot::EndPlot();
+        }
+    }
+    ImGui::End();
+
+    if (ImGui::Begin("Impulse response")) {
         if (ImPlot::BeginPlot("Impulse response")) {
             auto buf = demod->GetImpulseResponse();
             const int N = params.nb_fft;
@@ -63,8 +76,8 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
             ImPlot::PlotLine("Impulse response", buf, N);
             ImPlot::EndPlot();
         }
-        ImGui::End();
     }
+    ImGui::End();
 
     // TODO:
     // {
@@ -92,8 +105,7 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
     //     ImGui::End();
     // }
 
-    {
-        ImGui::Begin("Controls/Stats");
+    if (ImGui::Begin("Controls/Stats")) {
 
         switch (demod->GetState()) {
         case OFDM_Demod::State::FINDING_NULL_POWER_DIP:
@@ -113,7 +125,6 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
         ImGui::Text("Signal level: %.2f", demod->GetSignalAverage());
         ImGui::Text("Frames read: %d", demod->GetTotalFramesRead());
         ImGui::Text("Frames desynced: %d", demod->GetTotalFramesDesync());
-
-        ImGui::End();
     }
+    ImGui::End();
 }

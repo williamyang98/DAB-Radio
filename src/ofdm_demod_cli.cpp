@@ -31,6 +31,7 @@ void usage() {
         "\t[-o output filename (default: None)]\n"
         "\t    If no file is provided then stdout is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-D (disable output)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -39,11 +40,12 @@ int main(int argc, char** argv)
 {
     int block_size = 8192;
     int transmission_mode = 1;
+    bool is_output = true;
     char* rd_filename = NULL;
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "b:i:M:h")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:M:Dh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
@@ -57,6 +59,9 @@ int main(int argc, char** argv)
             break;
         case 'o':
             wr_filename = optarg;
+            break;
+        case 'D':
+            is_output = false;
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
@@ -109,7 +114,10 @@ int main(int argc, char** argv)
         const int N = ofdm_demod.Get_OFDM_Frame_Total_Bits();
         fwrite(bits, sizeof(viterbi_bit_t), N, fp_out);
     };
-    ofdm_demod.On_OFDM_Frame().Attach(on_ofdm_frame);
+
+    if (is_output) {
+        ofdm_demod.On_OFDM_Frame().Attach(on_ofdm_frame);
+    }
 
     delete [] ofdm_prs_ref;
     delete [] ofdm_mapper_ref;

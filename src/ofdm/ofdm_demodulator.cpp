@@ -87,7 +87,11 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
 
     // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
     pipeline_fft_buffer   = new std::complex<float>[params.nb_fft*(params.nb_frame_symbols+1)];
-    pipeline_dqpsk_buffer = new float[params.nb_fft*(params.nb_symbol_period-1)];
+    {
+        const int N = params.nb_fft*(params.nb_symbol_period-1);
+        pipeline_dqpsk_vec_buffer = new std::complex<float>[N];
+        pipeline_dqpsk_buffer = new float[N];
+    }
     {
         const int N = params.nb_data_carriers*(params.nb_frame_symbols-1)*2;
         pipeline_out_bits = new viterbi_bit_t[N];
@@ -122,11 +126,14 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
             }
         }
     ));
-    for (auto& pipeline: pipelines) {
+
+    for (int i = 0; i < pipelines.size(); i++) {
+        auto* pipeline = pipelines[i].get();
+        auto* dependent_pipeline = ((i+1) >= pipelines.size()) ? NULL : pipelines[i+1].get();
         threads.push_back(std::make_unique<std::thread>(
-            [this, &pipeline]() {
+            [this, pipeline, dependent_pipeline]() {
                 while (is_running) {
-                    PipelineThread(pipeline.get());
+                    PipelineThread(pipeline, dependent_pipeline);
                 }
             }
         ));
@@ -134,7 +141,8 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
 }
 
 OFDM_Demod::~OFDM_Demod() {
-    // join all threads
+    // join all threads 
+    coordinator_thread->Wait();
     is_running = false;
     coordinator_thread->Start();
     for (auto& pipeline: pipelines) {
@@ -147,6 +155,7 @@ OFDM_Demod::~OFDM_Demod() {
 
     // pipeline data structures
     delete [] pipeline_fft_buffer;
+    delete [] pipeline_dqpsk_vec_buffer;
     delete [] pipeline_dqpsk_buffer;
     delete [] pipeline_out_bits;
     delete [] pipeline_fft_mag_buffer;
@@ -374,8 +383,6 @@ void OFDM_Demod::CoordinatorThread() {
         pipeline->Start();
     }
 
-    // We wait for all workers to complete the FFT 
-    // so we can perform differential QPSK decoding
     for (auto& pipeline: pipelines) {
         pipeline->WaitFFT();
     }
@@ -391,9 +398,6 @@ void OFDM_Demod::CoordinatorThread() {
     UpdateFineFrequencyOffset(average_cyclic_error);
 
     for (auto& pipeline: pipelines) {
-        pipeline->StartDQPSK();
-    }
-    for (auto& pipeline: pipelines) {
         pipeline->WaitEnd();
     }
 
@@ -402,7 +406,7 @@ void OFDM_Demod::CoordinatorThread() {
     coordinator_thread->SignalEnd();
 }
 
-void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
+void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data) {
     const int symbol_start = thread_data->GetSymbolStart();
     const int symbol_end = thread_data->GetSymbolEnd();
     const int total_symbols = symbol_end-symbol_start;
@@ -416,21 +420,13 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
     }
 
     // Cyclic prefix correlation
-    const int nb_sym_length = params.nb_symbol_period;
-    const int nb_prefix_length = params.nb_cyclic_prefix;
-    const int nb_data_length = nb_sym_length - nb_prefix_length;
-
-    const int nb_fft_length = params.nb_fft;
-    const int nb_subcarriers = params.nb_data_carriers;
-    const int nb_viterbi_bits = nb_subcarriers*2;
-
     auto* pipeline_time_buffer = active_buffer->GetData();
-    auto* symbols_time_buf = &pipeline_time_buffer[symbol_start*nb_sym_length];
+    auto* symbols_time_buf = &pipeline_time_buffer[symbol_start*params.nb_symbol_period];
 
     // Correct for frequency offset in our signal
     {
-        const float dt_start = CalculateTimeOffset(symbol_start*nb_sym_length);
-        const int N = nb_sym_length*total_symbols;
+        const float dt_start = CalculateTimeOffset(symbol_start*params.nb_symbol_period);
+        const int N = params.nb_symbol_period*total_symbols;
         ApplyPLL(symbols_time_buf, symbols_time_buf, N, dt_start); 
     }
 
@@ -438,7 +434,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
     // get phase error using cyclic prefix (ignore null symbol)
     float total_phase_error = 0.0f;
     for (int i = symbol_start; i < symbol_end_no_null; i++) {
-        auto* sym_buf = &pipeline_time_buffer[i*nb_sym_length];
+        auto* sym_buf = &pipeline_time_buffer[i*params.nb_symbol_period];
         const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
         total_phase_error += cyclic_error;
     }
@@ -447,10 +443,10 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
     // Clause 3.14.2 - FFT
     // calculate fft (include null symbol)
     for (int i = symbol_start; i < symbol_end; i++) {
-        auto* sym_buf = &pipeline_time_buffer[i*nb_sym_length];
+        auto* sym_buf = &pipeline_time_buffer[i*params.nb_symbol_period];
         // Clause 3.14.1 - Cyclic prefix removal
-        auto* data_buf = &sym_buf[nb_prefix_length];
-        auto* fft_buf = &pipeline_fft_buffer[i*nb_fft_length];
+        auto* data_buf = &sym_buf[params.nb_cyclic_prefix];
+        auto* fft_buf = &pipeline_fft_buffer[i*params.nb_fft];
         kiss_fft(fft_cfg, 
             (kiss_fft_cpx*)data_buf,
             (kiss_fft_cpx*)fft_buf);
@@ -458,24 +454,35 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data) {
 
     // Synchronise rest of worker threads here to calculate the DQPSK
     thread_data->SignalFFT();
-    thread_data->WaitDQPSK();
+    thread_data->StartDQPSK();
 
+    const auto calculate_dqpsk = [this](int start, int end) {
+        // Clause 3.15 - Differential demodulator
+        // perform our differential qpsk decoding
+        for (int i = start; i < end; i++) {
+            auto* fft_buf_0     = &pipeline_fft_buffer[ i   *params.nb_fft];
+            auto* fft_buf_1     = &pipeline_fft_buffer[(i+1)*params.nb_fft];
+            auto* dqpsk_vec_buf = &pipeline_dqpsk_vec_buffer[i*params.nb_data_carriers];
+            auto* dqpsk_buf     = &pipeline_dqpsk_buffer[i*params.nb_data_carriers];
+            CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_vec_buf, dqpsk_buf);
+        }
 
-    // Clause 3.15 - Differential demodulator
-    // perform our differential qpsk decoding
-    for (int i = symbol_start; i < symbol_end_dqpsk; i++) {
-        auto* fft_buf_0 = &pipeline_fft_buffer[ i   *nb_fft_length];
-        auto* fft_buf_1 = &pipeline_fft_buffer[(i+1)*nb_fft_length];
-        auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*nb_subcarriers];
-        CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_buf);
+        // Map phase to viterbi bit
+        for (int i = start; i < end; i++) {
+            const int nb_viterbi_bits = params.nb_data_carriers*2;
+            auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*params.nb_data_carriers];
+            auto* viterbi_bit_buf = &pipeline_out_bits[i*nb_viterbi_bits];
+            CalculateViterbiBits(dqpsk_buf, viterbi_bit_buf);
+        }
+    };
+
+    calculate_dqpsk(symbol_start, symbol_end_dqpsk-1);
+    // Get DQPSK result for last symbol in this thread 
+    // which is dependent on other threads finishing
+    if (dependent_thread_data != NULL) {
+        dependent_thread_data->WaitDQPSK();
     }
-
-    // Map phase to viterbi bit
-    for (int i = symbol_start; i < symbol_end_dqpsk; i++) {
-        auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*nb_subcarriers];
-        auto* viterbi_bit_buf = &pipeline_out_bits[i*nb_viterbi_bits];
-        CalculateViterbiBits(dqpsk_buf, viterbi_bit_buf);
-    }
+    calculate_dqpsk(symbol_end_dqpsk-1, symbol_end_dqpsk);
 
     // TODO: optional - and we need to calculate the average
     // Calculate symbol magnitude (include null symbol)
@@ -546,9 +553,8 @@ float OFDM_Demod::CalculateCyclicPhaseError(const std::complex<float>* sym) {
 }
 
 void OFDM_Demod::CalculateDQPSK(
-    const std::complex<float>* in0, 
-    const std::complex<float>* in1, 
-    float* out)
+    const std::complex<float>* in0, const std::complex<float>* in1, 
+    std::complex<float>* out_vec, float* out_phase)
 {
     const int M = params.nb_data_carriers/2;
     const int N_fft = params.nb_fft;
@@ -565,9 +571,9 @@ void OFDM_Demod::CalculateDQPSK(
 
         // arg(z1*~z0) = arg(z1)+arg(~z0) = arg(z1)-arg(z0)
         const auto phase_delta_vec = in1[fft_index] * std::conj(in0[fft_index]);
-        const float phase_delta = cargf(phase_delta_vec);
-
-        out[subcarrier_index] = phase_delta;
+        const float phase = cargf(phase_delta_vec);
+        out_vec[subcarrier_index] = phase_delta_vec;
+        out_phase[subcarrier_index] = phase;
         subcarrier_index++;
     }
 }

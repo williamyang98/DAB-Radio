@@ -66,6 +66,7 @@ private:
     ReconstructionBuffer<std::complex<float>>* inactive_buffer;
     // pipeline analysis
     std::complex<float>* pipeline_fft_buffer;
+    std::complex<float>* pipeline_dqpsk_vec_buffer;
     float*               pipeline_dqpsk_buffer;
     viterbi_bit_t*       pipeline_out_bits;
     float*               pipeline_fft_mag_buffer;
@@ -95,6 +96,7 @@ public:
     inline int GetTotalFramesRead(void) const { return total_frames_read; }
     inline int GetTotalFramesDesync(void) const { return total_frames_desync; }
     inline OFDM_Params GetOFDMParams(void) const { return params; }
+    inline std::complex<float>* GetFrameDataVec(void) { return pipeline_dqpsk_vec_buffer; }
     inline float* GetFrameDataPhases(void) { return pipeline_dqpsk_buffer; }
     inline float* GetImpulseResponse(void) { return correlation_impulse_response; }
     inline float GetSignalAverage(void) const { return signal_l1_average; }
@@ -103,7 +105,7 @@ public:
     inline auto& On_OFDM_Frame(void) { return obs_on_ofdm_frame; }
 private:
     void CoordinatorThread();
-    void PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data);
+    void PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data);
 private:
     int FindNullPowerDip(const std::complex<float>* buf, const int N);
     int FindPRSCorrelation(const std::complex<float>* buf, const int N);
@@ -115,7 +117,7 @@ private:
     float CalculateTimeOffset(const int i);
     float CalculateCyclicPhaseError(const std::complex<float>* sym);
     void CalculateMagnitude(const std::complex<float>* fft_buf, float* mag_buf);
-    void CalculateDQPSK(const std::complex<float>* in0, const std::complex<float>* in1, float* out);
+    void CalculateDQPSK(const std::complex<float>* in0, const std::complex<float>* in1, std::complex<float>* out_vec, float* out_phase);
     void CalculateViterbiBits(const float* phase_buf, viterbi_bit_t* bit_buf);
     float CalculateL1Average(const std::complex<float>* block, const int N);
     void UpdateSignalAverage(const std::complex<float>* block, const int N);
