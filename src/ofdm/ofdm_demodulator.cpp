@@ -124,6 +124,7 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
             while (is_running) {
                 CoordinatorThread();
             }
+            coordinator_thread->SignalEnd();
         }
     ));
 

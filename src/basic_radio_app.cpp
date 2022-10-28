@@ -46,11 +46,17 @@ private:
     bool flag_rd_byte_offset = false;
 
     // Double buffer our demodulator frame data to radio thread
-    viterbi_bit_t* frame_double_buffer;
+    viterbi_bit_t* inactive_frame_buffer;
+    viterbi_bit_t* active_frame_buffer;
     int nb_frame_bits;
-    bool is_double_buffer_ready = false;
-    std::mutex mutex_double_buffer;
-    std::condition_variable cv_double_buffer;
+    
+    bool is_start_buffer;
+    std::mutex mutex_start_buffer;
+    std::condition_variable cv_start_buffer;
+
+    bool is_end_buffer;
+    std::mutex mutex_end_buffer;
+    std::condition_variable cv_end_buffer;
 
     // Blocks that make our radio
     bool is_running;
@@ -64,8 +70,9 @@ public:
     App(FILE* const _fp_in, const int _block_size)
     : fp_in(_fp_in), block_size(_block_size)
     {
-        radio = new BasicRadio();
-        Init_OFDM_Demodulator();
+        const int transmission_mode = 1;
+        radio = new BasicRadio(get_dab_parameters(transmission_mode));
+        Init_OFDM_Demodulator(transmission_mode);
 
         // Buffer to read raw IQ 8bit values and convert to floating point
         rd_in_raw = new std::complex<uint8_t>[block_size];
@@ -80,29 +87,30 @@ public:
     ~App() {
         if (ofdm_demod_thread != NULL) {
             is_running = false;
+            fclose(fp_in);
             ofdm_demod_thread->join();
             delete ofdm_demod_thread;
         }
         if (basic_radio_thread != NULL) {
             is_running = false;
-            {
-                auto lock = std::scoped_lock(mutex_double_buffer);
-                is_double_buffer_ready = true;
-                cv_double_buffer.notify_one();
-            }
+            SignalStartBuffer();
             basic_radio_thread->join();
             delete basic_radio_thread;
         }
         delete radio;
+
+        // NOTE: we do this so that the double buffer call 
+        //       will exit when the buffering thread is closed
+        SignalEndBuffer();
         delete ofdm_demod;
         delete [] rd_in_raw;
         delete [] rd_in_float;
-        delete [] frame_double_buffer;
+        delete [] active_frame_buffer;
+        delete [] inactive_frame_buffer;
     }
 private:
     // Get our OFDM demodulator and frequency deinterleaver 
-    void Init_OFDM_Demodulator() {
-        const int transmission_mode = 1;
+    void Init_OFDM_Demodulator(const int transmission_mode) {
         const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
         auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
         get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
@@ -111,12 +119,14 @@ private:
         ofdm_demod = new OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
 
         nb_frame_bits = ofdm_demod->Get_OFDM_Frame_Total_Bits();
-        frame_double_buffer = new viterbi_bit_t[nb_frame_bits];
+        active_frame_buffer = new viterbi_bit_t[nb_frame_bits];
+        inactive_frame_buffer = new viterbi_bit_t[nb_frame_bits];
+        is_start_buffer = false;
+        is_end_buffer = false;
         {
             using namespace std::placeholders;
             ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::DoubleBufferFrameData, this, _1, _2, _3));
         } 
-
         {
             auto& cfg = ofdm_demod->GetConfig();
             cfg.toggle_flags.is_update_data_sym_mag = true;
@@ -126,22 +136,50 @@ private:
         delete [] ofdm_prs_ref;
         delete [] ofdm_mapper_ref;
     }
-    void DoubleBufferFrameData(const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
-        auto lock = std::scoped_lock(mutex_double_buffer);
-        for (int i = 0; i < nb_frame_bits; i++) {
-            frame_double_buffer[i] = buf[i];
-        }
-        is_double_buffer_ready = true;
-        cv_double_buffer.notify_one();
-    }
     void Start() {
         is_running = true;
+        SignalEndBuffer();
         basic_radio_thread = new std::thread([this]() {
             RunnerThread_Radio();
         });
         ofdm_demod_thread = new std::thread([this]() {
             RunnerThread_OFDM_Demod();
         });
+    }
+private:
+    void SignalStartBuffer() {
+        auto lock = std::scoped_lock(mutex_start_buffer);
+        is_start_buffer = true;
+        cv_start_buffer.notify_one();
+    }
+    void WaitStartBuffer() {
+        auto lock = std::unique_lock(mutex_start_buffer);
+        cv_start_buffer.wait(lock, [this]() { return is_start_buffer; });
+        is_start_buffer = false;
+    }
+    void SignalEndBuffer() {
+        auto lock = std::scoped_lock(mutex_end_buffer);
+        is_end_buffer = true;
+        cv_end_buffer.notify_one();
+    }
+    void WaitEndBuffer() {
+        auto lock = std::unique_lock(mutex_end_buffer);
+        cv_end_buffer.wait(lock, [this]() { return is_end_buffer; });
+        is_end_buffer = false;
+    }
+    void DoubleBufferFrameData(const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
+        for (int i = 0; i < nb_frame_bits; i++) {
+            inactive_frame_buffer[i] = buf[i];
+        }
+        // NOTE: this stops a deadlock on application exit from occuring when the double buffer thread terminates
+        WaitEndBuffer();
+        if (!is_running) {
+            return;
+        }
+        auto* tmp = inactive_frame_buffer;
+        inactive_frame_buffer = active_frame_buffer;
+        active_frame_buffer = tmp; 
+        SignalStartBuffer();
     }
 // All our imgui skeleton code
 public:
@@ -168,7 +206,6 @@ public:
         ImGuiSetupCustomConfig();
     }
     virtual void Render() {
-        RenderBasicRadio(radio);
         if (ImGui::Begin("Demodulator")) {
             ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
             ImGui::DockSpace(dockspace_id);
@@ -176,6 +213,7 @@ public:
             RenderOFDMDemodulator(ofdm_demod);
             RenderAppControls();
         }
+        RenderBasicRadio(radio);
         ImGui::End();
     }
     virtual void AfterShutdown() {
@@ -228,18 +266,14 @@ private:
     }    
     void RunnerThread_Radio() {
         while (is_running) {
-            auto lock = std::unique_lock(mutex_double_buffer);
-            cv_double_buffer.wait(lock, [this]() { 
-                return is_double_buffer_ready; 
-            });
-            is_double_buffer_ready = false;
-
+            WaitStartBuffer();
             if (!is_running) {
                 break;
             }
-
-            radio->Process(frame_double_buffer, nb_frame_bits);
+            radio->Process(active_frame_buffer, nb_frame_bits);
+            SignalEndBuffer();
         }
+        SignalEndBuffer();
     }
 };
 
