@@ -7,13 +7,14 @@
 void RenderSourceBuffer(std::complex<float>* buf_raw, const int block_size)
 {
     static double x = 0.0f;
-    ImGui::Begin("Sampling buffer");
-    if (ImPlot::BeginPlot("Block")) {
-        auto buf = reinterpret_cast<float*>(buf_raw);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
-        ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-        ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-        ImPlot::EndPlot();
+    if (ImGui::Begin("Sampling buffer")) {
+        if (ImPlot::BeginPlot("Block")) {
+            auto buf = reinterpret_cast<float*>(buf_raw);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
+            ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+            ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+            ImPlot::EndPlot();
+        }
     }
     ImGui::End();
 }
