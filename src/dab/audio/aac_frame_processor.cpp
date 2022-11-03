@@ -113,9 +113,6 @@ AAC_Frame_Processor::~AAC_Frame_Processor() {
     delete firecode_crc_calc;
     delete access_unit_crc_calc;
     delete super_frame_buf;
-    if (aac_decoder != NULL) {
-        delete aac_decoder;
-    }
 
     delete rs_decoder;
     delete [] rs_encoded_buf;
@@ -192,36 +189,11 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*TOTAL_DAB_FRAMES;
     const int N = nb_rs_super_frame_bytes/NB_RS_MESSAGE_BYTES;
 
-    // reed solomon decoder
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < NB_RS_MESSAGE_BYTES; j++) {
-            rs_encoded_buf[j] = super_frame_buf[i + j*N];
-        }
-        const int error_count = rs_decoder->Decode(
-            rs_encoded_buf, rs_error_positions, 0);
-
-        LOG_MESSAGE("[reed-solomon] index={}/{} error_count={}", i, N, error_count);
-        // rs decoder returns -1 to indicate too many errors
-        if (error_count < 0) {
-            LOG_ERROR("Too many errors for reed solomon to correct");
-            obs_rs_error.Notify(i, N);
-            nb_desync_count++;
-            return;
-        }
-        // correct any errors
-        for (int j = 0; j < error_count; j++) {
-            // NOTE: Phil Karn's reed solmon decoder returns the position of errors 
-            // with the amount of padding added onto it
-            const int k = rs_error_positions[j] - NB_RS_PADDING_BYTES;
-            if (k < 0) {
-                LOG_ERROR("[reed-solomon] Got a negative error index {} in DAB frame {}/{}", k, i, N);
-                continue;
-            }
-            super_frame_buf[i + k*N] = rs_encoded_buf[k];
-        }
+    if (!ReedSolomonDecode(nb_dab_frame_bytes)) {
+        nb_desync_count++;
+        return;
     }
 
-    // validate the firecode
     if (!CalculateFirecode(super_frame_buf, N)) {
         nb_desync_count++;
         return;
@@ -232,6 +204,9 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     is_synced_superframe = true;
 
     // Decode audio superframe header
+    // DOC: ETSI TS 102 563
+    // Clause 5.2: Audio super framing syntax 
+    // Table 2: Syntax of he_aac_super_frame_header() 
     auto* buf = super_frame_buf;
     int curr_byte = 0;
     const uint16_t firecode = (buf[0] << 8) | (buf[1]);
@@ -246,27 +221,36 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     const uint32_t sampling_rate = dac_rate ? 48000 : 32000;
     const bool is_stereo = aac_channel_mode;
 
-    LOG_MESSAGE("sampling_rate={} Hz", sampling_rate);
-    LOG_MESSAGE("sbr={}", sbr_flag);
-    LOG_MESSAGE("ps={}", ps_flag);
-    LOG_MESSAGE("is_stereo={}", is_stereo);
+    SuperFrameHeader super_frame_header;
+    super_frame_header.sampling_rate = sampling_rate;
+    super_frame_header.PS_flag = ps_flag;
+    super_frame_header.SBR_flag = sbr_flag;
+    super_frame_header.is_stereo = is_stereo;
 
     // TODO: Somehow handle the mpeg configuration
     // libfaad allows you to set more advanced audio channel configuration
     switch (mpeg_config) {
     case 0b000:
+        super_frame_header.mpeg_surround = MPEG_Surround::NOT_USED;
         LOG_MESSAGE("MPEG surround is not used");
         break;
     case 0b001:
+        super_frame_header.mpeg_surround = MPEG_Surround::SURROUND_51;
         LOG_MESSAGE("MPEG surround with 5.1 output channels is used");
         break;
     case 0b111:
+        super_frame_header.mpeg_surround = MPEG_Surround::SURROUND_OTHER;
         LOG_MESSAGE("MPEG surround in other mode");
         break;
     default:
+        super_frame_header.mpeg_surround = MPEG_Surround::RFA;
         LOG_MESSAGE("MPEG surround is RFA");
         break;
     }
+
+    obs_superframe_header.Notify(super_frame_header);
+    LOG_MESSAGE("AAC decoder parameters: sampling_rate={}Hz PS={} SBR={} stereo={}", 
+        sampling_rate, ps_flag, sbr_flag, is_stereo);
 
     // Get the starting byte index for each AU (access unit) in the super frame
     uint8_t num_aus = 0;
@@ -284,30 +268,6 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     // the first access unit doesn't have the starting index specified
     // it begins immediately after the superframe header
     au_start[0] = curr_byte;
-
-    // keep track if the superframe header changed
-    const bool is_format_changed = (prev_superframe_descriptor != descriptor);
-    prev_superframe_descriptor = descriptor;
-
-    // update the aac decoder if the parameters change
-    if ((aac_decoder == NULL) || is_format_changed) {
-        AAC_Decoder::Params params;
-        params.sampling_frequency = sampling_rate;
-        params.is_PS = ps_flag;
-        params.is_SBR = sbr_flag;
-        params.is_stereo = is_stereo;
-
-        if (aac_decoder != NULL) {
-            delete aac_decoder;
-            aac_decoder = NULL;
-            LOG_ERROR("AAC decoder parameters changed: sampling_rate={}Hz PS={} SBR={} stereo={}", 
-                sampling_rate, ps_flag, sbr_flag, is_stereo);
-        } else {
-            LOG_MESSAGE("AAC decoder parameters initialised: sampling_rate={}Hz PS={} SBR={} stereo={}", 
-                sampling_rate, ps_flag, sbr_flag, is_stereo);
-        }
-        aac_decoder = new AAC_Decoder(params);
-    }
 
     // process each access unit through the AAC decoder
     for (int i = 0; i < num_aus; i++) {
@@ -334,17 +294,48 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
             continue;
         }
 
-        const auto res = aac_decoder->DecodeFrame(au_buf, nb_data_bytes);
-        LOG_MESSAGE("[aac-decoder] error={} error_code={} total_audio_bytes={}", 
-            res.is_error, res.error_code, res.nb_audio_buf_bytes);
+        obs_access_unit.Notify(i, num_aus, au_buf, nb_data_bytes);
+    }
+}
 
-        if (res.is_error) {
-            obs_au_decoder_error.Notify(i, num_aus, res.error_code);
-        } else {
-            obs_au_audio_frame.Notify(
-                i, num_aus, 
-                res.audio_buf, res.nb_audio_buf_bytes,
-                aac_decoder->GetParams());
+bool AAC_Frame_Processor::ReedSolomonDecode(const int nb_dab_frame_bytes) {
+    const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*TOTAL_DAB_FRAMES;
+    const int N = nb_rs_super_frame_bytes/NB_RS_MESSAGE_BYTES;
+
+    // DOC: ETSI TS 102 563
+    // Clause 6: Transport error coding and interleaving 
+    // We need to interleave the data so we can perform Reed Solomon decoding
+    // Then we deinterleave the corrected RS data into the super frame buffer
+
+    // reed solomon decoder
+    for (int i = 0; i < N; i++) {
+        // Interleave for decoding
+        for (int j = 0; j < NB_RS_MESSAGE_BYTES; j++) {
+            rs_encoded_buf[j] = super_frame_buf[i + j*N];
+        }
+        const int error_count = rs_decoder->Decode(
+            rs_encoded_buf, rs_error_positions, 0);
+
+        LOG_MESSAGE("[reed-solomon] index={}/{} error_count={}", i, N, error_count);
+        // rs decoder returns -1 to indicate too many errors
+        if (error_count < 0) {
+            LOG_ERROR("Too many errors for reed solomon to correct");
+            obs_rs_error.Notify(i, N);
+            return false;
+        }
+        // correct any errors
+        for (int j = 0; j < error_count; j++) {
+            // NOTE: Phil Karn's reed solmon decoder returns the position of errors 
+            // with the amount of padding added onto it
+            const int k = rs_error_positions[j] - NB_RS_PADDING_BYTES;
+            if (k < 0) {
+                LOG_ERROR("[reed-solomon] Got a negative error index {} in DAB frame {}/{}", k, i, N);
+                continue;
+            }
+            // Deinterleave for error correction
+            super_frame_buf[i + k*N] = rs_encoded_buf[k];
         }
     }
+
+    return true;
 }

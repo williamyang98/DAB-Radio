@@ -19,6 +19,18 @@ public:
         bool is_SBR;
         bool is_stereo;
         bool is_PS;
+        bool operator==(const Params& other) const {
+            return (sampling_frequency == other.sampling_frequency) &&
+                   (is_SBR == other.is_SBR) &&
+                   (is_stereo == other.is_stereo) &&
+                   (is_PS == other.is_PS);
+        }
+        bool operator!=(const Params& other) const {
+            return (sampling_frequency != other.sampling_frequency) || 
+                   (is_SBR != other.is_SBR) || 
+                   (is_stereo != other.is_stereo) ||
+                   (is_PS != other.is_PS);
+        }
     };
 private:
     const struct Params params;

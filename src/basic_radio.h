@@ -14,6 +14,7 @@
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
 #include "dab/msc/msc_decoder.h"
+#include "dab/audio/aac_decoder.h"
 #include "dab/audio/aac_frame_processor.h"
 #include "dab/dab_misc_info.h"
 #include "dab/constants/dab_parameters.h"
@@ -61,6 +62,7 @@ private:
     const Subchannel subchannel;
     MSC_Decoder* msc_decoder;
     AAC_Frame_Processor* aac_frame_processor;
+    AAC_Decoder* aac_audio_decoder;
     PCM_Player* pcm_player;
 public:
     BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel);

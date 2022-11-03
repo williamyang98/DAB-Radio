@@ -96,22 +96,48 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
 : params(_params), subchannel(_subchannel) {
     msc_decoder = new MSC_Decoder(subchannel);
     aac_frame_processor = new AAC_Frame_Processor();
+    aac_audio_decoder = NULL;
     pcm_player = new Win32_PCM_Player();
 
-    const auto callback = [this](
-        const int au_index, const int au_total, 
-        const uint8_t* buf, const int N,
-        const AAC_Decoder::Params params) 
-    {
+    aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
+        AAC_Decoder::Params audio_params;
+        audio_params.sampling_frequency = header.sampling_rate;
+        audio_params.is_PS = header.PS_flag;
+        audio_params.is_SBR = header.SBR_flag;
+        audio_params.is_stereo = header.is_stereo;
+
+        if (aac_audio_decoder == NULL) {
+            aac_audio_decoder = new AAC_Decoder(audio_params);
+            return;
+        }
+
+        const auto old_audio_params = aac_audio_decoder->GetParams();
+        if (old_audio_params != audio_params) {
+            delete aac_audio_decoder;
+            aac_audio_decoder = new AAC_Decoder(audio_params);
+        }
+    });
+
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+        if (aac_audio_decoder == NULL) {
+            return;
+        }
+
+        const auto res = aac_audio_decoder->DecodeFrame(buf, N);
+        if (res.is_error) {
+            LOG_ERROR("[basic-audio-channel] [aac-audio-decoder] error={} au_index={}/{}", 
+                res.error_code, au_index, nb_aus);
+            return;
+        }
+
+        const auto audio_params = aac_audio_decoder->GetParams();
         auto pcm_params = pcm_player->GetParameters();
-        pcm_params.sample_rate = params.sampling_frequency;
+        pcm_params.sample_rate = audio_params.sampling_frequency;
         pcm_params.total_channels = 2;
         pcm_params.bytes_per_sample = 2;
         pcm_player->SetParameters(pcm_params);
-        pcm_player->ConsumeBuffer(buf, N);
-    };
-
-    aac_frame_processor->OnAudioFrame().Attach(callback);
+        pcm_player->ConsumeBuffer(res.audio_buf, res.nb_audio_buf_bytes);
+    });
 }
 
 BasicAudioChannel::~BasicAudioChannel() {
@@ -119,6 +145,9 @@ BasicAudioChannel::~BasicAudioChannel() {
     Join();
     delete msc_decoder;
     delete aac_frame_processor;
+    if (aac_audio_decoder != NULL) {
+        delete aac_audio_decoder;
+    }
     delete pcm_player;
 }
 
