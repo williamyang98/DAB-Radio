@@ -100,21 +100,21 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
     pcm_player = new Win32_PCM_Player();
 
     aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
-        AAC_Decoder::Params audio_params;
+        AAC_Audio_Decoder::Params audio_params;
         audio_params.sampling_frequency = header.sampling_rate;
         audio_params.is_PS = header.PS_flag;
         audio_params.is_SBR = header.SBR_flag;
         audio_params.is_stereo = header.is_stereo;
 
         if (aac_audio_decoder == NULL) {
-            aac_audio_decoder = new AAC_Decoder(audio_params);
+            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
             return;
         }
 
         const auto old_audio_params = aac_audio_decoder->GetParams();
         if (old_audio_params != audio_params) {
             delete aac_audio_decoder;
-            aac_audio_decoder = new AAC_Decoder(audio_params);
+            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
         }
     });
 

@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "aac_decoder.h"
+#include "aac_audio_decoder.h"
 
 #include <neaacdec.h>
 
@@ -73,7 +73,7 @@ uint8_t get_sr_index(const uint32_t samplerate)
     return 11;
 }
 
-void AAC_Decoder::GenerateBitfileConfig() {
+void AAC_Audio_Decoder::GenerateBitfileConfig() {
     // Source: https://wiki.multimedia.cx/index.php/MPEG-4_Audio
     // This is the simplified explanation of how the mpeg-4 header is generated
     // The code in libfaad has a comprehensive implementation of this
@@ -242,7 +242,7 @@ void AAC_Decoder::GenerateBitfileConfig() {
     nb_mp4_bitfile_config_bytes = bit_pusher.GetTotalBytesCeil();
 }
 
-AAC_Decoder::AAC_Decoder(const struct Params _params)
+AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
 : params(_params)
 {
     // TODO: Add bounds check when we construct the mp4 bitfield
@@ -267,14 +267,14 @@ AAC_Decoder::AAC_Decoder(const struct Params _params)
     // TODO: manage the errors that libfaad spits out
 }
 
-AAC_Decoder::~AAC_Decoder() {
+AAC_Audio_Decoder::~AAC_Audio_Decoder() {
     NeAACDecClose(decoder_handle);
     delete [] mp4_bitfile_config;
     delete decoder_frame_info;
 }
 
-AAC_Decoder::Result AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
-    AAC_Decoder::Result res;
+AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(uint8_t* data, const int N) {
+    AAC_Audio_Decoder::Result res;
     res.audio_buf = NULL;
     res.nb_audio_buf_bytes = 0;
     res.is_error = false;

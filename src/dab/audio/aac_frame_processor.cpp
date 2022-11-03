@@ -2,8 +2,6 @@
 #include "algorithms/reed_solomon_decoder.h"
 #include "algorithms/crc.h"
 
-#include "aac_decoder.h"
-
 #include "easylogging++.h"
 #include "fmt/core.h"
 

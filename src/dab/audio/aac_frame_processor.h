@@ -2,8 +2,6 @@
 #include "algorithms/crc.h"
 #include "../observable.h"
 
-#include "aac_decoder.h"
-
 class Reed_Solomon_Decoder;
 
 enum MPEG_Surround {
