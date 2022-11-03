@@ -26,6 +26,11 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
     int curr_encoded_bit = 0;
     int curr_puncture_bit = 0;
 
+    // Punctured bits shall take the value between high and low
+    // This way when the error metrics are calculated, it will be interpreted as being
+    // either a 0 or 1 with equal weighting
+    constexpr COMPUTETYPE SOFT_DECISION_PUNCTURED = (SOFT_DECISION_HIGH+SOFT_DECISION_LOW)/2;
+
     while (res.nb_puncture_bits < nb_encoded_bits) {
         for (int i = 0; i < CODE_RATE; i++) {
             const uint8_t v = puncture_code[curr_puncture_bit % nb_puncture_bits];
@@ -33,7 +38,7 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
             if (v && (curr_puncture_bit == nb_encoded_bits)) {
                 return res;
             }
-            depunctured_bits[i] = v ? encoded_bits[curr_encoded_bit++] : 127;
+            depunctured_bits[i] = v ? encoded_bits[curr_encoded_bit++] : SOFT_DECISION_PUNCTURED;
         }
         res.nb_encoded_bits = curr_encoded_bit;
         res.nb_puncture_bits = curr_puncture_bit;

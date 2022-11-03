@@ -149,13 +149,13 @@ inline void renormalize(COMPUTETYPE *x, COMPUTETYPE threshold) {
 void init_viterbi(vitdec_t* vp, int starting_state) {
     // Give initial error to all states
     for (int i = 0; i < NUMSTATES; i++) {
-        vp->metrics1.buf[i] = (SHRT_MIN + 2000);
+        vp->metrics1.buf[i] = INITIAL_NON_START_ERROR;
     }
     vp->old_metrics = &vp->metrics1;
     vp->new_metrics = &vp->metrics2;
 
     // Only the starting state has 0 error
-    vp->old_metrics->buf[starting_state & (NUMSTATES-1)] = SHRT_MIN;
+    vp->old_metrics->buf[starting_state & (NUMSTATES-1)] = INITIAL_START_ERROR;
     vp->curr_decoded_bit = 0;
     {
         const int N = vp->maximum_decoded_bits;
@@ -183,7 +183,7 @@ vitdec_t* create_viterbi(const uint8_t polys[CODE_RATE], const int len) {
     for (int state = 0; state < NUMSTATES/2; state++) {
         for (int i = 0; i < CODE_RATE; i++) {
             const int v = parity((state << 1) & polys[i]);
-            vp->BranchTable[i].buf[state] = v ? 256 : 0;
+            vp->BranchTable[i].buf[state] = v ? SOFT_DECISION_HIGH : SOFT_DECISION_LOW;
         }
     }
 
@@ -236,7 +236,7 @@ inline void BFLY(int i, int s, const COMPUTETYPE *syms, vitdec_t *vp, decision_t
     }
     metric = metric >> PRECISIONSHIFT;
 
-    const COMPUTETYPE max = ((CODE_RATE * ((256 - 1) >> METRICSHIFT)) >> PRECISIONSHIFT);
+    const COMPUTETYPE max = ((CODE_RATE * (SOFT_DECISION_HIGH >> METRICSHIFT)) >> PRECISIONSHIFT);
 
     m0 = vp->old_metrics->buf[i] + metric;
     m1 = vp->old_metrics->buf[i+NUMSTATES/2] + (max-metric);
@@ -304,7 +304,9 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
              */
             __m128i branch_errors[CODE_RATE];
             for (int j = 0; j < CODE_RATE; j++) {
+                // Method 1: Calculate error as the XOR of A and B
                 // __m128i error = _mm_xor_si128(vp->BranchTable[j].b128[i], sym[j]);
+                // Method 2: Calculate error as absolute of difference between A and B
                 __m128i error = _mm_subs_epi16(vp->BranchTable[j].b128[i], sym[j]);
                 error = _mm_abs_epi16(error);
                 branch_errors[j] = error;
@@ -314,7 +316,7 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
                 metric = _mm_add_epi16(metric, branch_errors[j]);
             }
 
-            const COMPUTETYPE max = ((CODE_RATE*((256-1) >> METRICSHIFT)) >> PRECISIONSHIFT);
+            const COMPUTETYPE max = ((CODE_RATE*(SOFT_DECISION_HIGH >> METRICSHIFT)) >> PRECISIONSHIFT);
             __m128i m_metric = _mm_sub_epi16(_mm_set1_epi16(max), metric);
 
             /* Add branch metrics to path metrics */
