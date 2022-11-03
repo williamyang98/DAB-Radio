@@ -60,6 +60,18 @@ include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
 target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 
+set(BASIC_RADIO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/basic_radio)
+add_library(basic_radio STATIC
+    ${BASIC_RADIO_DIR}/basic_radio.cpp
+    ${BASIC_RADIO_DIR}/basic_threaded_channel.cpp
+    ${BASIC_RADIO_DIR}/basic_fic_runner.cpp
+    ${BASIC_RADIO_DIR}/basic_audio_channel.cpp
+    src/audio/win32_pcm_player.cpp)
+set_target_properties(basic_radio PROPERTIES CXX_STANDARD 17)
+include_directories(basic_radio PUBLIC ${BASIC_RADIO_DIR})
+target_link_libraries(basic_radio PRIVATE dab_core easyloggingpp fmt)
+target_compile_definitions(basic_radio PRIVATE ELPP_THREAD_SAFE)
+
 add_library(getopt STATIC src/getopt/getopt.c)
 include_directories(getopt PUBLIC src/getopt/)
 
@@ -86,18 +98,15 @@ target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
 
 add_executable(basic_radio_app_no_demod
     src/basic_radio_app_no_demod.cpp
-    src/basic_radio.cpp
-    src/audio/win32_pcm_player.cpp
     src/gui/render_basic_radio.cpp
     src/gui/imgui_skeleton.cpp)
 include_directories(basic_radio_app_no_demod src/)
 set_target_properties(basic_radio_app_no_demod PROPERTIES CXX_STANDARD 17)
-target_link_libraries(basic_radio_app_no_demod PRIVATE getopt dab_core imgui easyloggingpp fmt)
+target_link_libraries(basic_radio_app_no_demod PRIVATE getopt basic_radio dab_core imgui easyloggingpp fmt)
 target_compile_definitions(basic_radio_app_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_app
     src/basic_radio_app.cpp
-    src/basic_radio.cpp
     src/gui/render_basic_radio.cpp
     src/gui/render_ofdm_demod.cpp
     src/gui/imgui_skeleton.cpp
@@ -105,7 +114,7 @@ add_executable(basic_radio_app
 include_directories(basic_radio_app src/)
 set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app PRIVATE 
-    ofdm_core dab_core 
+    ofdm_core dab_core  basic_radio
     getopt imgui implot 
     easyloggingpp fmt)
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
@@ -113,6 +122,7 @@ target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(dab_core             PRIVATE "/MP")
+target_compile_options(basic_radio          PRIVATE "/MP")
 target_compile_options(getopt               PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")

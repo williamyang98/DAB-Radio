@@ -16,7 +16,7 @@
 #include "ofdm/dab_ofdm_params_ref.h"
 #include "ofdm/dab_prs_ref.h"
 #include "ofdm/dab_mapper_ref.h"
-#include "basic_radio.h"
+#include "basic_radio/basic_radio.h"
 
 #include "gui/render_ofdm_demod.h"
 #include "gui/render_basic_radio.h"
