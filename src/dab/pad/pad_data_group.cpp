@@ -1,10 +1,6 @@
 #include "pad_data_group.h"
 #include "algorithms/crc.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-data-group] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-data-group] " fmt "\n", ##__VA_ARGS__)
-
 static const auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401
     // Clause 7.4.5 - Applications in XPAD
@@ -45,11 +41,6 @@ bool PAD_Data_Group::CheckCRC(void) {
     const uint16_t crc16_calc = CRC16_CALC->Process(buf, nb_data_bytes);
 
     const bool is_match = (crc16_rx == crc16_calc);
-    // if (!is_match) {
-    //     LOG_ERROR("Doesn't match rx=%04X pred=%04X", 
-    //         crc16_rx, crc16_calc);
-    // }
-
     return is_match;
 }
 

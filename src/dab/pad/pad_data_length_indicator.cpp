@@ -1,8 +1,10 @@
 #include "pad_data_length_indicator.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-data-length] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-data-length] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-data-length") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-data-length") << fmt::format(##__VA_ARGS__)
 
 constexpr int TOTAL_DATA_GROUP_BYTES = 4;
 
@@ -32,7 +34,7 @@ void PAD_Data_Length_Indicator::ProcessXPAD(const uint8_t* buf, const int N) {
 
 int PAD_Data_Length_Indicator::Consume(const uint8_t* buf, const int N) {
     const int nb_read = data_group.Consume(buf, N);
-    // LOG_MESSAGE("Progress partial data group %d/%d", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+    LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
 
     if (!data_group.IsComplete()) {
         return nb_read;
@@ -64,5 +66,5 @@ void PAD_Data_Length_Indicator::Interpret(void) {
     
     length = _length;
     is_length_available = true;
-    LOG_MESSAGE("length=%u rfa=%u", length, rfa);
+    LOG_MESSAGE("length={} rfa={}", length, rfa);
 }

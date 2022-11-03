@@ -1,10 +1,11 @@
 #include "msc_xpad_processor.h"
 #include "algorithms/crc.h"
 
-#include <stdio.h>
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[msc-xpad] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [msc-xpad] " fmt "\n", ##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "msc-xpad-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "msc-xpad-processor") << fmt::format(##__VA_ARGS__)
 
 static const auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401
@@ -36,7 +37,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     // Part 1: (required) Data group header
     const int MIN_DATA_GROUP_HEADER_BYTES = 2;
     if (nb_remain < MIN_DATA_GROUP_HEADER_BYTES) {
-        LOG_ERROR("Insufficient length for min data group header %d<%d", 
+        LOG_ERROR("Insufficient length for min data group header {}<{}", 
             nb_remain, MIN_DATA_GROUP_HEADER_BYTES);
         return res;
     }
@@ -60,7 +61,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     const int TOTAL_EXTENSION_FIELD_BYTES = 2;
     if (extension_flag) {
         if (nb_remain < TOTAL_EXTENSION_FIELD_BYTES) {
-            LOG_ERROR("Insufficient length for extended data group header %d<%d", 
+            LOG_ERROR("Insufficient length for extended data group header {}<{}", 
                 nb_remain, TOTAL_EXTENSION_FIELD_BYTES);
             return res;
         }
@@ -81,7 +82,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     const int MIN_SEGMENT_FIELD_BYTES = 2;
     if (segment_flag) {
         if (nb_remain < MIN_SEGMENT_FIELD_BYTES) {
-            LOG_ERROR("Insufficient length for min session header %d<%d", 
+            LOG_ERROR("Insufficient length for min session header {}<{}", 
                 nb_remain, MIN_SEGMENT_FIELD_BYTES);
             return res;
         }
@@ -101,7 +102,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     const int MIN_USER_ACCESS_FIELD_BYTES = 1;
     if (user_access_flag) {
         if (nb_remain < MIN_USER_ACCESS_FIELD_BYTES) {
-            LOG_ERROR("Insufficient length for min user access field %d<%d",
+            LOG_ERROR("Insufficient length for min user access field {}<{}",
                 nb_remain, MIN_USER_ACCESS_FIELD_BYTES);
             return res;
         }
@@ -118,7 +119,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
         // Part 2.2.1: (optional) Transport id field
         const int TOTAL_TRANSPORT_ID_BYTES = transport_id_flag ? 2 : 0;
         if (nb_remain < TOTAL_TRANSPORT_ID_BYTES) {
-            LOG_ERROR("Insufficient length for transport id %d<%d",
+            LOG_ERROR("Insufficient length for transport id {}<{}",
                 nb_remain, TOTAL_TRANSPORT_ID_BYTES);
             return res;
         }
@@ -136,7 +137,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
         // Part 2.2.2: (required) End user address field
         const int nb_end_user_address_bytes = static_cast<int>(length_indicator)-TOTAL_TRANSPORT_ID_BYTES;
         if (nb_remain < nb_end_user_address_bytes) {
-            LOG_ERROR("Insufficient length for end user address field by indicated length %d<%d",
+            LOG_ERROR("Insufficient length for end user address field by indicated length {}<{}",
                 nb_remain, nb_end_user_address_bytes);
             return res;
         }
@@ -154,7 +155,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     const int TOTAL_CRC16_BYTES = 2;
     const int nb_data_bytes = crc_flag ? (nb_remain-TOTAL_CRC16_BYTES) : nb_remain;
     if (nb_data_bytes < 0) {
-        LOG_ERROR("Insufficient length for data field where CRC?=%u %d<%d",
+        LOG_ERROR("Insufficient length for data field where CRC?={} {}<{}",
             crc_flag, nb_data_bytes, 0);
         return res;
     }
@@ -171,11 +172,11 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     res.nb_data_field_bytes = nb_data_bytes;
     res.is_success = true;
 
-    LOG_MESSAGE("type=%u cont=%-2u rep=%u "
-                "ext?=%u ext=%-2u "
-                "seg?=%u last=%u segnum=%u " 
-                "tid?=%u tid=%-4u "
-                "user_access?=%u nb_end_addr=%d crc?=%u nb_data=%-4d",
+    LOG_MESSAGE("type={} cont={:>2} rep={} "
+                "ext?={} ext={:>2} "
+                "seg?={} last={} segnum={} " 
+                "tid?={} tid={:>4} "
+                "user_access?={} nb_end_addr={} crc?={} nb_data={:>4d}",
                  res.data_group_type, res.continuity_index, res.repetition_index,
                  res.has_extension_field, res.extension_field, 
                  res.has_segment_field, res.segment_field.is_last_segment, res.segment_field.segment_number,

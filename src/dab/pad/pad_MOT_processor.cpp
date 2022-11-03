@@ -2,10 +2,11 @@
 #include "msc/msc_xpad_processor.h"
 #include "mot/MOT_processor.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-mot] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-mot] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
 
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-MOT") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-MOT") << fmt::format(##__VA_ARGS__)
 
 constexpr int TOTAL_CRC_BYTES = 2;
 constexpr int TOTAL_SEGMENT_HEADER_BYTES = 2;
@@ -51,7 +52,7 @@ void PAD_MOT_Processor::ProcessXPAD(
 
 void PAD_MOT_Processor::SetGroupLength(const uint16_t length) {
     if (state != State::WAIT_LENGTH) {
-        LOG_ERROR("Overwriting incomplete group length %d to %d", 
+        LOG_ERROR("Overwriting incomplete group length {} to {}", 
             data_group.GetRequiredBytes(), length);
     }
 
@@ -62,7 +63,7 @@ void PAD_MOT_Processor::SetGroupLength(const uint16_t length) {
     }
 
     if (length < MIN_REQUIRED_BYTES) {
-        LOG_ERROR("Insufficient size for header and crc %d<%d", length, MIN_REQUIRED_BYTES);
+        LOG_ERROR("Insufficient size for header and crc {}<{}", length, MIN_REQUIRED_BYTES);
         data_group.Reset();
         state = State::WAIT_LENGTH;
         return;
@@ -89,7 +90,7 @@ int PAD_MOT_Processor::Consume(
 
     if (is_start) {
         if ((state != State::WAIT_START) && !data_group.IsComplete()) {
-            LOG_MESSAGE("Discarding partial data group %d/%d", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+            LOG_MESSAGE("Discarding partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
         }
         state = State::READ_DATA;
     }
@@ -97,7 +98,7 @@ int PAD_MOT_Processor::Consume(
     const int nb_read = data_group.Consume(buf, N);
     // TODO: This takes quite a long time for some broadcasters
     //       Signal this data group information to a listener
-    // LOG_MESSAGE("Progress partial data group %d/%d", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+    LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
     if (!data_group.IsComplete()) {
         return nb_read;
     }

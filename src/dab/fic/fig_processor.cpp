@@ -6,9 +6,6 @@
 #include "fig_processor.h"
 #include "fig_handler_interface.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "easylogging++.h"
 #include "fmt/core.h"
 

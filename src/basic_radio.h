@@ -51,6 +51,7 @@ public:
     void Stop();
 protected:
     virtual void Run() = 0;
+    virtual void BeforeRun() {}
 private:
     void RunnerThread();    
 };
@@ -72,6 +73,7 @@ public:
     BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel);
     ~BasicAudioChannel();
 protected:
+    virtual void BeforeRun();
     virtual void Run();
 };
 
@@ -92,6 +94,7 @@ public:
     auto GetDatabaseUpdater(void) { return dab_db_updater; }
     auto GetMiscInfo(void) { return misc_info; }
 protected:
+    virtual void BeforeRun();
     virtual void Run();
 };
 

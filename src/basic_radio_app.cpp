@@ -337,11 +337,10 @@ int main(int argc, char** argv) {
     el::Configurations defaultConf;
     const char* logging_level = is_logging ? "true" : "false";
     defaultConf.setToDefault();
-    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, logging_level);
+    defaultConf.setGlobally(el::ConfigurationType::Enabled, logging_level);
+    defaultConf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
     el::Loggers::reconfigureAllLoggers(defaultConf);
+    el::Helpers::setThreadName("main-thread");
 
     auto app = new App(fp_in, block_size);
     const int rv = RenderImguiSkeleton(app);

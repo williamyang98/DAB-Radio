@@ -1,10 +1,14 @@
 #include "pad_dynamic_label.h"
 #include "pad_dynamic_label_assembler.h"
-
 #include <cmath>
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-label] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-label] " fmt "\n", ##__VA_ARGS__)
+
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
+
+#undef min
 
 constexpr int TOTAL_CRC16_BYTES = 2;
 constexpr int TOTAL_HEADER_BYTES = 2;
@@ -12,7 +16,7 @@ constexpr int MIN_DATA_GROUP_BYTES = TOTAL_CRC16_BYTES + TOTAL_HEADER_BYTES;
 
 // DOC: ETSI EN 300 401
 // Clause 7.4.5.2 - Dynamic label 
-// The following code refers heavily to the specified document
+// The following code refers heavily to the specified clause
 
 PAD_Dynamic_Label::PAD_Dynamic_Label() {
     data_group.SetRequiredBytes(MIN_DATA_GROUP_BYTES);
@@ -42,9 +46,9 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
     }
 
     if (is_start) {
-        // if ((state != State::WAIT_START) && !data_group.IsComplete()) {
-        //     LOG_MESSAGE("Discarding partial data group %d/%d", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
-        // }
+        if ((state != State::WAIT_START) && !data_group.IsComplete()) {
+            LOG_MESSAGE("Discarding partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+        }
         data_group.Reset();
         data_group.SetRequiredBytes(MIN_DATA_GROUP_BYTES);
         state = State::READ_LENGTH;
@@ -73,7 +77,7 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
 
     // Assemble the data group
     nb_read_bytes += data_group.Consume(&buf[nb_read_bytes], N-nb_read_bytes);
-    // LOG_MESSAGE("Progress partial data group %d/%d", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+    LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
 
     if (!data_group.IsComplete()) {
         return nb_read_bytes;
@@ -96,7 +100,7 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
         InterpretCommand();
         break;
     default:
-        LOG_ERROR("Unknown data group type %d", group_type);
+        LOG_ERROR("Unknown data group type {}", static_cast<int>(group_type));
         break;
     }
 
@@ -169,9 +173,9 @@ void PAD_Dynamic_Label::InterpretLabelSegment(void) {
     }
 
     const auto* label = assembler->GetData();
+    const auto* label_str = reinterpret_cast<const char*>(label);
     const int nb_label_bytes = assembler->GetSize();
-    LOG_MESSAGE("label[%d]=%.*s", 
-        nb_label_bytes, nb_label_bytes, label);
+    LOG_MESSAGE("label[{}]={}", nb_label_bytes, std::string_view(label_str, nb_label_bytes));
     obs_on_label_change.Notify(label, nb_label_bytes);
 }
 
@@ -196,7 +200,7 @@ void PAD_Dynamic_Label::InterpretCommand(void) {
         break;
     // Reserved for future use
     default:
-        LOG_ERROR("Command code %d reserved for future use", command);
+        LOG_ERROR("Command code {} reserved for future use", command);
         break;
     }
 }

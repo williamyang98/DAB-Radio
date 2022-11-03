@@ -69,6 +69,7 @@ void BasicThreadedChannel::Stop() {
 }
 
 void BasicThreadedChannel::RunnerThread() {
+    BeforeRun();
     while (is_running) {
         {
             auto lock = std::unique_lock(mutex_start);
@@ -125,7 +126,6 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
     });
 
     aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
-        return;
         if (aac_audio_decoder == NULL) {
             return;
         }
@@ -136,6 +136,7 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
             return;
         }
 
+        return;
         const auto audio_params = aac_audio_decoder->GetParams();
         auto pcm_params = pcm_player->GetParameters();
         pcm_params.sample_rate = audio_params.sampling_frequency;
@@ -195,13 +196,13 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
                 subchannel.id, entity.transport_id, is_jpg ? "jpg" : "png");
         } 
 
-        FILE* fp = fopen(filename, "wb+");
-        if (fp == NULL) {
-            LOG_ERROR("Failed to write slideshow {}", filename);
-            return;
-        }
-        fwrite(entity.body_buf, sizeof(uint8_t), entity.nb_body_bytes, fp);
-        fclose(fp);
+        // FILE* fp = fopen(filename, "wb+");
+        // if (fp == NULL) {
+        //     LOG_ERROR("Failed to write slideshow {}", filename);
+        //     return;
+        // }
+        // fwrite(entity.body_buf, sizeof(uint8_t), entity.nb_body_bytes, fp);
+        // fclose(fp);
 
         LOG_MESSAGE("Wrote image to {}", filename);
     });
@@ -218,6 +219,10 @@ BasicAudioChannel::~BasicAudioChannel() {
     delete aac_data_decoder;
     delete slideshow_processor;
     delete pcm_player;
+}
+
+void BasicAudioChannel::BeforeRun() {
+    el::Helpers::setThreadName(fmt::format("MSC-subchannel-{}", subchannel.id));
 }
 
 void BasicAudioChannel::Run() {
@@ -272,6 +277,10 @@ BasicFICRunner::~BasicFICRunner() {
     delete fic_decoder;
     delete fig_processor;
     delete fig_handler;
+}
+
+void BasicFICRunner::BeforeRun() {
+    el::Helpers::setThreadName("FIC");
 }
 
 void BasicFICRunner::Run() {
@@ -382,11 +391,11 @@ void BasicRadio::UpdateDatabase() {
     }
 
     // TODO: Auto run subchannels if we are in data scrapeing mode
-    // for (auto& subchannel: valid_dab_db->subchannels) {
-    //     const auto id = subchannel.id;
-    //     if (IsSubchannelAdded(id)) continue;
-    //     AddSubchannel(id);
-    // }
+    for (auto& subchannel: valid_dab_db->subchannels) {
+        const auto id = subchannel.id;
+        if (IsSubchannelAdded(id)) continue;
+        AddSubchannel(id);
+    }
 }
 
 void BasicRadio::AddSubchannel(const subchannel_id_t id) {

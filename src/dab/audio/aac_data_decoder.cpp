@@ -1,8 +1,10 @@
 #include "aac_data_decoder.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[aac-data] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [aac-data] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-data-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-data-decoder") << fmt::format(##__VA_ARGS__)
 
 bool AAC_Data_Decoder::ProcessAccessUnit(const uint8_t* data, const int N) {
     const bool is_success = ProcessDataElement(data, N);
@@ -19,7 +21,7 @@ bool AAC_Data_Decoder::ProcessAccessUnit(const uint8_t* data, const int N) {
 
 bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
     if (N < 2) {
-        LOG_ERROR("Data element size too small %d<2", N);
+        LOG_ERROR("Data element size too small {}<2", N);
         return false;
     }
 
@@ -39,7 +41,7 @@ bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
 
     const uint8_t SYNTAX_DATA_STREAM_ELEMENT = 4;
     if (data_type != SYNTAX_DATA_STREAM_ELEMENT) {
-        // LOG_ERROR("Got unsupported data type %d!=%d", data_type, SYNTAX_DATA_STREAM_ELEMENT);
+        // LOG_ERROR("Got unsupported data type {}!={}", data_type, SYNTAX_DATA_STREAM_ELEMENT);
         return false;
     }
 
@@ -47,7 +49,7 @@ bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
     int length = static_cast<int>(data[curr_byte++]);
     if (length == 255) {
         if (N < 3) {
-            LOG_ERROR("Data element size too small for extended length PAD %d<3", N);
+            LOG_ERROR("Data element size too small for extended length PAD {}<3", N);
             return false;
         }
         length += static_cast<int>(data[curr_byte++]);
@@ -55,12 +57,12 @@ bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
 
     const int nb_remain_bytes = N-curr_byte;
     if (length > nb_remain_bytes) {
-        LOG_ERROR("Data stream element size too large %d>%d", length, nb_remain_bytes);
+        LOG_ERROR("Data stream element size too large {}>{}", length, nb_remain_bytes);
         return false;
     }
 
     if (length < 2) {
-        LOG_ERROR("Insufficient room for the FPAD %d < %d", length, 2);
+        LOG_ERROR("Insufficient room for the FPAD {} < {}", length, 2);
         return false;
     }
 

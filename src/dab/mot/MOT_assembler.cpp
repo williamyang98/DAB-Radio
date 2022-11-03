@@ -1,9 +1,10 @@
 #include "MOT_assembler.h"
 
-#include <stdio.h>
+#include "easylogging++.h"
+#include "fmt/core.h"
 
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[mot-asm] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [mot-asm] " fmt "\n", ##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "mot-assembler") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "mot-assembler") << fmt::format(##__VA_ARGS__)
 
 MOT_Assembler::MOT_Assembler() {
     Reset();
@@ -30,7 +31,7 @@ bool MOT_Assembler::AddSegment(const int index, const uint8_t* buf, const int N)
     }
 
     if ((total_segments != 0) && (index >= total_segments)) {
-        LOG_ERROR("Total segments given as %d but got segment %d", total_segments, index);
+        LOG_ERROR("Total segments given as {} but got segment {}", total_segments, index);
         return false;
     }
 
@@ -39,7 +40,7 @@ bool MOT_Assembler::AddSegment(const int index, const uint8_t* buf, const int N)
     // Segment already present
     if (segment.length != 0) {
         if (segment.length != N) {
-            LOG_ERROR("Segment %d has conflicting size %d!=%d", index, segment.length, N);
+            LOG_ERROR("Segment {} has conflicting size {}!={}", index, segment.length, N);
             return false;
         }
         // TODO: do we check if each segment has matching contents?
@@ -47,7 +48,7 @@ bool MOT_Assembler::AddSegment(const int index, const uint8_t* buf, const int N)
     }
 
     // Add segment
-    LOG_MESSAGE("Adding segment %d with length=%d", index, N);
+    LOG_MESSAGE("Adding segment {} with length={}", index, N);
     segment.length = N;
     segment.unordered_index = curr_unordered_index;
     unordered_buffer.resize(curr_unordered_index+N);
@@ -83,7 +84,7 @@ bool MOT_Assembler::CheckComplete(void) {
 }
 
 void MOT_Assembler::ReconstructOrderedBuffer(void) {
-    LOG_MESSAGE("Reconstructing buffer with %d segments with length=%d",
+    LOG_MESSAGE("Reconstructing buffer with {} segments with length={}",
         total_segments, curr_unordered_index);
 
     auto* all_src_buf = unordered_buffer.data();

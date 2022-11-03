@@ -6,8 +6,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "aac-decoder") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "aac-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-audio-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-audio-decoder") << fmt::format(##__VA_ARGS__)
 
 // Push bits into a buffer
 class BitPusherHelper 

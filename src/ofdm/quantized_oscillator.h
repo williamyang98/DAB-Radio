@@ -2,8 +2,6 @@
 
 #include <complex>
 
-#include <stdio.h>
-
 // Precompute the local oscillator so that we dont have to compute cos(x) + 1j*sin(x) 
 class QuantizedOscillator 
 {

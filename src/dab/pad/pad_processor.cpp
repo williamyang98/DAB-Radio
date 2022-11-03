@@ -3,10 +3,12 @@
 #include "pad_data_length_indicator.h"
 #include "pad_MOT_processor.h"
 
-#include <string.h>
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-proc] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-proc] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-processor") << fmt::format(##__VA_ARGS__)
+
 
 constexpr int MAX_XPAD_BYTES = 196;
 constexpr int MAX_CI_LENGTH = 4;
@@ -59,7 +61,7 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
     const uint8_t fpad_Z       = (fpad[1] & 0b00000001) >> 0;
 
     if (fpad_type != 0b00) {
-        LOG_ERROR("FPAD type %d reserved for future use", fpad_type);
+        LOG_ERROR("FPAD type {} reserved for future use", fpad_type);
         return;
     }
 
@@ -69,7 +71,7 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
 
     if ((xpad_indicator == 0b00) || (xpad_reversed == NULL) || (nb_xpad_bytes == 0)) {
         if ((xpad_indicator != 0b00) || (xpad_reversed != NULL) || (nb_xpad_bytes != 0)) {
-            LOG_ERROR("Inconsistent NULL xpad information indicator=%d xpad_null=%d xpad_bytes=%d",
+            LOG_ERROR("Inconsistent NULL xpad information indicator={} xpad_null={} xpad_bytes={}",
                 xpad_indicator, (xpad_reversed == NULL), nb_xpad_bytes);
             return;
         }
@@ -84,7 +86,7 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
         // TODO:
         break;
     default:
-        LOG_ERROR("Unknown xpad L byte indicator %d", xpad_L_type);
+        LOG_ERROR("Unknown xpad L byte indicator {}", xpad_L_type);
         break;
     }
 
@@ -100,23 +102,21 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
     // No xpad field
     case 0b00:
         if (nb_xpad_bytes != 0) {
-            LOG_ERROR("XPAD indicator indicates no data field but got %d bytes", nb_xpad_bytes);
+            LOG_ERROR("XPAD indicator indicates no data field but got {} bytes", nb_xpad_bytes);
         }
         break;
     // RFU xpad field
     case 0b11:
-        LOG_ERROR("Reserved for future use XPAD indicator %d", xpad_indicator);
+        LOG_ERROR("Reserved for future use XPAD indicator {}", xpad_indicator);
         break;
     case 0b01:
-        // LOG_MESSAGE("[short-xpad] N=%d CI?=%u", nb_xpad_bytes, fpad_CI_flag);
         Process_Short_XPAD(xpad_unreverse_buf, nb_xpad_bytes, fpad_CI_flag);
         break;
     case 0b10:
-        // LOG_MESSAGE("[var-xpad] N=%d CI?=%u", nb_xpad_bytes, fpad_CI_flag);
         Process_Variable_XPAD(xpad_unreverse_buf, nb_xpad_bytes, fpad_CI_flag);
         break;
     default:
-        LOG_ERROR("Unknown xpad indicator %d", xpad_indicator);
+        LOG_ERROR("Unknown xpad indicator {}", xpad_indicator);
         return;
     }
 
@@ -135,7 +135,7 @@ void PAD_Processor::Process_Short_XPAD(const uint8_t* xpad, const int N, const b
     int curr_byte = 0;
     if (has_indicator_list) {
         if (N < 1)  {
-            LOG_ERROR("[short-xpad] Insufficient length for indicator list %d/%d", 1, N);
+            LOG_ERROR("[short-xpad] Insufficient length for indicator list {}/{}", 1, N);
             return;
         }
         // DOC: ETSI EN 300 401
@@ -156,7 +156,7 @@ void PAD_Processor::Process_Short_XPAD(const uint8_t* xpad, const int N, const b
     }
 
     if (ci_list_length != 1) {
-        LOG_ERROR("[short-xpad] CI list length is unexpected for short xpad %d != 1", ci_list_length);
+        LOG_ERROR("[short-xpad] CI list length is unexpected for short xpad {} != 1", ci_list_length);
         ci_list_length = 0;
         return;
     }
@@ -197,7 +197,7 @@ void PAD_Processor::Process_Variable_XPAD(const uint8_t* xpad, const int N, cons
             ci_list[ci_list_length++] = indicator;
         }
     } else {
-        LOG_ERROR("[var-xpad] No CI list L=%d", N);
+        LOG_ERROR("[var-xpad] No CI list L={}", N);
     }
 
     const int nb_remain = N-curr_byte;
@@ -212,12 +212,11 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
 
         const int nb_remain = N-curr_byte;
         if (content.length > nb_remain) {
-            LOG_ERROR("Insufficent length for data field %d/%d i=%d/%d", 
-                content.length, nb_remain, i, ci_list_length);
+            LOG_ERROR("Insufficent length for data field {}/{} i={}/{}", content.length, nb_remain, i, ci_list_length);
             return;
         }
 
-        // LOG_MESSAGE("CI=%d/%d ci_app=%u ci_len=%d N=%d", 
+        // LOG_MESSAGE("CI={}/{} ci_app={} ci_len={} N={}", 
         //     i, ci_list_length, content.app_type, content.length, N);
         auto* data_subfield = &data_field[curr_byte];
 
@@ -289,7 +288,7 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
             pad_mot_processor->ProcessXPAD(false, true, data_subfield, content.length);
             break;
         default:
-            LOG_ERROR("Unsupported app_type=%u length=%u i=%d/%d", 
+            LOG_ERROR("Unsupported app_type={} length={} i={}/{}", 
                 content.app_type, content.length, i, ci_list_length);
             break;
         }
@@ -299,7 +298,7 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
 
     // NOTE: This occurs quite often because some broadcasters will pad out unused capacity with NULL bytes
     if (curr_byte != N) {
-        // LOG_ERROR("Remaining unconsumed bytes %d/%d", curr_byte, N);
+        // LOG_ERROR("Remaining unconsumed bytes {}/{}", curr_byte, N);
         return;
     }
 }

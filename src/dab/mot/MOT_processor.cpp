@@ -1,10 +1,12 @@
 #include "MOT_processor.h"
 #include "algorithms/modified_julian_date.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[mot-proc] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [mot-proc] " fmt "\n", ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...) fprintf(stderr, "WARN: [mot-proc] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "mot-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "mot-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_WARN(...) CLOG(WARNING, "mot-processor") << fmt::format(##__VA_ARGS__)
 
 constexpr static MOT_Data_Type VALID_DATA_TYPES[] = {
     ECM_EMM_DATA, HEADER, 
@@ -25,7 +27,7 @@ static bool ValidateDataType(const MOT_Data_Type type) {
 void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, const uint8_t* buf, const int N) {
     const int MIN_SEGMENT_HEADER_BYTES = 2;
     if (N < MIN_SEGMENT_HEADER_BYTES) {
-        LOG_ERROR("Insufficient length for segment header %d<%d", N, MIN_SEGMENT_HEADER_BYTES);
+        LOG_ERROR("Insufficient length for segment header {}<{}", N, MIN_SEGMENT_HEADER_BYTES);
         return;
     }
 
@@ -36,17 +38,17 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, cons
     const int nb_data_bytes = N-MIN_SEGMENT_HEADER_BYTES;
 
     if (nb_data_bytes != segment_size) {
-        LOG_ERROR("Segment length mismatch seg_size=%d data_size=%d", segment_size, nb_data_bytes);
+        LOG_ERROR("Segment length mismatch seg_size={} data_size={}", segment_size, nb_data_bytes);
         return;
     }
 
     if (!ValidateDataType(header.data_group_type)) {
-        LOG_ERROR("Got invalid data group type in MSC header %u", header.data_group_type);
+        LOG_ERROR("Got invalid data group type in MSC header {}", header.data_group_type);
         return;
     }
 
     if (header.repetition_index != repetition_count) {
-        LOG_WARN("Mismatching repetition count in MSC header and segmentation header %u!=%u", 
+        LOG_WARN("Mismatching repetition count in MSC header and segmentation header {}!={}", 
             header.repetition_index, repetition_count);
     }
 
@@ -66,7 +68,7 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, cons
 MOT_Assembler_Table& MOT_Processor::GetAssemblerTable(const mot_transport_id_t transport_id) {
     auto res = assembler_tables.find(transport_id);
     if (res == assembler_tables.end()) {
-        LOG_MESSAGE("Got new transport_id=%u", transport_id);
+        LOG_MESSAGE("Got new transport_id={}", transport_id);
         res = assembler_tables.insert({transport_id, {}}).first;
     }
     return res->second;
@@ -112,18 +114,18 @@ bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
     }
     
     if (entity.header.header_size != N_header) {
-        LOG_ERROR("Mismatching header length fields %d!=%d",
+        LOG_ERROR("Mismatching header length fields {}!={}",
             entity.header.header_size, N_header);
         return false;
     }
 
     if (entity.header.body_size != N_body) {
-        LOG_ERROR("Mismatching body length fields %d!=%d",
+        LOG_ERROR("Mismatching body length fields {}!={}",
             entity.header.body_size, N_body);
         return false;
     }
 
-    LOG_MESSAGE("Completed a MOT header entity with header=%d body=%d tid=%u",
+    LOG_MESSAGE("Completed a MOT header entity with header={} body={} tid={}",
         entity.header.header_size, entity.header.body_size,
         entity.transport_id);
     obs_on_entity_complete.Notify(entity);
@@ -144,7 +146,7 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
     // Clause 6.1: Header core 
     const int TOTAL_HEADER_CORE = 7;
     if (nb_remain < TOTAL_HEADER_CORE) {
-        LOG_ERROR("Insufficient length for header core %d<%d", nb_remain, TOTAL_HEADER_CORE);
+        LOG_ERROR("Insufficient length for header core {}<{}", nb_remain, TOTAL_HEADER_CORE);
         return false;
     }
 
@@ -170,7 +172,7 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
     // DOC: ETSI TS 101 756
     // Clause 6: Registered tables in ETSI EN 301 234 (MOT) 
     // Table 17: Content type and content subtypes 
-    LOG_MESSAGE("[header-core] body_size=%u header_size=%u content_type=%u|%u", 
+    LOG_MESSAGE("[header-core] body_size={} header_size={} content_type={}|{}", 
         body_size, header_size, content_type, content_sub_type);
 
     // DOC: ETSI EN 301 234
@@ -214,14 +216,14 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
             data = &buf[curr_byte];
 
             if (nb_remain < 1) {
-                LOG_ERROR("Insufficient length for data field indicator %d<%d",
+                LOG_ERROR("Insufficient length for data field indicator {}<{}",
                     nb_remain, 1);
                 return false;
             }
 
             const uint8_t ext_flag = (data[0] & 0b10000000) >> 7;
             if (ext_flag && (nb_remain < 2)) {
-                LOG_ERROR("Insufficient length for extended data field indicator %d<%d",
+                LOG_ERROR("Insufficient length for extended data field indicator {}<{}",
                     nb_remain, 2);
                 return false;
             }
@@ -238,7 +240,7 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
         }
 
         if (nb_remain < static_cast<int>(nb_data_bytes)) {
-            LOG_ERROR("Insufficient length for data field %d<%d pli=%u param_id=%u", 
+            LOG_ERROR("Insufficient length for data field {}<{} pli={} param_id={}", 
                 nb_remain, nb_data_bytes, pli, param_id);
             return false;
         }
@@ -272,13 +274,13 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     }
 
     if (id > 0b111111) {
-        LOG_ERROR("[header-ext] Out of table param_id=%u length=%u", id, N);
+        LOG_ERROR("[header-ext] Out of table param_id={} length={}", id, N);
         return false;
     }
 
     #define UNIMPLEMENTED_CASE(_id, name) {\
     case _id:\
-        LOG_WARN("[header-ext] Unimplemented param_id=%u length=%u type=" name, _id, N);\
+        LOG_WARN("[header-ext] Unimplemented param_id={} length={} type=" name, _id, N);\
         return false;\
     }
 
@@ -300,7 +302,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     UNIMPLEMENTED_CASE(0b100100, "conditional_access_replacement_object");
     // Reserved for MOT protocol extension
     default:
-        LOG_WARN("[header-ext] Reserved for extension: param_id=%u length=%u", id, N);
+        LOG_WARN("[header-ext] Reserved for extension: param_id={} length={}", id, N);
         return false;
     }
     #undef UNIMPLEMENTED_CASE
@@ -310,7 +312,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entit
     // DOC: ETSI EN 301 234
     // Clause 6.2.2.1.1: Content name
     if (N < 2) {
-        LOG_ERROR("[header-ext] type=content_name Insufficient length for content name header and data %d<%d",
+        LOG_ERROR("[header-ext] type=content_name Insufficient length for content name header and data {}<{}",
             N, 2);
         return false;
     }
@@ -319,15 +321,16 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entit
     const uint8_t rfa0    = (buf[0] & 0b00001111) >> 0;
 
     const auto* name = &buf[1];
+    const auto* name_str = reinterpret_cast<const char*>(name);
     const int nb_name_bytes = N-1;
 
     entity->content_name.exists = true;
     entity->content_name.charset = charset;
-    entity->content_name.name = reinterpret_cast<const char*>(name);
+    entity->content_name.name = name_str;
     entity->content_name.nb_bytes = nb_name_bytes;
 
-    LOG_MESSAGE("[header-ext] type=content_name charset=%u rfa0=%u name=%.*s",
-        charset, rfa0, nb_name_bytes, name);
+    LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}",
+        charset, rfa0, nb_name_bytes, std::string_view(name_str, nb_name_bytes));
     return true;
 }
 
@@ -349,7 +352,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
     // DOC: ETSI EN 301 234
     // Clause 6.2.4.1: Coding of time parameters 
     if (N < 4) {
-        LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and data %d<%d", 
+        LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and data {}<{}", 
             N, 4);
         return false;
     }
@@ -366,7 +369,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
         entity->minutes = 0;
         entity->seconds = 0;
         entity->milliseconds = 0;
-        LOG_MESSAGE("[header-ext] type=utc_time valid=%u datetime=NOW", validity_flag);
+        LOG_MESSAGE("[header-ext] type=utc_time valid={} datetime=NOW", validity_flag);
         return true;            
     }
 
@@ -383,7 +386,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
 
     if (UTC_flag) {
         if (N < 6) {
-            LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and long UTC %d<%d", 
+            LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and long UTC {}<{}", 
                 N, 6);
             return false;
         }
@@ -405,7 +408,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
     entity->seconds = seconds;
     entity->milliseconds = milliseconds;
 
-    LOG_MESSAGE("[header-ext] type=utc_time valid=%u utc=%u date=%02d/%02d/%04d time=%02u:%02u:%02u.%03u",
+    LOG_MESSAGE("[header-ext] type=utc_time valid={} utc={} date={:02}/{:02}/{:04} time={:02}:{:02}:{:02}.{:03}",
         validity_flag, UTC_flag, day, month, year, hours, minutes, seconds, milliseconds);
     return true;
 }

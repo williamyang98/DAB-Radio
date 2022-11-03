@@ -1,8 +1,10 @@
 #include "pad_dynamic_label_assembler.h"
 
-#include <stdio.h>
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[pad-label-asm] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [pad-label-asm] " fmt "\n", ##__VA_ARGS__)
+#include "easylogging++.h"
+#include "fmt/core.h"
+
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
 
 PAD_Dynamic_Label_Assembler::PAD_Dynamic_Label_Assembler() {
     unordered_buf = new uint8_t[MAX_MESSAGE_BYTES];
@@ -30,14 +32,12 @@ void PAD_Dynamic_Label_Assembler::Reset(void) {
 
 bool PAD_Dynamic_Label_Assembler::UpdateSegment(const uint8_t* data, const int length, const int seg_num) {
     if ((seg_num < 0) || (seg_num >= MAX_SEGMENTS)) {
-        LOG_ERROR("Segment index %d falls out of bounds [%d,%d]", 
-            seg_num, 0, MAX_SEGMENT_BYTES-1);
+        LOG_ERROR("Segment index {} falls out of bounds [{},{}]", seg_num, 0, MAX_SEGMENT_BYTES-1);
         return false;
     }
 
     if ((length <= 0) || (length > MAX_SEGMENT_BYTES)) {
-        LOG_ERROR("Segment length %d falls out of bounds [%d,%d]",
-            length, 1, MAX_SEGMENT_BYTES);
+        LOG_ERROR("Segment length {} falls out of bounds [{},{}]", length, 1, MAX_SEGMENT_BYTES);
         return false;
     }
 
@@ -55,12 +55,11 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(const uint8_t* data, const int l
 
     // Received a conflicting length if a previous segment was provided
     if (length_mismatch && (segment.length != 0)) {
-        LOG_ERROR("Segment %d has mismatching length %d != %d",
-            seg_num, segment.length, length);
+        LOG_ERROR("Segment {} has mismatching length {} != {}", seg_num, segment.length, length);
     }
 
     if (content_mismatch) {
-        LOG_ERROR("Segment %d contents mismatch", seg_num);
+        LOG_ERROR("Segment {} contents mismatch", seg_num);
     }
 
     segment.length = length;
