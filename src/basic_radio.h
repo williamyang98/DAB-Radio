@@ -7,17 +7,19 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "dab/database/dab_database_types.h"
-#include "dab/fic/fic_decoder.h"
-#include "dab/fic/fig_processor.h"
+#include "dab/dab_misc_info.h"
 #include "dab/radio_fig_handler.h"
+#include "dab/audio/aac_audio_decoder.h"
+#include "dab/audio/aac_data_decoder.h"
+#include "dab/audio/aac_frame_processor.h"
+#include "dab/constants/dab_parameters.h"
+#include "dab/database/dab_database_types.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
+#include "dab/fic/fic_decoder.h"
+#include "dab/fic/fig_processor.h"
 #include "dab/msc/msc_decoder.h"
-#include "dab/audio/aac_audio_decoder.h"
-#include "dab/audio/aac_frame_processor.h"
-#include "dab/dab_misc_info.h"
-#include "dab/constants/dab_parameters.h"
+#include "dab/mot/MOT_slideshow_processor.h"
 
 #include "audio/pcm_player.h"
 
@@ -63,6 +65,8 @@ private:
     MSC_Decoder* msc_decoder;
     AAC_Frame_Processor* aac_frame_processor;
     AAC_Audio_Decoder* aac_audio_decoder;
+    AAC_Data_Decoder* aac_data_decoder;
+    MOT_Slideshow_Processor* slideshow_processor;
     PCM_Player* pcm_player;
 public:
     BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel);

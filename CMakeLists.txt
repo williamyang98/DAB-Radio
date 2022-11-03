@@ -38,11 +38,23 @@ add_library(dab_core STATIC
     ${DAB_CORE_DIR}/fic/fig_processor.cpp
     ${DAB_CORE_DIR}/database/dab_database.cpp
     ${DAB_CORE_DIR}/database/dab_database_updater.cpp
-    ${DAB_CORE_DIR}/radio_fig_handler.cpp
     ${DAB_CORE_DIR}/msc/msc_decoder.cpp
     ${DAB_CORE_DIR}/msc/cif_deinterleaver.cpp
+    ${DAB_CORE_DIR}/msc/msc_xpad_processor.cpp
     ${DAB_CORE_DIR}/audio/aac_frame_processor.cpp
-    ${DAB_CORE_DIR}/audio/aac_audio_decoder.cpp)
+    ${DAB_CORE_DIR}/audio/aac_audio_decoder.cpp
+    ${DAB_CORE_DIR}/audio/aac_data_decoder.cpp
+    ${DAB_CORE_DIR}/mot/MOT_assembler.cpp
+    ${DAB_CORE_DIR}/mot/MOT_processor.cpp
+    ${DAB_CORE_DIR}/mot/MOT_slideshow_processor.cpp
+    ${DAB_CORE_DIR}/pad/pad_data_group.cpp
+    ${DAB_CORE_DIR}/pad/pad_data_length_indicator.cpp
+    ${DAB_CORE_DIR}/pad/pad_dynamic_label_assembler.cpp
+    ${DAB_CORE_DIR}/pad/pad_dynamic_label.cpp
+    ${DAB_CORE_DIR}/pad/pad_MOT_processor.cpp
+    ${DAB_CORE_DIR}/pad/pad_processor.cpp
+    ${DAB_CORE_DIR}/radio_fig_handler.cpp
+)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)

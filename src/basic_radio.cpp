@@ -1,5 +1,8 @@
 #include "basic_radio.h"
 
+#include <string>
+#include <stdio.h>
+
 // TODO: make this platform independent
 #include "audio/win32_pcm_player.h"
 
@@ -97,6 +100,9 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
     msc_decoder = new MSC_Decoder(subchannel);
     aac_frame_processor = new AAC_Frame_Processor();
     aac_audio_decoder = NULL;
+    aac_data_decoder = new AAC_Data_Decoder();
+    slideshow_processor = new MOT_Slideshow_Processor();
+
     pcm_player = new Win32_PCM_Player();
 
     aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
@@ -119,10 +125,10 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
     });
 
     aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+        return;
         if (aac_audio_decoder == NULL) {
             return;
         }
-
         const auto res = aac_audio_decoder->DecodeFrame(buf, N);
         if (res.is_error) {
             LOG_ERROR("[basic-audio-channel] [aac-audio-decoder] error={} au_index={}/{}", 
@@ -138,6 +144,67 @@ BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchan
         pcm_player->SetParameters(pcm_params);
         pcm_player->ConsumeBuffer(res.audio_buf, res.nb_audio_buf_bytes);
     });
+
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+        aac_data_decoder->ProcessAccessUnit(buf, N);
+    });
+
+    auto& pad_processor = aac_data_decoder->Get_PAD_Processor();
+    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N) {
+        const auto label_str = std::string(reinterpret_cast<const char*>(label), N);
+        LOG_MESSAGE("dynamic_label[{}] = {}", N, label_str);
+    });
+
+    pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
+        // DOC: ETSI TS 101 756
+        // Table 17: Content type and content subtypes 
+
+        // DOC: ETSI TS 101 499
+        // Clause 6.2.3 MOT ContentTypes and ContentSubTypes 
+        // For specific types used for slideshows
+
+        const auto type = entity.header.content_type;
+        const auto sub_type = entity.header.content_sub_type;
+        // Content type: Image
+        if (type != 0b000010) {
+            return;
+        }
+        // Content subtype: JPEG and PNG
+        if ((sub_type != 0b01) && (sub_type != 0b11)) {
+            return;
+        }
+
+        const bool is_jpg = (sub_type == 0b01);
+
+        // User application header extension parameters
+        MOT_Slideshow slideshow_data;
+        for (auto& p: entity.header.user_app_params) {
+            slideshow_processor->ProcessHeaderExtension(
+                &slideshow_data, 
+                p.type, p.data, p.nb_data_bytes);
+        }
+
+        static char filename[256] = {0};
+        if (entity.header.content_name.exists) {
+            snprintf(filename, sizeof(filename), "images/subchannel_%d_%.*s", 
+                subchannel.id,
+                entity.header.content_name.nb_bytes,
+                entity.header.content_name.name);
+        } else {
+            snprintf(filename, sizeof(filename), "images/subchannel_%d_tid_%d.%s", 
+                subchannel.id, entity.transport_id, is_jpg ? "jpg" : "png");
+        } 
+
+        FILE* fp = fopen(filename, "wb+");
+        if (fp == NULL) {
+            LOG_ERROR("Failed to write slideshow {}", filename);
+            return;
+        }
+        fwrite(entity.body_buf, sizeof(uint8_t), entity.nb_body_bytes, fp);
+        fclose(fp);
+
+        LOG_MESSAGE("Wrote image to {}", filename);
+    });
 }
 
 BasicAudioChannel::~BasicAudioChannel() {
@@ -148,6 +215,8 @@ BasicAudioChannel::~BasicAudioChannel() {
     if (aac_audio_decoder != NULL) {
         delete aac_audio_decoder;
     }
+    delete aac_data_decoder;
+    delete slideshow_processor;
     delete pcm_player;
 }
 
@@ -307,8 +376,17 @@ void BasicRadio::UpdateDatabase() {
     // If the cooldown has been reached, then we consider
     // the databases to be sufficiently stable to copy
     // This is an expensive operation so we should only do it when there are few changes
-    auto lock = std::scoped_lock(mutex_db);
-    db_updater->ExtractCompletedDatabase(*valid_dab_db);
+    {
+        auto lock = std::scoped_lock(mutex_db);
+        db_updater->ExtractCompletedDatabase(*valid_dab_db);
+    }
+
+    // TODO: Auto run subchannels if we are in data scrapeing mode
+    // for (auto& subchannel: valid_dab_db->subchannels) {
+    //     const auto id = subchannel.id;
+    //     if (IsSubchannelAdded(id)) continue;
+    //     AddSubchannel(id);
+    // }
 }
 
 void BasicRadio::AddSubchannel(const subchannel_id_t id) {

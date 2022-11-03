@@ -1,6 +1,7 @@
 .vscode/
 build/
 data/
+images/
 imgui.ini
 *.ini
 *.log
