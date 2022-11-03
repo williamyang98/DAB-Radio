@@ -110,7 +110,7 @@ int MSC_Decoder::DecodeEEP() {
     }
     VITDEC_RUN(24, PI_X, 24);
 
-    const uint32_t error = vitdec->GetPathError();
+    const auto error = vitdec->GetPathError();
 
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
@@ -152,7 +152,8 @@ int MSC_Decoder::DecodeUEP() {
     }
     VITDEC_RUN(24, PI_X, 24);
 
-    const uint32_t error = vitdec->GetPathError();
+    const auto error = vitdec->GetPathError();
+
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
     LOG_MESSAGE("puncture: {}", curr_puncture_bit);
