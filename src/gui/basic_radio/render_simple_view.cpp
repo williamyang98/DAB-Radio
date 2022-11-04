@@ -8,11 +8,13 @@
 #include "render_common.h"
 
 void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controller);
-void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller);
-void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller);
-void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller);
+void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, Service* service);
+void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service);
+void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component);
+void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, const service_id_t service_id);
 void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller);
 void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controller, LinkService* link_service);
+void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio);
 
 // Render a list of the services
 void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
@@ -22,8 +24,10 @@ void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
         ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
         ImGui::DockSpace(dockspace_id);
 
+        auto* selected_service = db->GetService(controller->selected_service);
+
         RenderSimple_ServiceList(radio, controller);
-        RenderSimple_Service(radio, controller);
+        RenderSimple_Service(radio, controller, selected_service);
 
         RenderEnsemble(radio);
         RenderDateTime(radio);
@@ -31,7 +35,9 @@ void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
 
         RenderOtherEnsembles(radio);
         RenderSimple_LinkServices(radio, controller);
-        RenderSimple_ServiceComponentList(radio, controller);
+        RenderSimple_ServiceComponentList(radio, controller, selected_service);
+
+        RenderSimple_GlobalBasicAudioChannelControls(radio);
     }
     ImGui::End();
 }
@@ -60,10 +66,8 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controlle
     ImGui::End();
 }
 
-void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller) {
+void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, Service* service) {
     auto* db = radio->GetDatabaseManager()->GetDatabase();
-    const auto selected_service_id = controller->selected_service;
-    auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
     if (ImGui::Begin("Service Description") && service) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
@@ -99,74 +103,132 @@ void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller) {
     ImGui::End();
 }
 
-void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller) {
+void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service) {
     auto* db = radio->GetDatabaseManager()->GetDatabase();
-    const auto selected_service_id = controller->selected_service;
-    auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
     // Render the service components along with their associated subchannel
     auto* components = service ? db->GetServiceComponents(service->reference) : NULL;
     const auto window_label = fmt::format("Service Components ({})###Service Components Panel",
         components ? components->size() : 0);
     if (ImGui::Begin(window_label.c_str()) && components) {
-        ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
-        if (ImGui::BeginTable("Components table", 6, flags)) 
-        {
-            ImGui::TableSetupColumn("Label",            ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Component ID",     ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Global ID",        ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Subchannel ID",    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Transport Mode",   ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Type",             ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableHeadersRow();
-
-            int row_id  = 0;
-            for (auto& component: *components) {
-                ImGui::PushID(row_id++);
-
-                const bool is_audio_type = (component->transport_mode == TransportMode::STREAM_MODE_AUDIO);
-                const char* type_str = is_audio_type ? 
-                    GetAudioTypeString(component->audio_service_type) :
-                    GetDataTypeString(component->data_service_type);
-
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::TextWrapped("%.*s", component->label.length(), component->label.c_str());
-                ImGui::TableSetColumnIndex(1);
-                ImGui::TextWrapped("%u", component->component_id);
-                ImGui::TableSetColumnIndex(2);
-                ImGui::TextWrapped("%u", component->global_id);
-                ImGui::TableSetColumnIndex(3);
-                ImGui::TextWrapped("%u", component->subchannel_id);
-                ImGui::TableSetColumnIndex(4);
-                ImGui::TextWrapped("%s", GetTransportModeString(component->transport_mode));
-                ImGui::TableSetColumnIndex(5);
-                ImGui::TextWrapped("%s", type_str);
-
-                auto* player = radio->GetAudioChannel(component->subchannel_id);
-                if (player != NULL) {
-                    auto& controls = player->GetControls();
-                    const bool is_selected = controls.GetAllEnabled();
-                    ImGui::SameLine();
-                    if (ImGui::Selectable("###select_button", is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (is_selected) {
-                            controls.StopAll();
-                        } else {
-                            controls.RunAll();
-                        }
-                    }
-                }
-
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
+        for (auto& component: *components) {
+            RenderSimple_ServiceComponent(radio, controller, component);
         }
     }
     ImGui::End();
 }
 
-void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller) {
+void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component) {
+    auto* db = radio->GetDatabaseManager()->GetDatabase();
+    const auto subchannel_id = component->subchannel_id;
+    auto* subchannel = db->GetSubchannel(subchannel_id);
+    
+    ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
+    if (ImGui::BeginTable("Component", 2, flags)) {
+        ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
 
+        int row_id  = 0;
+        #define FIELD_MACRO(name, fmt, ...) {\
+            ImGui::PushID(row_id++);\
+            ImGui::TableNextRow();\
+            ImGui::TableSetColumnIndex(0);\
+            ImGui::TextWrapped(name);\
+            ImGui::TableSetColumnIndex(1);\
+            ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+            ImGui::PopID();\
+        }\
+
+        const bool is_audio_type = (component->transport_mode == TransportMode::STREAM_MODE_AUDIO);
+        const char* type_str = is_audio_type ? 
+            GetAudioTypeString(component->audio_service_type) :
+            GetDataTypeString(component->data_service_type);
+        
+        FIELD_MACRO("Label", "%.*s", component->label.length(), component->label.c_str());
+        FIELD_MACRO("Component ID", "%u", component->component_id);
+        FIELD_MACRO("Global ID", "%u", component->global_id);
+        FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component->transport_mode));
+        FIELD_MACRO("Type", "%s", type_str);
+        FIELD_MACRO("Subchannel ID", "%u", component->subchannel_id);
+
+        if (subchannel != NULL) {
+            const auto prot_label = GetSubchannelProtectionLabel(*subchannel);
+            const uint32_t bitrate_kbps = GetSubchannelBitrate(*subchannel);
+            FIELD_MACRO("Start Address", "%u", subchannel->start_address);
+            FIELD_MACRO("Capacity Units", "%u", subchannel->length);
+            FIELD_MACRO("Protection", "%.*s", prot_label.length(), prot_label.c_str());
+            FIELD_MACRO("Bitrate", "%u kb/s", bitrate_kbps);
+        }
+
+        #undef FIELD_MACRO
+        ImGui::EndTable();
+    }
+
+    auto* channel = radio->GetAudioChannel(component->subchannel_id);
+    if (channel != NULL) {
+        RenderSimple_BasicAudioChannel(radio, controller, channel, component->service_reference);
+    }
+}
+
+void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, service_id_t service_id) {
+    // Channel controls
+    auto& controls = channel->GetControls();
+    if (ImGui::Button("Run All")) {
+        controls.RunAll();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Stop All")) {
+        controls.StopAll();
+    }
+    bool v = false;
+    v = controls.GetIsDecodeAudio();
+    if (ImGui::Checkbox("Decode audio", &v)) {
+        controls.SetIsDecodeAudio(v);
+    }
+    v = controls.GetIsDecodeData();
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Decode data", &v)) {
+        controls.SetIsDecodeData(v);
+    }
+    v = controls.GetIsPlayAudio();
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Play audio", &v)) {
+        controls.SetIsPlayAudio(v);
+    }
+
+    // Programme associated data
+    // 1. Dynamic label
+    // 2. MOT slideshow
+    auto& label = channel->GetDynamicLabel();
+    ImGui::Text("Dynamic label: %.*s", label.length(), label.c_str());
+
+    auto& slideshow_controller = controller->slideshow_controller;
+    auto& slideshow_manager = channel->GetSlideshowManager();
+    auto& slideshows = slideshow_manager.GetSlideshows();
+
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
+    if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), true, window_flags)) {
+        for (auto& [transport_id, slideshow]: slideshows) {
+            auto* texture = slideshow_controller.AddSlideshow(
+                { service_id, transport_id},
+                slideshow.data, slideshow.nb_data_bytes);
+
+            if (texture != NULL) {
+                const auto texture_id = reinterpret_cast<ImTextureID>(texture->GetTextureID());
+                const auto texture_size = ImVec2(
+                    static_cast<float>(texture->GetWidth()), 
+                    static_cast<float>(texture->GetHeight())
+                );
+                ImGui::SameLine();
+                ImGui::Image(texture_id, texture_size);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
+                }
+            }
+        }
+    }
+    ImGui::EndChild();
 }
 
 void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller) {
@@ -285,4 +347,41 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
     ImGui::PopStyleVar();
 
     #undef FIELD_MACRO
+}
+
+void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio) {
+    auto db = radio->GetDatabaseManager()->GetDatabase();
+    auto& subchannels = db->subchannels;
+
+    static bool decode_audio = true;
+    static bool decode_data = true;
+    static bool play_audio = false;
+
+    bool is_changed = false;
+
+    if (ImGui::Begin("Global Channel Controls")) {
+        if (ImGui::Button("Apply Settings")) {
+            is_changed = true;
+        }
+        ImGui::Checkbox("Decode Audio", &decode_audio);
+        ImGui::SameLine();
+        ImGui::Checkbox("Decode Data", &decode_data);
+        ImGui::SameLine();
+        ImGui::Checkbox("Play Audio", &play_audio);
+    }
+    ImGui::End();
+
+    if (!is_changed) {
+        return;
+    }
+
+    for (auto& subchannel: subchannels) {
+        auto* channel = radio->GetAudioChannel(subchannel.id);
+        if (channel == NULL) continue;
+
+        auto& control = channel->GetControls();
+        control.SetIsDecodeAudio(decode_audio);
+        control.SetIsDecodeData(decode_data);
+        control.SetIsPlayAudio(play_audio);
+    }
 }

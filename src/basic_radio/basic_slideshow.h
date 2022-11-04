@@ -21,7 +21,7 @@ enum Basic_Image_Type {
 
 class Basic_Slideshow 
 {
-private:
+public:
     Basic_Image_Type image_type;
     uint8_t name_charset = 0;
     std::string name;
