@@ -33,11 +33,10 @@ void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
         RenderDateTime(radio);
         RenderDatabaseStatistics(radio);
 
+        RenderSimple_GlobalBasicAudioChannelControls(radio);
         RenderOtherEnsembles(radio);
         RenderSimple_LinkServices(radio, controller);
         RenderSimple_ServiceComponentList(radio, controller, selected_service);
-
-        RenderSimple_GlobalBasicAudioChannelControls(radio);
     }
     ImGui::End();
 }
