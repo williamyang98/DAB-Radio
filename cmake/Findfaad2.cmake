@@ -107,6 +107,6 @@ add_library(faad2 SHARED
     ${FAAD_SRC_DIR}/codebook/hcb_11.h
     ${FAAD_SRC_DIR}/codebook/hcb_sf.h)
 
-include_directories(faad2 PRIVATE ${FAAD_SRC_DIR})
-include_directories(faad2 PUBLIC ${FAAD_HEADER_DIR})
+target_include_directories(faad2 PRIVATE ${FAAD_SRC_DIR})
+target_include_directories(faad2 PUBLIC ${FAAD_HEADER_DIR})
 set_target_properties(faad2 PROPERTIES CXX_STANDARD 17)

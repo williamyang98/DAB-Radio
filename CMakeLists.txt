@@ -25,7 +25,7 @@ add_library(ofdm_core STATIC
     ${OFDM_CORE_DIR}/dab_ofdm_params_ref.cpp
     ${OFDM_CORE_DIR}/dab_mapper_ref.cpp
     ${OFDM_CORE_DIR}/quantized_oscillator.cpp)
-include_directories(ofdm_core PUBLIC ${OFDM_CORE_DIR})
+target_include_directories(ofdm_core PUBLIC ${OFDM_CORE_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_core PRIVATE kissfft)
 
@@ -56,7 +56,7 @@ add_library(dab_core STATIC
     ${DAB_CORE_DIR}/radio_fig_handler.cpp
 )
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
-include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
+target_include_directories(dab_core PUBLIC ${DAB_CORE_DIR})
 target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
 target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 
@@ -70,7 +70,9 @@ add_library(basic_radio STATIC
     ${BASIC_RADIO_DIR}/basic_database_manager.cpp
 )
 set_target_properties(basic_radio PROPERTIES CXX_STANDARD 17)
-include_directories(basic_radio PUBLIC ${BASIC_RADIO_DIR})
+target_include_directories(basic_radio PUBLIC 
+    ${BASIC_RADIO_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(basic_radio PRIVATE dab_core easyloggingpp fmt)
 target_compile_definitions(basic_radio PRIVATE ELPP_THREAD_SAFE)
 
@@ -84,8 +86,9 @@ add_library(basic_radio_gui STATIC
     ${BASIC_RADIO_GUI_DIR}/formatters.cpp
 )
 set_target_properties(basic_radio_gui PROPERTIES CXX_STANDARD 17)
-include_directories(basic_radio_gui PUBLIC 
+target_include_directories(basic_radio_gui PUBLIC 
     ${BASIC_RADIO_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stb)
 target_link_libraries(basic_radio_gui PRIVATE 
     dab_core imgui 
@@ -93,35 +96,29 @@ target_link_libraries(basic_radio_gui PRIVATE
 target_compile_definitions(basic_radio_gui PRIVATE ELPP_THREAD_SAFE)
 
 add_library(getopt STATIC src/getopt/getopt.c)
-include_directories(getopt PUBLIC src/getopt/)
+target_include_directories(getopt PUBLIC src/getopt/)
 
 # Our applications
 add_executable(ofdm_demod_gui 
     src/ofdm_demod_gui.cpp
     src/gui/render_ofdm_demod.cpp
     src/gui/imgui_skeleton.cpp)
-include_directories(ofdm_demod_gui src/)
+target_include_directories(ofdm_demod_gui PUBLIC src/)
 set_target_properties(ofdm_demod_gui PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_demod_gui PRIVATE ofdm_core getopt imgui implot)
 
 add_executable(ofdm_demod_cli 
     src/ofdm_demod_cli.cpp)
-include_directories(ofdm_demod_cli src/)
+target_include_directories(ofdm_demod_cli PUBLIC src/)
 set_target_properties(ofdm_demod_cli PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_demod_cli PRIVATE ofdm_core getopt)
-
-add_executable(simulate_transmitter 
-    src/simulate_transmitter.cpp)
-include_directories(simulate_transmitter src/)
-set_target_properties(simulate_transmitter PROPERTIES CXX_STANDARD 17)
-target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
 
 add_executable(basic_radio_app_no_demod
     src/basic_radio_app_no_demod.cpp
     src/gui/imgui_skeleton.cpp
     src/audio/win32_pcm_player.cpp
 )
-include_directories(basic_radio_app_no_demod src/)
+target_include_directories(basic_radio_app_no_demod PUBLIC src/)
 set_target_properties(basic_radio_app_no_demod PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app_no_demod PRIVATE 
     dab_core basic_radio basic_radio_gui
@@ -134,13 +131,26 @@ add_executable(basic_radio_app
     src/gui/imgui_skeleton.cpp
     src/audio/win32_pcm_player.cpp
 )
-include_directories(basic_radio_app src/)
+target_include_directories(basic_radio_app PUBLIC src/)
 set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app PRIVATE 
     ofdm_core dab_core basic_radio basic_radio_gui
     getopt imgui implot 
     easyloggingpp fmt)
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
+
+add_executable(simulate_transmitter 
+    src/simulate_transmitter.cpp)
+target_include_directories(simulate_transmitter PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set_target_properties(simulate_transmitter PROPERTIES CXX_STANDARD 17)
+target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
+
+add_executable(convert_viterbi
+    src/convert_viterbi.cpp)
+target_include_directories(convert_viterbi PUBLIC src/)
+set_target_properties(convert_viterbi PROPERTIES CXX_STANDARD 17)
+target_link_libraries(convert_viterbi PRIVATE getopt)
 
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
@@ -149,9 +159,12 @@ target_compile_options(basic_radio          PRIVATE "/MP")
 target_compile_options(basic_radio_gui      PRIVATE "/MP")
 target_compile_options(getopt               PRIVATE "/MP")
 
-target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(ofdm_demod_gui       PRIVATE "/MP")
 target_compile_options(ofdm_demod_cli       PRIVATE "/MP")
 target_compile_options(basic_radio_app_no_demod PRIVATE "/MP")
 target_compile_options(basic_radio_app      PRIVATE "/MP")
+
+target_compile_options(simulate_transmitter PRIVATE "/MP")
+target_compile_options(convert_viterbi      PRIVATE "/MP")
+
 endif(WIN32)
