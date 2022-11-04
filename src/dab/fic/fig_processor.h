@@ -23,7 +23,7 @@ private:
     };
     FIG_Handler_Interface* handler;
 public:
-    void ProcessFIG(const uint8_t* buf);
+    void ProcessFIB(const uint8_t* buf);
     inline void SetHandler(FIG_Handler_Interface* _handler) { handler = _handler; }
 private:
     // handle each type

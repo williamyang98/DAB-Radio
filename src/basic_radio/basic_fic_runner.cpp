@@ -19,17 +19,15 @@ BasicFICRunner::BasicFICRunner(const DAB_Parameters _params)
     misc_info = new DAB_Misc_Info();
     dab_db = new DAB_Database();
     dab_db_updater = new DAB_Database_Updater(dab_db);
-    fic_decoder = new FIC_Decoder(params.nb_fib_cif_bits);
+    fic_decoder = new FIC_Decoder(params.nb_fib_cif_bits, params.nb_fibs_per_cif);
     fig_processor = new FIG_Processor();
     fig_handler = new Radio_FIG_Handler();
 
     fig_handler->SetUpdater(dab_db_updater);
     fig_handler->SetMiscInfo(misc_info);
     fig_processor->SetHandler(fig_handler);
-    fic_decoder->OnFIB().Attach([this] 
-    (const uint8_t* buf, const int N) 
-    {
-        fig_processor->ProcessFIG(buf);
+    fic_decoder->OnFIB().Attach([this](const uint8_t* buf, const int N) {
+        fig_processor->ProcessFIB(buf);
     });
 }
 

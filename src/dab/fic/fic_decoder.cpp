@@ -11,12 +11,13 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(##__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(##__VA_ARGS__)
 
-FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits)
+FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_group)
 // NOTE: 1/3 coding rate after puncturing and 1/4 code
 // For all transmission modes these parameters are constant
 : nb_encoded_bits(_nb_encoded_bits),
   nb_decoded_bits(_nb_encoded_bits/3),
-  nb_decoded_bytes(_nb_encoded_bits/(8*3))
+  nb_decoded_bytes(_nb_encoded_bits/(8*3)),
+  nb_fibs_per_group(_nb_fibs_per_group)
 {
     {
         // DOC: ETSI EN 300 401
@@ -69,7 +70,7 @@ FIC_Decoder::~FIC_Decoder() {
     curr_decoded_bit += res.nb_decoded_bits;\
 }
 
-// Each group contains 3 fibs (fast information blocks)
+// Each group contains 3 fibs (fast information blocks) in mode I
 void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index) {
     // viterbi decoding
     int curr_encoded_bit = 0;
@@ -82,6 +83,11 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
     auto PI_16 = GetPunctureCode(16);
     auto PI_15 = GetPunctureCode(15);
 
+    // We only have the puncture codes used for transmission mode I
+    // NOTE: The number of decoded bits for mode I is the same as mode II and mode IV
+    //       Perhaps these other modes also use the same puncture codes??? 
+    //       Refer to DOC: docs/DAB_parameters.pdf, Clause A1.1: System parameters
+    //       for the number of bits per fib group for each transmission mode
     const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/4 - 6;
     if (nb_decoded_bits != nb_decoded_bits_mode_I) {
         LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
@@ -111,10 +117,9 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
     }
 
     // crc16 check
-    const int nb_fibs = 3;
-    const int nb_fib_bytes = nb_decoded_bytes/nb_fibs;
+    const int nb_fib_bytes = nb_decoded_bytes/nb_fibs_per_group;
     const int nb_data_bytes = nb_fib_bytes-2;
-    for (int i = 0; i < nb_fibs; i++) {
+    for (int i = 0; i < nb_fibs_per_group; i++) {
         auto* fib_buf = &decoded_bytes[i*nb_fib_bytes];
 
         uint16_t crc16_rx = 0u;
@@ -123,8 +128,8 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
 
         const uint16_t crc16_pred = crc16_calc->Process(fib_buf, nb_data_bytes);
         const bool is_valid = crc16_rx == crc16_pred;
-        LOG_MESSAGE("[crc16] fib={} is_match={} pred={:04X} got={:04X}", 
-            i, is_valid, crc16_pred, crc16_rx);
+        LOG_MESSAGE("[crc16] fib={}/{} is_match={} pred={:04X} got={:04X}", 
+            i, nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
         
         if (is_valid) {
             obs_on_fib.Notify(fib_buf, nb_fib_bytes);

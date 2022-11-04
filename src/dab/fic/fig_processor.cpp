@@ -52,7 +52,11 @@ struct EnsembleIdentifier {
     }
 };
 
-void FIG_Processor::ProcessFIG(const uint8_t* buf) {
+// DOC: ETSI EN 300 401
+// Clause 5.2: Fast Information Channel (FIC) 
+// Clause 5.2.1: Fast Information Block (FIB) 
+// A FIB (fast information block) contains many FIGs (fast information groups)
+void FIG_Processor::ProcessFIB(const uint8_t* buf) {
     // Dont do anything if we don't have an associated handler
     if (handler == NULL) {
         return;
