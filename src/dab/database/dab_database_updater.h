@@ -239,12 +239,7 @@ public:
                 (nb_updates == other.nb_updates);
         }
         bool operator!=(const Statistics& other) {
-            return 
-                (nb_total != other.nb_total) ||
-                (nb_pending != other.nb_pending) || 
-                (nb_completed != other.nb_completed) || 
-                (nb_conflicts != other.nb_conflicts) || 
-                (nb_updates != other.nb_updates);
+            return !(*this == other);
         }
     };
 private:

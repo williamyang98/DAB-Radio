@@ -6,124 +6,25 @@
 #include "dab/audio/aac_data_decoder.h"
 #include "dab/mot/mot_slideshow_processor.h"
 
-#include "audio/win32_pcm_player.h"
-
 #include "easylogging++.h"
 #include "fmt/core.h"
 
 #define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(##__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(##__VA_ARGS__)
 
-BasicAudioChannel::BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel) 
+BasicAudioChannel::BasicAudioChannel(
+    const DAB_Parameters _params, const Subchannel _subchannel, 
+    Basic_Radio_Dependencies* dependencies) 
 : params(_params), subchannel(_subchannel) {
     msc_decoder = new MSC_Decoder(subchannel);
     aac_frame_processor = new AAC_Frame_Processor();
     aac_audio_decoder = NULL;
     aac_data_decoder = new AAC_Data_Decoder();
-    slideshow_processor = new MOT_Slideshow_Processor();
 
-    pcm_player = new Win32_PCM_Player();
+    pcm_player = dependencies->Create_PCM_Player();
+    slideshow_manager = new Basic_Slideshow_Manager();
 
-    aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
-        AAC_Audio_Decoder::Params audio_params;
-        audio_params.sampling_frequency = header.sampling_rate;
-        audio_params.is_PS = header.PS_flag;
-        audio_params.is_SBR = header.SBR_flag;
-        audio_params.is_stereo = header.is_stereo;
-
-        if (aac_audio_decoder == NULL) {
-            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
-            return;
-        }
-
-        const auto old_audio_params = aac_audio_decoder->GetParams();
-        if (old_audio_params != audio_params) {
-            delete aac_audio_decoder;
-            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
-        }
-    });
-
-    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
-        if (aac_audio_decoder == NULL) {
-            return;
-        }
-        const auto res = aac_audio_decoder->DecodeFrame(buf, N);
-        if (res.is_error) {
-            LOG_ERROR("[aac-audio-decoder] error={} au_index={}/{}", 
-                res.error_code, au_index, nb_aus);
-            return;
-        }
-
-        const auto audio_params = aac_audio_decoder->GetParams();
-        auto pcm_params = pcm_player->GetParameters();
-        pcm_params.sample_rate = audio_params.sampling_frequency;
-        pcm_params.total_channels = 2;
-        pcm_params.bytes_per_sample = 2;
-        pcm_player->SetParameters(pcm_params);
-        pcm_player->ConsumeBuffer(res.audio_buf, res.nb_audio_buf_bytes);
-    });
-
-    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
-        aac_data_decoder->ProcessAccessUnit(buf, N);
-    });
-
-    auto& pad_processor = aac_data_decoder->Get_PAD_Processor();
-    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N) {
-        const auto* label_str = reinterpret_cast<const char*>(label);
-        dynamic_label = std::string(label_str, N);
-        LOG_MESSAGE("[pad-processor] dynamic_label[{}] = {}", N, dynamic_label);
-    });
-
-    pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
-        // DOC: ETSI TS 101 756
-        // Table 17: Content type and content subtypes 
-
-        // DOC: ETSI TS 101 499
-        // Clause 6.2.3 MOT ContentTypes and ContentSubTypes 
-        // For specific types used for slideshows
-
-        const auto type = entity.header.content_type;
-        const auto sub_type = entity.header.content_sub_type;
-        // Content type: Image
-        if (type != 0b000010) {
-            return;
-        }
-        // Content subtype: JPEG and PNG
-        if ((sub_type != 0b01) && (sub_type != 0b11)) {
-            return;
-        }
-
-        const bool is_jpg = (sub_type == 0b01);
-
-        // User application header extension parameters
-        MOT_Slideshow slideshow_data;
-        for (auto& p: entity.header.user_app_params) {
-            slideshow_processor->ProcessHeaderExtension(
-                &slideshow_data, 
-                p.type, p.data, p.nb_data_bytes);
-        }
-
-        static char filename[256] = {0};
-        if (entity.header.content_name.exists) {
-            snprintf(filename, sizeof(filename), "images/subchannel_%d_%.*s", 
-                subchannel.id,
-                entity.header.content_name.nb_bytes,
-                entity.header.content_name.name);
-        } else {
-            snprintf(filename, sizeof(filename), "images/subchannel_%d_tid_%d.%s", 
-                subchannel.id, entity.transport_id, is_jpg ? "jpg" : "png");
-        } 
-
-        // FILE* fp = fopen(filename, "wb+");
-        // if (fp == NULL) {
-        //     LOG_ERROR("Failed to write slideshow {}", filename);
-        //     return;
-        // }
-        // fwrite(entity.body_buf, sizeof(uint8_t), entity.nb_body_bytes, fp);
-        // fclose(fp);
-
-        LOG_MESSAGE("Wrote image to {}", filename);
-    });
+    SetupCallbacks();
 }
 
 BasicAudioChannel::~BasicAudioChannel() {
@@ -135,7 +36,7 @@ BasicAudioChannel::~BasicAudioChannel() {
         delete aac_audio_decoder;
     }
     delete aac_data_decoder;
-    delete slideshow_processor;
+    delete slideshow_manager;
     delete pcm_player;
 }
 
@@ -159,6 +60,10 @@ void BasicAudioChannel::Run() {
         return;
     }
 
+    if (!controls.GetAnyEnabled()) {
+        return;
+    }
+
     for (int i = 0; i < params.nb_cifs; i++) {
         const auto* cif_buf = &msc_bits_buf[params.nb_cif_bits*i];
         const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, params.nb_cif_bits);
@@ -168,5 +73,154 @@ void BasicAudioChannel::Run() {
         }
         const auto* decoded_buf = msc_decoder->GetDecodedBytes();
         aac_frame_processor->Process(decoded_buf, nb_decoded_bytes);
+    }
+}
+
+void BasicAudioChannel::SetupCallbacks(void) {
+    // Decode audio
+    aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
+        AAC_Audio_Decoder::Params audio_params;
+        audio_params.sampling_frequency = header.sampling_rate;
+        audio_params.is_PS = header.PS_flag;
+        audio_params.is_SBR = header.SBR_flag;
+        audio_params.is_stereo = header.is_stereo;
+
+        if (aac_audio_decoder == NULL) {
+            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
+            return;
+        }
+
+        const auto old_audio_params = aac_audio_decoder->GetParams();
+        if (old_audio_params != audio_params) {
+            delete aac_audio_decoder;
+            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
+        }
+    });
+
+    // Decode audio
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+        if (!controls.GetIsDecodeAudio()) {
+            return;
+        }
+
+        if (aac_audio_decoder == NULL) {
+            return;
+        }
+        const auto res = aac_audio_decoder->DecodeFrame(buf, N);
+        if (res.is_error) {
+            LOG_ERROR("[aac-audio-decoder] error={} au_index={}/{}", 
+                res.error_code, au_index, nb_aus);
+            return;
+        }
+
+        const auto audio_params = aac_audio_decoder->GetParams();
+        BasicAudioParams params;
+        params.frequency = audio_params.sampling_frequency;
+        params.is_stereo = true;
+        params.bytes_per_sample = 2;
+        obs_audio_data.Notify(params, res.audio_buf, res.nb_audio_buf_bytes);
+    });
+
+    // Play audio through device
+    obs_audio_data.Attach([this](BasicAudioParams params, const uint8_t* data, const int N) {
+        if (!controls.GetIsPlayAudio()) {
+            return;
+        }
+
+        auto pcm_params = pcm_player->GetParameters();
+        pcm_params.sample_rate = params.frequency;
+        pcm_params.total_channels = 2;
+        pcm_params.bytes_per_sample = 2;
+        pcm_player->SetParameters(pcm_params);
+        pcm_player->ConsumeBuffer(data, N);
+    });
+
+    // Decode data
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+        if (!controls.GetIsDecodeData()) {
+            return;
+        }
+
+        aac_data_decoder->ProcessAccessUnit(buf, N);
+    });
+
+    auto& pad_processor = aac_data_decoder->Get_PAD_Processor();
+    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N) {
+        const auto* label_str = reinterpret_cast<const char*>(label);
+        dynamic_label = std::string(label_str, N);
+        obs_dynamic_label.Notify(dynamic_label);
+        LOG_MESSAGE("dynamic_label[{}] = {}", N, dynamic_label);
+    });
+
+    pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
+        auto* res = slideshow_manager->Process_MOT_Entity(&entity);
+        if (res != NULL) {
+            obs_slideshow.Notify(res);
+        } else {
+            obs_MOT_entity.Notify(&entity);
+        }
+    });
+}
+
+// controls
+constexpr uint8_t CONTROL_FLAG_DECODE_AUDIO = 0b10000000;
+constexpr uint8_t CONTROL_FLAG_DECODE_DATA  = 0b01000000;
+constexpr uint8_t CONTROL_FLAG_PLAY_AUDIO   = 0b00100000;
+constexpr uint8_t CONTROL_FLAG_ALL_SELECTED = 0b11100000;
+
+bool BasicAudioChannelControls::GetAnyEnabled(void) const {
+    return (flags != 0);
+}
+
+bool BasicAudioChannelControls::GetAllEnabled(void) const {
+    return (flags == CONTROL_FLAG_ALL_SELECTED);
+}
+
+void BasicAudioChannelControls::RunAll(void) {
+    flags = CONTROL_FLAG_ALL_SELECTED;
+}
+
+void BasicAudioChannelControls::StopAll(void) {
+    flags = 0;
+}
+
+// Decode AAC audio elements
+bool BasicAudioChannelControls::GetIsDecodeAudio(void) const {
+    return (flags & CONTROL_FLAG_DECODE_AUDIO) != 0;
+}
+
+void BasicAudioChannelControls::SetIsDecodeAudio(bool v) {
+    SetFlag(CONTROL_FLAG_DECODE_AUDIO, v);
+    if (!v) {
+        SetFlag(CONTROL_FLAG_PLAY_AUDIO, false);
+    }
+}
+
+// Decode AAC data_stream_element
+bool BasicAudioChannelControls::GetIsDecodeData(void) const {
+    return (flags & CONTROL_FLAG_DECODE_DATA) != 0;
+}
+
+void BasicAudioChannelControls::SetIsDecodeData(bool v) {
+    SetFlag(CONTROL_FLAG_DECODE_DATA, v);
+}
+
+// Play audio data through sound device
+bool BasicAudioChannelControls::GetIsPlayAudio(void) const {
+    return (flags & CONTROL_FLAG_PLAY_AUDIO) != 0;
+}
+
+void BasicAudioChannelControls::SetIsPlayAudio(bool v) { 
+    SetFlag(CONTROL_FLAG_PLAY_AUDIO, v);
+    if (v) {
+        SetFlag(CONTROL_FLAG_DECODE_AUDIO, true);
+    }
+}
+
+void BasicAudioChannelControls::SetFlag(const uint8_t flag, const bool state) {
+    if (state) {
+        flags |= flag;
+    } else {
+        flags &= ~flag;
     }
 }

@@ -19,12 +19,24 @@
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
+#include "audio/win32_pcm_player.h"
+
 #include <GLFW/glfw3.h> 
 #include "imgui.h"
+
+class AppDependencies: public Basic_Radio_Dependencies 
+{
+public:
+    virtual PCM_Player* Create_PCM_Player(void) {
+        return new Win32_PCM_Player();
+    }
+};
 
 class App: public ImguiSkeleton 
 {
 private:
+    AppDependencies dependencies;
+
     // Number of bytes per OFDM frame in transmission mode I
     // NOTE: we are hard coding this because all other transmission modes have been deprecated
     const int nb_buf_bits = 75*1536*2;
@@ -39,7 +51,7 @@ public:
     : fp_in(_fp_in) 
     {
         const int transmission_mode = 1;
-        radio = new BasicRadio(get_dab_parameters(transmission_mode));
+        radio = new BasicRadio(get_dab_parameters(transmission_mode), &dependencies);
         bits_buf = new viterbi_bit_t[nb_buf_bits];
         is_running = true;
         radio_thread = new std::thread([this]() {

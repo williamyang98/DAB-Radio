@@ -8,17 +8,17 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(##__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(##__VA_ARGS__)
 
-BasicRadio::BasicRadio(const DAB_Parameters _params)
-: params(_params) 
+BasicRadio::BasicRadio(const DAB_Parameters _params, Basic_Radio_Dependencies* _dependencies)
+: params(_params), dependencies(_dependencies)
 {
     fic_runner = new BasicFICRunner(params);
-    valid_dab_db = new DAB_Database();
+    db_manager = new Basic_Database_Manager();
 }
 
 BasicRadio::~BasicRadio() {
     channels.clear();
     delete fic_runner;
-    delete valid_dab_db;
+    delete db_manager;
 }
 
 void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
@@ -29,132 +29,87 @@ void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
 
     auto* fic_buf = &buf[0];
     auto* msc_buf = &buf[params.nb_fic_bits];
-    {
-        auto lock = std::scoped_lock(mutex_channels);
-        selected_channels_temp.clear();
-        for (auto& [_, channel]: channels) {
-            if (channel->is_selected) {
-                selected_channels_temp.push_back(channel.get());
-            }
-        }
+
+    fic_runner->SetBuffer(fic_buf, params.nb_fic_bits);
+    for (auto& [_, channel]: channels) {
+        channel->SetBuffer(msc_buf, params.nb_msc_bits);
     }
 
-    {
-        fic_runner->SetBuffer(fic_buf, params.nb_fic_bits);
-        for (auto& channel: selected_channels_temp) {
-            channel->SetBuffer(msc_buf, params.nb_msc_bits);
-        }
+    // Launch all channel threads
+    fic_runner->Start();
+    for (auto& [_, channel]: channels) {
+        channel->Start();
+    }
 
-        // Launch all channel threads
-        fic_runner->Start();
-        for (auto& channel: selected_channels_temp) {
-            channel->Start();
-        }
-
-        // Join them all now
-        fic_runner->Join();
-        for (auto& channel: selected_channels_temp) {
-            channel->Join();
-        }
+    // Join them all now
+    fic_runner->Join();
+    for (auto& [_, channel]: channels) {
+        channel->Join();
     }
 
     UpdateDatabase();
 }
 
-void BasicRadio::UpdateDatabase() {
-    misc_info = *(fic_runner->GetMiscInfo());
-    auto* live_db = fic_runner->GetLiveDatabase();
-    auto* db_updater = fic_runner->GetDatabaseUpdater();
-    
-    auto curr_stats = db_updater->GetStatistics();
-    const bool is_changed = (previous_stats != curr_stats);
-    previous_stats = curr_stats;
-
-    // If there is a change, wait for changes to stabilise
-    if (is_changed) {
-        is_awaiting_db_update = true;
-        nb_cooldown = 0;
-        return;
+BasicAudioChannel* BasicRadio::GetAudioChannel(const subchannel_id_t id) {
+    auto lock = std::scoped_lock(mutex_channels);
+    auto res = channels.find(id);
+    if (res == channels.end()) {
+        return NULL; 
     }
-
-    // If we know the databases are desynced update cooldown
-    if (is_awaiting_db_update) {
-        nb_cooldown++;
-        LOG_MESSAGE("cooldown={}/{}", nb_cooldown, nb_cooldown_max);
-    }
-
-    if (nb_cooldown != nb_cooldown_max) {
-        return;
-    }
-
-    is_awaiting_db_update = false;
-    nb_cooldown = 0;
-    LOG_MESSAGE("Updating internal database");
-
-    // If the cooldown has been reached, then we consider
-    // the databases to be sufficiently stable to copy
-    // This is an expensive operation so we should only do it when there are few changes
-    {
-        auto lock = std::scoped_lock(mutex_db);
-        db_updater->ExtractCompletedDatabase(*valid_dab_db);
-    }
-
-    // TODO: Auto run subchannels if we are in data scrapeing mode
-    // for (auto& subchannel: valid_dab_db->subchannels) {
-    //     const auto id = subchannel.id;
-    //     if (IsSubchannelAdded(id)) continue;
-    //     AddSubchannel(id);
-    // }
+    return res->second.get();
 }
 
-void BasicRadio::AddSubchannel(const subchannel_id_t id) {
-    // NOTE: We expect the caller to have this mutex held
-    // auto lock = std::scoped_lock(mutex_channels);
-    auto res = channels.find(id);
-    if (res != channels.end()) {
-        // LOG_ERROR("Selected subchannel {} already has an instance running", id);
-        auto& v = res->second->is_selected;
-        v = !v;
+void BasicRadio::UpdateDatabase() {
+    auto& misc_info = *(fic_runner->GetMiscInfo());
+    auto* live_db = fic_runner->GetLiveDatabase();
+    auto* db_updater = fic_runner->GetDatabaseUpdater();
+
+    db_manager->OnMiscInfo(misc_info);
+    const bool is_updated = db_manager->OnDatabaseUpdater(live_db, db_updater);
+    if (!is_updated) {
         return;
     }
 
-    auto* db = valid_dab_db;
+    auto* db = db_manager->GetDatabase();
+    for (auto& subchannel: db->subchannels) {
+        AddSubchannel(subchannel.id);
+    }
+}
+
+bool BasicRadio::AddSubchannel(const subchannel_id_t id) {
+    auto res = channels.find(id);
+    if (res != channels.end()) {
+        return false;
+    }
+
+    auto* db = db_manager->GetDatabase();
     auto* subchannel = db->GetSubchannel(id);
     if (subchannel == NULL) {
         LOG_ERROR("Selected subchannel {} which doesn't exist in db", id);
-        return;
+        return false;
     }
 
     auto* service_component = db->GetServiceComponent_Subchannel(id);
     if (service_component == NULL) {
         LOG_ERROR("Selected subchannel {} has no service component", id);
-        return;
+        return false;
     }
 
     const auto mode = service_component->transport_mode;
     if (mode != TransportMode::STREAM_MODE_AUDIO) {
         LOG_ERROR("Selected subchannel {} which isn't an audio stream", id);
-        return;
+        return false;
     }
 
     const auto ascty = service_component->audio_service_type;
     if (ascty != AudioServiceType::DAB_PLUS) {
         LOG_ERROR("Selected subchannel {} isn't a DAB+ stream", id);
-        return;
+        return false;
     }
 
     // create our instance
     LOG_MESSAGE("Added subchannel {}", id);
-    res = channels.insert({id, std::make_unique<BasicAudioChannel>(params, *subchannel)}).first;
-    res->second->is_selected = true;
-}
-
-bool BasicRadio::IsSubchannelAdded(const subchannel_id_t id) {
-    // NOTE: This would be extremely slow with alot of subchannels
-    // auto lock = std::scoped_lock(mutex_channels);
-    auto res = channels.find(id);
-    if (res == channels.end()) {
-        return false;
-    }
-    return res->second->is_selected;
+    auto lock = std::scoped_lock(mutex_channels);
+    res = channels.insert({id, std::make_unique<BasicAudioChannel>(params, *subchannel, dependencies)}).first;
+    return true;
 }

@@ -23,6 +23,8 @@
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
+#include "audio/win32_pcm_player.h"
+
 #include <GLFW/glfw3.h> 
 #include "imgui.h"
 #include "implot.h"
@@ -31,11 +33,21 @@
 #include <condition_variable>
 #include <thread>
 
+class AppDependencies: public Basic_Radio_Dependencies 
+{
+public:
+    virtual PCM_Player* Create_PCM_Player(void) {
+        return new Win32_PCM_Player();
+    }
+};
+
 // Class that connects our analog OFDM demodulator and digital DAB decoder
 // Also provides the skeleton of the Imgui application
 class App: public ImguiSkeleton 
 {
 private:
+    AppDependencies dependencies;
+
     // Number of bytes per OFDM frame in transmission mode I
     // NOTE: we are hard coding this because all other transmission modes have been deprecated
     FILE* const fp_in;
@@ -71,7 +83,7 @@ public:
     : fp_in(_fp_in), block_size(_block_size)
     {
         const int transmission_mode = 1;
-        radio = new BasicRadio(get_dab_parameters(transmission_mode));
+        radio = new BasicRadio(get_dab_parameters(transmission_mode), &dependencies);
         Init_OFDM_Demodulator(transmission_mode);
 
         // Buffer to read raw IQ 8bit values and convert to floating point

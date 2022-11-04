@@ -92,8 +92,7 @@ void RenderSimple_LinkServices(BasicRadio* radio, SimpleController* controller);
 void RenderSimple_LinkService(BasicRadio* radio, SimpleController* controller, LinkService* link_service);
 
 void RenderBasicRadio(BasicRadio* radio) {
-    auto lock_db = std::scoped_lock(radio->GetDatabaseMutex());
-    auto lock_channels = std::scoped_lock(radio->GetChannelsMutex());
+    auto lock_db = std::scoped_lock(radio->GetDatabaseManager()->GetDatabaseMutex());
 
     RenderSubchannels(radio);
     static SimpleController simple_controller;
@@ -102,7 +101,7 @@ void RenderBasicRadio(BasicRadio* radio) {
 
 // Render a list of all subchannels
 void RenderSubchannels(BasicRadio* radio) {
-    auto db = radio->GetDatabase();
+    auto db = radio->GetDatabaseManager()->GetDatabase();
     auto window_label = fmt::format("Subchannels ({})###Subchannels Full List", db->subchannels.size());
     if (ImGui::Begin(window_label.c_str())) {
         auto& search_filter = GlobalFilters.services_filter;
@@ -130,7 +129,6 @@ void RenderSubchannels(BasicRadio* radio) {
 
                 const auto prot_label = GetSubchannelProtectionLabel(subchannel);
                 const uint32_t bitrate_kbps = GetSubchannelBitrate(subchannel);
-                const bool is_selected = radio->IsSubchannelAdded(subchannel.id);
 
                 ImGui::PushID(row_id++);
 
@@ -147,9 +145,19 @@ void RenderSubchannels(BasicRadio* radio) {
                 ImGui::TextWrapped("%.*s", prot_label.length(), prot_label.c_str());
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%u kb/s", bitrate_kbps);
-                ImGui::SameLine();
-                if (ImGui::Selectable("###select_button", is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
-                    radio->AddSubchannel(subchannel.id);
+
+                auto* player = radio->GetAudioChannel(subchannel.id);
+                if (player != NULL) {
+                    auto& controls = player->GetControls();
+                    const bool is_selected = controls.GetAllEnabled();
+                    ImGui::SameLine();
+                    if (ImGui::Selectable("###select_button", is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (is_selected) {
+                            controls.StopAll();
+                        } else {
+                            controls.RunAll();
+                        }
+                    }
                 }
                 ImGui::PopID();
             }
@@ -161,7 +169,7 @@ void RenderSubchannels(BasicRadio* radio) {
 
 // Render the ensemble information
 void RenderEnsemble(BasicRadio* radio) {
-    auto db = radio->GetDatabase();
+    auto db = radio->GetDatabaseManager()->GetDatabase();
     auto& ensemble = db->ensemble;
 
     if (ImGui::Begin("Ensemble")) {
@@ -201,7 +209,7 @@ void RenderEnsemble(BasicRadio* radio) {
 
 // Render misc information about the date and time
 void RenderDateTime(BasicRadio* radio) {
-    const auto info = radio->GetDABMiscInfo();
+    const auto info = radio->GetDatabaseManager()->GetDABMiscInfo();
     if (ImGui::Begin("Date & Time")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -238,7 +246,7 @@ void RenderDateTime(BasicRadio* radio) {
 
 // Database statistics
 void RenderDatabaseStatistics(BasicRadio* radio) {
-    const auto stats = radio->GetDatabaseStatistics();
+    const auto stats = radio->GetDatabaseManager()->GetDatabaseStatistics();
     if (ImGui::Begin("Database Stats")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -272,7 +280,7 @@ void RenderDatabaseStatistics(BasicRadio* radio) {
 
 // Linked ensembles
 void RenderOtherEnsembles(BasicRadio* radio) {
-    auto* db = radio->GetDatabase();
+    auto* db = radio->GetDatabaseManager()->GetDatabase();
     auto label = fmt::format("Other Ensembles ({})###Other Ensembles",
         db->other_ensembles.size());
 
@@ -318,7 +326,7 @@ void RenderOtherEnsembles(BasicRadio* radio) {
 
 // Render a list of the services
 void RenderSimple_Root(BasicRadio* radio, SimpleController* controller) {
-    auto db = radio->GetDatabase();
+    auto db = radio->GetDatabaseManager()->GetDatabase();
     if (ImGui::Begin("Simple View")) 
     {
         ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
@@ -339,7 +347,7 @@ void RenderSimple_Root(BasicRadio* radio, SimpleController* controller) {
 }
 
 void RenderSimple_ServiceList(BasicRadio* radio, SimpleController* controller) {
-    auto db = radio->GetDatabase();
+    auto db = radio->GetDatabaseManager()->GetDatabase();
     const auto window_title = fmt::format("Services ({})###Services panel", db->services.size());
     if (ImGui::Begin(window_title.c_str())) {
         auto& search_filter = GlobalFilters.services_filter;
@@ -363,7 +371,7 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleController* controller) {
 }
 
 void RenderSimple_Service(BasicRadio* radio, SimpleController* controller) {
-    auto* db = radio->GetDatabase();
+    auto* db = radio->GetDatabaseManager()->GetDatabase();
     const auto selected_service_id = controller->selected_service;
     auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
@@ -402,7 +410,7 @@ void RenderSimple_Service(BasicRadio* radio, SimpleController* controller) {
 }
 
 void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleController* controller) {
-    auto* db = radio->GetDatabase();
+    auto* db = radio->GetDatabaseManager()->GetDatabase();
     const auto selected_service_id = controller->selected_service;
     auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
@@ -431,8 +439,6 @@ void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleController* cont
                     GetAudioTypeString(component->audio_service_type) :
                     GetDataTypeString(component->data_service_type);
 
-                const bool is_selected = radio->IsSubchannelAdded(component->subchannel_id);
-
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextWrapped("%.*s", component->label.length(), component->label.c_str());
@@ -446,9 +452,19 @@ void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleController* cont
                 ImGui::TextWrapped("%s", GetTransportModeString(component->transport_mode));
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%s", type_str);
-                ImGui::SameLine();
-                if (ImGui::Selectable("###select_button", is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
-                    radio->AddSubchannel(component->subchannel_id);
+
+                auto* player = radio->GetAudioChannel(component->subchannel_id);
+                if (player != NULL) {
+                    auto& controls = player->GetControls();
+                    const bool is_selected = controls.GetAllEnabled();
+                    ImGui::SameLine();
+                    if (ImGui::Selectable("###select_button", is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (is_selected) {
+                            controls.StopAll();
+                        } else {
+                            controls.RunAll();
+                        }
+                    }
                 }
 
                 ImGui::PopID();
@@ -464,7 +480,7 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleController* controll
 }
 
 void RenderSimple_LinkServices(BasicRadio* radio, SimpleController* controller) {
-    auto* db = radio->GetDatabase();
+    auto* db = radio->GetDatabaseManager()->GetDatabase();
     const auto selected_service_id = controller->selected_service;
     auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
@@ -482,7 +498,7 @@ void RenderSimple_LinkServices(BasicRadio* radio, SimpleController* controller) 
 }
 
 void RenderSimple_LinkService(BasicRadio* radio, SimpleController* controller, LinkService* link_service) {
-    auto db = radio->GetDatabase();
+    auto db = radio->GetDatabaseManager()->GetDatabase();
     auto label = fmt::format("###lsn_{}", link_service->id);
 
     #define FIELD_MACRO(name, fmt, ...) {\
