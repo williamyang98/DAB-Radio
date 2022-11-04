@@ -19,7 +19,7 @@
 #include "basic_radio/basic_radio.h"
 
 #include "gui/render_ofdm_demod.h"
-#include "gui/render_basic_radio.h"
+#include "gui/basic_radio/render_basic_radio.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 

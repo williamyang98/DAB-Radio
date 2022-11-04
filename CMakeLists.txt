@@ -98,11 +98,18 @@ include_directories(simulate_transmitter src/)
 set_target_properties(simulate_transmitter PROPERTIES CXX_STANDARD 17)
 target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
 
+set(BASIC_RADIO_GUI_SRC 
+    src/gui/basic_radio/render_basic_radio.cpp
+    src/gui/basic_radio/render_simple_view.cpp
+    src/gui/basic_radio/render_common.cpp
+    src/gui/basic_radio/formatters.cpp)
+
 add_executable(basic_radio_app_no_demod
     src/basic_radio_app_no_demod.cpp
-    src/gui/render_basic_radio.cpp
     src/gui/imgui_skeleton.cpp
-    src/audio/win32_pcm_player.cpp)
+    src/audio/win32_pcm_player.cpp
+    ${BASIC_RADIO_GUI_SRC}
+)
 include_directories(basic_radio_app_no_demod src/)
 set_target_properties(basic_radio_app_no_demod PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app_no_demod PRIVATE 
@@ -112,10 +119,11 @@ target_compile_definitions(basic_radio_app_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_app
     src/basic_radio_app.cpp
-    src/gui/render_basic_radio.cpp
     src/gui/render_ofdm_demod.cpp
     src/gui/imgui_skeleton.cpp
-    src/audio/win32_pcm_player.cpp)
+    src/audio/win32_pcm_player.cpp
+    ${BASIC_RADIO_GUI_SRC}
+)
 include_directories(basic_radio_app src/)
 set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app PRIVATE 
