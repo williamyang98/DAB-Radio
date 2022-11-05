@@ -1,5 +1,4 @@
-// Basic radio app that includes the OFDM demodulator and the DAB digital decoder
-
+// Basic radio scraper that includes the OFDM demodulator and the DAB digital decoder
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -18,31 +17,22 @@
 #include "ofdm/dab_mapper_ref.h"
 #include "basic_radio/basic_radio.h"
 
-#include "gui/render_ofdm_demod.h"
-#include "gui/basic_radio/render_basic_radio.h"
-#include "gui/imgui_skeleton.h"
-#include "gui/font_awesome_definitions.h"
-
-#include "audio/win32_pcm_player.h"
-
-#include <GLFW/glfw3.h> 
-#include "imgui.h"
-#include "implot.h"
-
 #include <thread>
 #include "double_buffer.h"
+
+#include "basic_scraper/basic_scraper.h"
 
 class AppDependencies: public Basic_Radio_Dependencies 
 {
 public:
     virtual PCM_Player* Create_PCM_Player(void) {
-        return new Win32_PCM_Player();
+        return NULL;
     }
 };
 
 // Class that connects our analog OFDM demodulator and digital DAB decoder
 // Also provides the skeleton of the Imgui application
-class App: public ImguiSkeleton 
+class App
 {
 private:
     AppDependencies dependencies;
@@ -62,15 +52,16 @@ private:
     // Blocks that make our radio
     OFDM_Demod* ofdm_demod;
     BasicRadio* radio;
+    BasicScraper* scraper;
 
     // Separate threads for the radio, and raw IQ to OFDM frame demodulator
-    std::thread* ofdm_demod_thread;
     std::thread* basic_radio_thread;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, const int _block_size)
+    App(const int transmission_mode, FILE* const _fp_in, const int _block_size, const char* dir)
     : fp_in(_fp_in), block_size(_block_size)
     {
         radio = new BasicRadio(get_dab_parameters(transmission_mode), &dependencies);
+        scraper = new BasicScraper(radio, dir);
         Init_OFDM_Demodulator(transmission_mode);
 
         // Buffer to read raw IQ 8bit values and convert to floating point
@@ -78,27 +69,26 @@ public:
         rd_in_float = new std::complex<float>[block_size];
 
         // Create our runner threads
-        ofdm_demod_thread = NULL;
         basic_radio_thread = NULL;
-        Start();
     }
     ~App() {
         double_buffer->Close();
-        if (ofdm_demod_thread != NULL) {
-            fclose(fp_in);
-            fp_in = NULL;
-            ofdm_demod_thread->join();
-            delete ofdm_demod_thread;
-        }
         if (basic_radio_thread != NULL) {
             basic_radio_thread->join();
             delete basic_radio_thread;
         }
+        delete scraper;
         delete radio;
         delete ofdm_demod;
         delete [] rd_in_raw;
         delete [] rd_in_float;
         delete double_buffer;
+    }
+    void Run() {
+        basic_radio_thread = new std::thread([this]() {
+            RunnerThread_Radio();
+        });
+        RunnerThread_OFDM_Demod();
     }
 private:
     // Get our OFDM demodulator and frequency deinterleaver 
@@ -124,14 +114,6 @@ private:
 
         delete [] ofdm_prs_ref;
         delete [] ofdm_mapper_ref;
-    }
-    void Start() {
-        basic_radio_thread = new std::thread([this]() {
-            RunnerThread_Radio();
-        });
-        ofdm_demod_thread = new std::thread([this]() {
-            RunnerThread_OFDM_Demod();
-        });
     }
 private:
     // ofdm thread -> ofdm frame callback -> double buffer -> dab thread
@@ -187,65 +169,12 @@ private:
             double_buffer->ReleaseActiveBuffer();
         }
     }
-// All our imgui skeleton code
-public:
-    virtual GLFWwindow* Create_GLFW_Window(void) {
-        return glfwCreateWindow(
-            1280, 720, 
-            "Complete DAB Radio", 
-            NULL, NULL);
-    }
-    virtual void AfterImguiContextInit() {
-        ImPlot::CreateContext();
-        ImguiSkeleton::AfterImguiContextInit();
-
-        auto& io = ImGui::GetIO();
-        io.IniFilename =  "imgui_basic_radio.ini";
-        io.Fonts->AddFontFromFileTTF("res/Roboto-Regular.ttf", 15.0f);
-        {
-            static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA };
-            ImFontConfig icons_config;
-            icons_config.MergeMode = true;
-            icons_config.PixelSnapH = true;
-            io.Fonts->AddFontFromFileTTF("res/font_awesome.ttf", 16.0f, &icons_config, icons_ranges);
-        }
-        ImGuiSetupCustomConfig();
-    }
-    virtual void Render() {
-        if (ImGui::Begin("Demodulator")) {
-            ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
-            ImGui::DockSpace(dockspace_id);
-            RenderSourceBuffer(rd_in_float, block_size);
-            RenderOFDMDemodulator(ofdm_demod);
-            RenderAppControls();
-        }
-        RenderBasicRadio(radio);
-        ImGui::End();
-    }
-    virtual void AfterShutdown() {
-        ImPlot::DestroyContext();
-    }
-// Controls for reading raw IQ values
-private:
-    void RenderAppControls() {
-        if (ImGui::Begin("Input controls")) {
-            ImGui::Text(
-                "If the impulse response doesn't have a very sharp peak then we have a byte desync\n"
-                "This arises when the rtl_sdr.exe app drops a byte, causing the I and Q channels to swap\n"
-                "Although we still get a correlation peak from the phase reference symbol, the phase information is incorrect\n",
-                "This causes havoc on the fine frequency correction and time synchronisation\n"
-                "Press the offset input stream button to correct this desynchronisation");
-            if (ImGui::Button("Offset input stream")) {
-                flag_rd_byte_offset = true;
-            }
-        }
-        ImGui::End();
-    }
 };
 
 void usage() {
     fprintf(stderr, 
-        "basic_radio_app, Complete radio app with demodulator and dab decoding\n\n"
+        "basic_radio_scraper, Demodulates signal and saves DAB channel data\n\n"
+        "\t[-o output directory (default: scraper_out)]\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
         "\t[-v Enable logging (default: false)]\n"
@@ -257,14 +186,18 @@ void usage() {
 
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
+    char* output_dir = NULL;
     char* rd_filename = NULL;
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "i:b:M:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "o:i:b:M:vh")) != -1) {
         switch (opt) {
+        case 'o':
+            output_dir = optarg;
+            break;
         case 'i':
             rd_filename = optarg;
             break;
@@ -295,6 +228,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (output_dir == NULL) {
+        output_dir = "scraper_out";
+    }
+
     // app startup
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
@@ -310,6 +247,7 @@ int main(int argc, char** argv) {
 
     auto dab_loggers = RegisterLogging();
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");
+    auto basic_scraper_logger = el::Loggers::getLogger("basic-scraper");
 
     el::Configurations defaultConf;
     const char* logging_level = is_logging ? "true" : "false";
@@ -319,9 +257,15 @@ int main(int argc, char** argv) {
     el::Loggers::reconfigureAllLoggers(defaultConf);
     el::Helpers::setThreadName("main-thread");
 
-    auto app = new App(transmission_mode, fp_in, block_size);
-    const int rv = RenderImguiSkeleton(app);
+    el::Configurations scraper_conf; 
+    scraper_conf.setToDefault();
+    scraper_conf.setGlobally(el::ConfigurationType::Enabled, "true");
+    scraper_conf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
+    basic_scraper_logger->configure(scraper_conf);
+
+    auto app = new App(transmission_mode, fp_in, block_size, output_dir);
+    app->Run();
     delete app;
-    return rv;
+    return 0;
 }
 

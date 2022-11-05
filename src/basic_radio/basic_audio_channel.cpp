@@ -37,7 +37,9 @@ BasicAudioChannel::~BasicAudioChannel() {
     }
     delete aac_data_decoder;
     delete slideshow_manager;
-    delete pcm_player;
+    if (pcm_player != NULL) {
+        delete pcm_player;
+    }
 }
 
 void BasicAudioChannel::SetBuffer(const viterbi_bit_t* _buf, const int _N) {
@@ -127,6 +129,10 @@ void BasicAudioChannel::SetupCallbacks(void) {
             return;
         }
 
+        if (pcm_player == NULL) {
+            return;
+        }
+
         auto pcm_params = pcm_player->GetParameters();
         pcm_params.sample_rate = params.frequency;
         pcm_params.total_channels = 2;
@@ -155,7 +161,7 @@ void BasicAudioChannel::SetupCallbacks(void) {
     pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
         auto* res = slideshow_manager->Process_MOT_Entity(&entity);
         if (res != NULL) {
-            obs_slideshow.Notify(res);
+            obs_slideshow.Notify(entity.transport_id, res);
         } else {
             obs_MOT_entity.Notify(&entity);
         }

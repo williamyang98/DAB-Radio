@@ -111,5 +111,6 @@ bool BasicRadio::AddSubchannel(const subchannel_id_t id) {
     LOG_MESSAGE("Added subchannel {}", id);
     auto lock = std::scoped_lock(mutex_channels);
     res = channels.insert({id, std::make_unique<BasicAudioChannel>(params, *subchannel, dependencies)}).first;
+    obs_new_audio_channel.Notify(id, res->second.get());
     return true;
 }

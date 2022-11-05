@@ -11,6 +11,8 @@
 
 #include "dab/constants/dab_parameters.h"
 
+#include "../observable.h"
+
 // Our basic radio
 class BasicRadio
 {
@@ -23,12 +25,16 @@ private:
     BasicFICRunner* fic_runner;
     std::unordered_map<subchannel_id_t, std::unique_ptr<BasicAudioChannel>> channels;
     std::mutex mutex_channels;
+
+    // callbacks
+    Observable<subchannel_id_t, BasicAudioChannel*> obs_new_audio_channel;
 public:
     BasicRadio(const DAB_Parameters _params, Basic_Radio_Dependencies* _dependencies);
     ~BasicRadio();
     void Process(viterbi_bit_t* const buf, const int N);
     auto* GetDatabaseManager(void) { return db_manager; }
     BasicAudioChannel* GetAudioChannel(const subchannel_id_t id);
+    auto& OnNewAudioChannel(void) { return obs_new_audio_channel; }
 private:
     void UpdateDatabase();
     bool AddSubchannel(const subchannel_id_t id);

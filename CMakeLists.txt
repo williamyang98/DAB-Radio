@@ -139,6 +139,28 @@ target_link_libraries(basic_radio_app PRIVATE
     easyloggingpp fmt)
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
 
+add_executable(basic_radio_scraper
+    src/basic_radio_scraper.cpp
+    src/basic_scraper/basic_scraper.cpp
+)
+target_include_directories(basic_radio_scraper PUBLIC src/)
+set_target_properties(basic_radio_scraper PROPERTIES CXX_STANDARD 17)
+target_link_libraries(basic_radio_scraper PRIVATE 
+    ofdm_core dab_core basic_radio
+    getopt easyloggingpp fmt)
+target_compile_definitions(basic_radio_scraper PRIVATE ELPP_THREAD_SAFE)
+
+add_executable(basic_radio_scraper_no_demod
+    src/basic_radio_scraper_no_demod.cpp
+    src/basic_scraper/basic_scraper.cpp
+)
+target_include_directories(basic_radio_scraper_no_demod PUBLIC src/)
+set_target_properties(basic_radio_scraper_no_demod PROPERTIES CXX_STANDARD 17)
+target_link_libraries(basic_radio_scraper_no_demod PRIVATE 
+    dab_core basic_radio
+    getopt easyloggingpp fmt)
+target_compile_definitions(basic_radio_scraper_no_demod PRIVATE ELPP_THREAD_SAFE)
+
 add_executable(simulate_transmitter 
     src/simulate_transmitter.cpp)
 target_include_directories(simulate_transmitter PUBLIC 
@@ -163,6 +185,8 @@ target_compile_options(ofdm_demod_gui       PRIVATE "/MP")
 target_compile_options(ofdm_demod_cli       PRIVATE "/MP")
 target_compile_options(basic_radio_app_no_demod PRIVATE "/MP")
 target_compile_options(basic_radio_app      PRIVATE "/MP")
+target_compile_options(basic_radio_scraper  PRIVATE "/MP")
+target_compile_options(basic_radio_scraper_no_demod PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(convert_viterbi      PRIVATE "/MP")

@@ -83,7 +83,7 @@ private:
     // callbacks
     Observable<BasicAudioParams, const uint8_t*, const int> obs_audio_data;
     Observable<std::string&> obs_dynamic_label;
-    Observable<Basic_Slideshow*> obs_slideshow;
+    Observable<mot_transport_id_t, Basic_Slideshow*> obs_slideshow;
     Observable<MOT_Entity*> obs_MOT_entity;
 public:
     BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel, Basic_Radio_Dependencies* dependencies);
