@@ -12,13 +12,16 @@ if /I "%1" == "cmake-conf" call^
 
 if /I "%1" == "build" goto BUILD
 if /I "%1" == "help" goto HELP
-goto EXIT
+goto HELP
 
 :BUILD
-set ARGS=/p:CL_MPCOUNT=%NUMBER_OF_PROCESSORS% /m:%NUMBER_OF_PROCESSORS% /v:minimal /nologo
+set BUILD_REF="true"
+if "%4" == "--ignore-ref" set BUILD_REF="false" 
+
+set ARGS=/p:CL_MPCOUNT=%NUMBER_OF_PROCESSORS% /m:%NUMBER_OF_PROCESSORS% /p:BuildProjectReferences=%BUILD_REF% /v:minimal /nologo 
 
 set PROJ_PATH="%3"
-if "%~3" == "" set PROJ_PATH="build\view_data.vcxproj" 
+if "%~3" == "" set PROJ_PATH="build\basic_radio_app.vcxproj" 
 
 if /I "%2" == ""        call msbuild %PROJ_PATH% /p:Configuration=Release          %ARGS%
 if /I "%2" == "release" call msbuild %PROJ_PATH% /p:Configuration=Release          %ARGS%
