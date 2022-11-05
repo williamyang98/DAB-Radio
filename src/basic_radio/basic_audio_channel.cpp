@@ -145,11 +145,11 @@ void BasicAudioChannel::SetupCallbacks(void) {
     });
 
     auto& pad_processor = aac_data_decoder->Get_PAD_Processor();
-    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N) {
+    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N, const uint8_t charset) {
         const auto* label_str = reinterpret_cast<const char*>(label);
         dynamic_label = std::string(label_str, N);
         obs_dynamic_label.Notify(dynamic_label);
-        LOG_MESSAGE("dynamic_label[{}] = {}", N, dynamic_label);
+        LOG_MESSAGE("dynamic_label[{}]={} | charset={}", N, dynamic_label, charset);
     });
 
     pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {

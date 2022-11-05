@@ -27,8 +27,8 @@ private:
     GroupType group_type;
     PAD_Dynamic_Label_Assembler* assembler;
     uint8_t previous_toggle_flag;
-    // label_buffer, nb_label_bytes
-    Observable<const uint8_t*, const int> obs_on_label_change;
+    // label_buffer, nb_label_bytes, charset
+    Observable<const uint8_t*, const int, const uint8_t> obs_on_label_change;
     Observable<Command> obs_on_command;
 public:
     PAD_Dynamic_Label();

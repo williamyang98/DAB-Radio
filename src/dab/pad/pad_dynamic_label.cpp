@@ -176,7 +176,7 @@ void PAD_Dynamic_Label::InterpretLabelSegment(void) {
     const auto* label_str = reinterpret_cast<const char*>(label);
     const int nb_label_bytes = assembler->GetSize();
     LOG_MESSAGE("label[{}]={}", nb_label_bytes, std::string_view(label_str, nb_label_bytes));
-    obs_on_label_change.Notify(label, nb_label_bytes);
+    obs_on_label_change.Notify(label, nb_label_bytes, assembler->GetCharSet());
 }
 
 void PAD_Dynamic_Label::InterpretCommand(void) {
