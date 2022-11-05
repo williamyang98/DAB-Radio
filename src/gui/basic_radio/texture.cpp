@@ -13,13 +13,20 @@
 #define STBI_ONLY_JPEG
 #include <stb_image.h>
 
-#define GLCall(func) GLClearErrors();\
-    func;\
-    assert(GLCheckErrors(#func, __FILE__, __LINE__))
+#define GLCall(func) GLClearErrors(#func, __FILE__, __LINE__); func; assert(GLCheckErrors(#func, __FILE__, __LINE__))
 
-void GLClearErrors() {
-    while (glGetError() != GL_NO_ERROR) {
-
+void GLClearErrors(const char *funcName, const char *file, int line) {
+    while (GLenum error = glGetError()) {
+        if (error == GL_NO_ERROR) {
+            return;
+        }
+        // If we don't call it inside a valid opengl context, this error code occurs infinitely
+        // Source: https://stackoverflow.com/questions/31462770/glgeterror-returns-1282-infinitely
+        // This can occur easily with an imgui app because the context closes before the gui controller is deleted
+        if (error == GL_INVALID_OPERATION) {
+            return;
+        }
+        std::cerr << "[OpenGL Error] (" << error << "): " << funcName << "@" << file << ":" << line << std::endl;
     }
 }
  
