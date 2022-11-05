@@ -505,8 +505,8 @@ float OFDM_Demod::ApplyPLL(
     float dt = dt0;
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
-            std::cosf(dt),
-            std::sinf(dt));
+            std::cos(dt),
+            std::sin(dt));
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * freq_fine_offset * Ts;
     }
@@ -601,7 +601,7 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float cyclic_error) {
     const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
     const float fine_freq_adjust = cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
     freq_fine_offset -= cfg.fine_freq_update_beta*fine_freq_adjust;
-    freq_fine_offset = std::fmodf(freq_fine_offset, ofdm_freq_spacing/2.0f);
+    freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f);
 }
 
 void OFDM_Demod::CalculateMagnitude(const std::complex<float>* fft_buf, float* mag_buf) {

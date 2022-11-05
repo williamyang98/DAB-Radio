@@ -43,8 +43,8 @@ void ApplyFrequencyShift(
     float dt = 0.0f;
     for (int i = 0; i < N; i++) {
         auto pll = std::complex<float>(
-            std::cosf(dt),
-            std::sinf(dt));
+            std::cos(dt),
+            std::sin(dt));
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * frequency * Ts;
     }

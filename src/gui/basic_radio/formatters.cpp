@@ -14,7 +14,7 @@ std::string GetSubchannelProtectionLabel(Subchannel& subchannel) {
 
 uint32_t GetSubchannelBitrate(Subchannel& subchannel) {
     if (subchannel.is_uep) {
-        const auto& descriptor = GetUEPDescriptor(subchannel);
+        const auto descriptor = GetUEPDescriptor(subchannel);
         return descriptor.bitrate;
     }
 

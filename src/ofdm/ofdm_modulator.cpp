@@ -96,7 +96,7 @@ void OFDM_Modulator::CreateDataSymbol(const uint8_t* sym_data_in, std::complex<f
     const int nb_data_in = params.nb_data_carriers*2/8; 
     const int nb_out = params.nb_symbol_period;
 
-    static float A = 1.0f/std::sqrtf(2.0f);
+    static float A = 1.0f/std::sqrt(2.0f);
     static std::complex<float> PHASE_MAP[4] = {
         {-A,-A}, {A,-A}, {A,A}, {-A,A}};
 
