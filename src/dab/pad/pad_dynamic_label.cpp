@@ -5,8 +5,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-dynamic-label") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(__VA_ARGS__)
 
 #undef min
 

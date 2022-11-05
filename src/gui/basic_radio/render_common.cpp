@@ -86,7 +86,7 @@ void RenderEnsemble(BasicRadio* radio) {
                 ImGui::TableSetColumnIndex(0);\
                 ImGui::TextWrapped(name);\
                 ImGui::TableSetColumnIndex(1);\
-                ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+                ImGui::TextWrapped(fmt, __VA_ARGS__);\
                 ImGui::PopID();\
             }\
 
@@ -124,7 +124,7 @@ void RenderDateTime(BasicRadio* radio) {
                 ImGui::TableSetColumnIndex(0);\
                 ImGui::TextWrapped(name);\
                 ImGui::TableSetColumnIndex(1);\
-                ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+                ImGui::TextWrapped(fmt, __VA_ARGS__);\
                 ImGui::PopID();\
             }\
 
@@ -161,7 +161,7 @@ void RenderDatabaseStatistics(BasicRadio* radio) {
                 ImGui::TableSetColumnIndex(0);\
                 ImGui::TextWrapped(name);\
                 ImGui::TableSetColumnIndex(1);\
-                ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+                ImGui::TextWrapped(fmt, __VA_ARGS__);\
                 ImGui::PopID();\
             }\
 

@@ -6,8 +6,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-processor") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-processor") << fmt::format(__VA_ARGS__)
 
 
 constexpr int MAX_XPAD_BYTES = 196;

@@ -11,7 +11,7 @@
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
-  #define LOG_MESSAGE(...) fprintf(stderr, ##__VA_ARGS__)
+  #define LOG_MESSAGE(...) fprintf(stderr, __VA_ARGS__)
 #else
   #define LOG_MESSAGE(...) (void)0
 #endif

@@ -9,8 +9,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "fig-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "fig-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "fig-processor") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "fig-processor") << fmt::format(__VA_ARGS__)
 
 struct ServiceIdentifier {
     uint8_t country_id = 0;

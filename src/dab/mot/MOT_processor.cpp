@@ -4,9 +4,9 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "mot-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "mot-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_WARN(...) CLOG(WARNING, "mot-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "mot-processor") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "mot-processor") << fmt::format(__VA_ARGS__)
+#define LOG_WARN(...) CLOG(WARNING, "mot-processor") << fmt::format(__VA_ARGS__)
 
 constexpr static MOT_Data_Type VALID_DATA_TYPES[] = {
     ECM_EMM_DATA, HEADER, 
@@ -43,7 +43,7 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, cons
     }
 
     if (!ValidateDataType(header.data_group_type)) {
-        LOG_ERROR("Got invalid data group type in MSC header {}", header.data_group_type);
+        LOG_ERROR("Got invalid data group type in MSC header {}", static_cast<uint8_t>(header.data_group_type));
         return;
     }
 

@@ -3,8 +3,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-data-length") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-data-length") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-data-length") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-data-length") << fmt::format(__VA_ARGS__)
 
 constexpr int TOTAL_DATA_GROUP_BYTES = 4;
 

@@ -4,8 +4,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "msc-xpad-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "msc-xpad-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "msc-xpad-processor") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "msc-xpad-processor") << fmt::format(__VA_ARGS__)
 
 static const auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401

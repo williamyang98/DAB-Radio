@@ -10,8 +10,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "msc-decoder") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "msc-decoder") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(__VA_ARGS__)
 
 // NOTE: Capacity channel sizes for mode I are constant
 constexpr int NB_CU_BITS = 64;

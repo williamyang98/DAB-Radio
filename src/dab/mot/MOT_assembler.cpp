@@ -3,8 +3,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "mot-assembler") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "mot-assembler") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "mot-assembler") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "mot-assembler") << fmt::format(__VA_ARGS__)
 
 MOT_Assembler::MOT_Assembler() {
     Reset();

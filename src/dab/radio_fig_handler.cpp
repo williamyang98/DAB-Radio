@@ -8,8 +8,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "radio-fig-handler") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "radio-fig-handler") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "radio-fig-handler") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "radio-fig-handler") << fmt::format(__VA_ARGS__)
 
 // fig 0/0 - ensemble information
 void Radio_FIG_Handler::OnEnsemble_1_ID(

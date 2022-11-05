@@ -5,8 +5,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(__VA_ARGS__)
 
 constexpr int MAX_SUPER_FRAME_SIZE = 10000;
 

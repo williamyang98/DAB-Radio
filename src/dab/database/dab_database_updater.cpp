@@ -6,8 +6,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "db-updater") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "db-updater") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "db-updater") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "db-updater") << fmt::format(__VA_ARGS__)
 
 // macros for definining a form field
 // ALT = if property name of data structure is different from argument name

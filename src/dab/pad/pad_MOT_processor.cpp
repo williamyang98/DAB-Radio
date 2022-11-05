@@ -5,8 +5,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-MOT") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-MOT") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "pad-MOT") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "pad-MOT") << fmt::format(__VA_ARGS__)
 
 constexpr int TOTAL_CRC_BYTES = 2;
 constexpr int TOTAL_SEGMENT_HEADER_BYTES = 2;

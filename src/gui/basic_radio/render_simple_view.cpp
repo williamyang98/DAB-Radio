@@ -82,7 +82,7 @@ void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, S
                 ImGui::TableSetColumnIndex(0);\
                 ImGui::TextWrapped(name);\
                 ImGui::TableSetColumnIndex(1);\
-                ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+                ImGui::TextWrapped(fmt, __VA_ARGS__);\
                 ImGui::PopID();\
             }\
 
@@ -135,7 +135,7 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* cont
             ImGui::TableSetColumnIndex(0);\
             ImGui::TextWrapped(name);\
             ImGui::TableSetColumnIndex(1);\
-            ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+            ImGui::TextWrapped(fmt, __VA_ARGS__);\
             ImGui::PopID();\
         }\
 
@@ -258,7 +258,7 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
         ImGui::TableSetColumnIndex(0);\
         ImGui::TextWrapped(name);\
         ImGui::TableSetColumnIndex(1);\
-        ImGui::TextWrapped(fmt, ##__VA_ARGS__);\
+        ImGui::TextWrapped(fmt, __VA_ARGS__);\
         ImGui::PopID();\
     }\
 

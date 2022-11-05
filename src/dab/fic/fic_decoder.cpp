@@ -8,8 +8,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(__VA_ARGS__)
 
 FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_group)
 // NOTE: 1/3 coding rate after puncturing and 1/4 code

@@ -6,7 +6,6 @@
 #include <cmath>
 #include <complex>
 #include <stdio.h>
-#include <kiss_fft.h>
 
 #include "ofdm_modulator.h"
 #include "ofdm_params.h"

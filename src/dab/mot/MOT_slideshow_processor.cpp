@@ -3,8 +3,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "mot-slideshow") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "mot-slideshow") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "mot-slideshow") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "mot-slideshow") << fmt::format(__VA_ARGS__)
 
 // DOC: ETSI TS 101 499
 // Used for all the following code
