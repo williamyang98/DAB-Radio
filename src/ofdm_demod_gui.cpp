@@ -27,7 +27,7 @@ class App: public ImguiSkeleton
 {
 private:
     // buffers
-    FILE* const fp_in;
+    FILE* fp_in;
     std::complex<uint8_t>* buf_rd;
     std::complex<float>* buf_rd_raw;
     const int block_size;
@@ -46,18 +46,34 @@ public:
     bool is_wait_step = false;
     bool is_always_dump_frame = false;
 public:
-    App(OFDM_Demod* _demod,
-        FILE* const _fp_in, const int _block_size)
-    : demod(_demod),
-      fp_in(_fp_in), block_size(_block_size)
+    App(const int transmission_mode, FILE* const _fp_in, const int _block_size)
+    : fp_in(_fp_in), block_size(_block_size)
     {
         buf_rd = new std::complex<uint8_t>[block_size];
         buf_rd_raw = new std::complex<float>[block_size];
 
         demod_state = OFDM_Demod::State::FINDING_NULL_POWER_DIP;
+
+        // Get our OFDM demodulator and frequency deinterleaver 
+        {
+            const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
+            auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
+            get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
+            auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
+            get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+
+            demod = new OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
+            delete [] ofdm_prs_ref;
+            delete [] ofdm_mapper_ref;
+        }
         {
             using namespace std::placeholders;
             demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
+        }
+        {
+            auto& cfg = demod->GetConfig();
+            cfg.toggle_flags.is_update_data_sym_mag = true;
+            cfg.toggle_flags.is_update_tii_sym_mag = true;
         }
 
         is_running = false;
@@ -66,7 +82,9 @@ public:
     ~App() {
         is_running = false;
         fclose(fp_in);
+        fp_in = NULL;
         runner_thread->join();
+        delete demod;
         delete runner_thread;
         delete [] buf_rd;
         delete [] buf_rd_raw;
@@ -157,10 +175,16 @@ private:
             // Inducing another single byte dropout will correct the stream
             if (flag_apply_rd_offset) {
                 uint8_t dummy = 0x00;
+                if (fp_in == NULL) {
+                    return;
+                }
                 auto nb_read = fread(&dummy, sizeof(uint8_t), 1, fp_in);
                 flag_apply_rd_offset = false;
             }
 
+            if (fp_in == NULL) {
+                return;
+            }
             auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
             if (nb_read != block_size) {
                 fprintf(stderr, "Failed to read in data\n");
@@ -217,10 +241,6 @@ int main(int argc, char** argv)
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
-            if (transmission_mode <= 0 || transmission_mode > 4) {
-                fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
-                return 1;
-            }
             break;
         case 'S':
             is_step_mode = true;
@@ -235,7 +255,11 @@ int main(int argc, char** argv)
         }
     }
 
-    // app startup
+    if (transmission_mode <= 0 || transmission_mode > 4) {
+        fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
+        return 1;
+    }
+
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
         errno_t err = fopen_s(&fp_in, rd_filename, "r");
@@ -248,24 +272,7 @@ int main(int argc, char** argv)
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
 
-    // Get our OFDM demodulator and frequency deinterleaver 
-    const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-    auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-    get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-    auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-    get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
-
-    auto ofdm_demod = OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-    delete [] ofdm_prs_ref;
-    delete [] ofdm_mapper_ref;
-
-    {
-        auto& cfg = ofdm_demod.GetConfig();
-        cfg.toggle_flags.is_update_data_sym_mag = true;
-        cfg.toggle_flags.is_update_tii_sym_mag = true;
-    }
-
-    auto app = new App(&ofdm_demod, fp_in, block_size);
+    auto app = new App(transmission_mode, fp_in, block_size);
     app->is_wait_step = is_step_mode;
     app->is_always_dump_frame = is_frame_output;
     app->Start();

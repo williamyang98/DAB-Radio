@@ -145,9 +145,9 @@ OFDM_Demod::~OFDM_Demod() {
     // join all threads 
     coordinator_thread->Wait();
     is_running = false;
-    coordinator_thread->Start();
+    coordinator_thread->Stop();
     for (auto& pipeline: pipelines) {
-        pipeline->Start();
+        pipeline->Stop();
     }
     for (auto& thread: threads) {
         thread->join();
@@ -377,7 +377,7 @@ int OFDM_Demod::FillBuffer(const std::complex<float>* buf, const int N) {
 
 void OFDM_Demod::CoordinatorThread() {
     coordinator_thread->WaitStart();
-    if (!is_running) {
+    if (coordinator_thread->IsStopped()) {
         return;
     }
     for (auto& pipeline: pipelines) {
@@ -416,7 +416,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data, OFDM_De
     const int symbol_end_dqpsk = std::min(symbol_end, params.nb_frame_symbols-1);
 
     thread_data->WaitStart();
-    if (!is_running) {
+    if (thread_data->IsStopped()) {
         return;
     }
 

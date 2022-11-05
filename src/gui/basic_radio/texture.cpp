@@ -32,6 +32,12 @@ void GLClearErrors(const char *funcName, const char *file, int line) {
  
 bool GLCheckErrors(const char *funcName, const char *file, int line) {
     while (GLenum error = glGetError()) {
+        // If we don't call it inside a valid opengl context, this error code occurs infinitely
+        // Source: https://stackoverflow.com/questions/31462770/glgeterror-returns-1282-infinitely
+        // This can occur easily with an imgui app because the context closes before the gui controller is deleted
+        if (error == GL_INVALID_OPERATION) {
+            return true;
+        }
         std::cerr << "[OpenGL Error] (" << error << "): " << funcName << "@" << file << ":" << line << std::endl;
         return false;
     }
