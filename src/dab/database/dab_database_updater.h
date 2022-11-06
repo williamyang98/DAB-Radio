@@ -279,8 +279,6 @@ public:
     // Returns NULL if it couldn't find the instance
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
-    // TODO: remove this is for debugging
-    inline std::vector<UpdaterChild*>& GetUpdaters() { return all_updaters; }
     // Create a copy of the database with complete entities
     void ExtractCompletedDatabase(DAB_Database& dest_db);
     // Get status of database
