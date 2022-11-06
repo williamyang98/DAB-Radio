@@ -107,10 +107,11 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
     // Setup our multithreaded processing pipeline
     coordinator_thread = new OFDM_Demod_Coordinator_Thread();
     {
-        const int nb_threads = static_cast<int>(std::thread::hardware_concurrency());
-        // const int nb_threads = 1;
-        // const int nb_threads = 16;
         const int nb_all_syms = params.nb_frame_symbols+1;
+        const int nb_threads = std::min(
+            nb_all_syms, 
+            static_cast<int>(std::thread::hardware_concurrency()));
+            
         const int nb_sym_per_thread = nb_all_syms/nb_threads;
         for (int i = 0; i < nb_threads; i++) {
             const int symbol_start = i*nb_sym_per_thread;
