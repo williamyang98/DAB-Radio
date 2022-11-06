@@ -88,12 +88,14 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
     // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
     pipeline_fft_buffer   = new std::complex<float>[params.nb_fft*(params.nb_frame_symbols+1)];
     {
-        const int N = params.nb_fft*(params.nb_symbol_period-1);
+        const int nb_dqpsk_symbols = params.nb_frame_symbols-1;
+        const int N = params.nb_fft*nb_dqpsk_symbols;
         pipeline_dqpsk_vec_buffer = new std::complex<float>[N];
         pipeline_dqpsk_buffer = new float[N];
     }
     {
-        const int N = params.nb_data_carriers*(params.nb_frame_symbols-1)*2;
+        const int nb_dqpsk_symbols = params.nb_frame_symbols-1;
+        const int N = params.nb_data_carriers*nb_dqpsk_symbols*2;
         pipeline_out_bits = new viterbi_bit_t[N];
     }
     pipeline_fft_mag_buffer = new float[params.nb_fft];
