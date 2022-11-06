@@ -7,10 +7,11 @@ enum class MOT_Slideshow_Alert {
     NOT_USED, EMERGENCY, RESERVED_FUTURE_USE
 };
 
-// Processor slideshow MOT entities
+// Process slideshow specific header extension parameters
 class MOT_Slideshow_Processor
 {
 public:
+    // id, buf[N] represents a slideshow specific header extension parameter
     bool ProcessHeaderExtension(MOT_Slideshow* entity, const uint8_t id, const uint8_t* buf, const int N);
 private:
     bool ProcessHeaderExtension_CategoryID_SlideID(MOT_Slideshow* entity, const uint8_t* buf, const int N);

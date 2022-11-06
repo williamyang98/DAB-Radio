@@ -7,8 +7,6 @@ typedef int16_t viterbi_bit_t;
 
 class ViterbiDecoder;
 class AdditiveScrambler;
-template <typename T>
-class CRC_Calculator;
 
 // Decodes the convolutionally encoded, scrambled and CRC16 group of FIGs
 class FIC_Decoder 
@@ -16,7 +14,6 @@ class FIC_Decoder
 private:
     ViterbiDecoder* vitdec;
     AdditiveScrambler* scrambler;
-    CRC_Calculator<uint16_t>* crc16_calc;
     uint8_t* decoded_bytes;
 
     const int nb_fibs_per_group;

@@ -1,5 +1,4 @@
 #pragma once
-#include "algorithms/crc.h"
 #include "../observable.h"
 
 class Reed_Solomon_Decoder;
@@ -23,8 +22,6 @@ public:
 private:
     enum State { WAIT_FRAME_START, COLLECT_FRAMES };
 private:
-    CRC_Calculator<uint16_t>* firecode_crc_calc;
-    CRC_Calculator<uint16_t>* access_unit_crc_calc;
     Reed_Solomon_Decoder* rs_decoder = NULL;
     uint8_t* rs_encoded_buf = NULL;
     int* rs_error_positions = NULL;

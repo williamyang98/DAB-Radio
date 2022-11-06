@@ -27,7 +27,6 @@ enum MOT_Data_Type: uint8_t {
 
 typedef uint16_t mot_transport_id_t;
 struct MOT_MSC_Data_Group_Header;
-
 struct MOT_Entity;
 struct MOT_Header_Entity;
 struct MOT_UTC_Time;
@@ -40,11 +39,13 @@ class MOT_Processor
 private:
     // DOC: ETSI EN 301 234
     // Clause 5.3.2.1: Interleaving MOT entities in one MOT stream 
-    // TODO: In MOT directory mode we can encounter multiple parallel transport ids
+    // NOTE: In MOT directory mode we can encounter multiple parallel transport ids
     //       Thus we need a data structure which can keep track of them
+    // TODO: We need to remove entities that are no longer updated
+    //       Implement a LRU queue
     std::unordered_map<mot_transport_id_t, MOT_Assembler_Table> assembler_tables;
 
-    // args: new_transport_id
+    // args: entity update
     Observable<MOT_Entity> obs_on_entity_complete;
 public:
     void Process_Segment(const MOT_MSC_Data_Group_Header header, const uint8_t* buf, const int N);

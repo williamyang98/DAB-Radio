@@ -65,28 +65,34 @@ int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
     return curr_byte;
 }
 
-AAC_Frame_Processor::AAC_Frame_Processor() {
+static auto FIRECODE_CRC_CALC = []() {
     // DOC: ETSI TS 102 563 
-    // For the following polynomials refer to the above document
-
     // Refer to the section below table 2 in clause 5.2
     // Generator polynomial for the the fire code
     // G(x) = (x^11 + 1) * (x^5 + x^3 + x^2 + x^1 + 1) 
     // G(x) = x^16 + x^14 + x^13 + x^12 + x^11 + x^5 + x^3 + x^2 + x^1 + 1
     const uint16_t firecode_poly = 0b0111100000101111;
-    firecode_crc_calc = new CRC_Calculator<uint16_t>(firecode_poly);
-    firecode_crc_calc->SetInitialValue(0x0000);
-    firecode_crc_calc->SetFinalXORValue(0x0000);
+    auto calc = new CRC_Calculator<uint16_t>(firecode_poly);
+    calc->SetInitialValue(0x0000);
+    calc->SetFinalXORValue(0x0000);
+    return calc;
+} ();
 
+static auto ACCESS_UNIT_CRC_CALC = []() {
+    // DOC: ETSI TS 102 563 
     // Refer to the section below table 1 in clause 5.2
     // Generator polynomial for the access unit crc check
     // G(x) = x^16 + x^12 + x^5 + 1
     // initial = all 1s, complement = true
     const uint16_t au_crc_poly = 0b0001000000100001;
-    access_unit_crc_calc = new CRC_Calculator<uint16_t>(au_crc_poly);
-    access_unit_crc_calc->SetInitialValue(0xFFFF);
-    access_unit_crc_calc->SetFinalXORValue(0xFFFF);
+    auto calc = new CRC_Calculator<uint16_t>(au_crc_poly);
+    calc->SetInitialValue(0xFFFF);
+    calc->SetFinalXORValue(0xFFFF);
+    return calc;
+} ();
 
+AAC_Frame_Processor::AAC_Frame_Processor() {
+    // DOC: ETSI TS 102 563 
     // Refer to clause 6.1 on reed solomon coding
     // The polynomial for this is given as
     // G(x) = x^8 + x^4 + x^3 + x^2 + 1
@@ -108,10 +114,7 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
 }
 
 AAC_Frame_Processor::~AAC_Frame_Processor() {
-    delete firecode_crc_calc;
-    delete access_unit_crc_calc;
     delete super_frame_buf;
-
     delete rs_decoder;
     delete [] rs_encoded_buf;
     delete [] rs_error_positions;
@@ -164,7 +167,7 @@ bool AAC_Frame_Processor::CalculateFirecode(const uint8_t* buf, const int N) {
     auto* crc_data = &buf[2];
     const int nb_crc_bytes = 9;
     const uint16_t crc_rx = (buf[0] << 8) | buf[1];
-    const uint16_t crc_pred = firecode_crc_calc->Process(crc_data, nb_crc_bytes);
+    const uint16_t crc_pred = FIRECODE_CRC_CALC->Process(crc_data, nb_crc_bytes);
     const bool is_valid = (crc_rx == crc_pred);
     LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}",
         is_valid, crc_rx, crc_pred);
@@ -283,7 +286,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
         const uint8_t* crc_buf = &au_buf[nb_data_bytes];
         const uint16_t crc_rx = (crc_buf[0] << 8) | crc_buf[1];
-        const uint16_t crc_pred = access_unit_crc_calc->Process(au_buf, nb_data_bytes);
+        const uint16_t crc_pred = ACCESS_UNIT_CRC_CALC->Process(au_buf, nb_data_bytes);
         const bool is_crc_valid = (crc_pred == crc_rx);
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 

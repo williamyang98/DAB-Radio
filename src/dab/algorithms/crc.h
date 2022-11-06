@@ -14,6 +14,8 @@ private:
     // key = polynomial, value = lookup table
     // NOTE: inline keyword allows for initialization of static template member
     //       without it we get a segmentation fault when using the table (c++17 required)
+    // TODO: this runtime initialisation doesn't seem to work for non MSVC compilers
+    //       on these other platforms we get a math error because it does (x % nb_bins) when nb_bins=0
     inline static std::unordered_map<T, T*> LOOKUP_TABLES;
 private:
     T* lut;
