@@ -453,9 +453,41 @@ void Radio_FIG_Handler::OnServiceComponent_5_UserApplication(
     s_u->SetExtendedCountryCode(extended_country_code);
 
     auto sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
-    // TODO: how to handle this information?
+
     LOG_MESSAGE("service_ref={} component_id={} app_type={} N={}",
         service_reference, service_component_id, app_type, N);
+
+    if (N < 2) {
+        return;
+    } 
+
+    // TODO: Use this information somehow
+    //       This information is used to indicate the type of PAD (programme associated data) being transmitted over an audio stream 
+    //       Usually this just indicates that an MOT data service (dscty=60) is being transmitted over the PAD component
+    //       Right now this field seems redundant since the PAD sent over the audio stream indicates presence of MOT 
+    const uint8_t CA_flag       = (buf[0] & 0b10000000) >> 7;
+    const uint8_t CA_Org_flag   = (buf[0] & 0b01000000) >> 6;
+    const uint8_t rfu1          = (buf[0] & 0b00100000) >> 5;
+    const uint8_t xpad_appty    = (buf[0] & 0b00011111) >> 0;
+    const uint8_t dg_flag       = (buf[1] & 0b10000000) >> 7;
+    const uint8_t rfu2          = (buf[1] & 0b01000000) >> 6;
+    const uint8_t dscty         = (buf[1] & 0b00111111) >> 0;   
+
+    uint16_t CAOrg = 0;
+    if (CA_Org_flag) {
+        if (N < 4) {
+            LOG_ERROR("[fig-xpad] Insufficient length for CA org flag {}<{}", N, 3);
+        } else {
+            CAOrg = (buf[2] << 8) | buf[3];
+        }
+    }
+
+    // DOC: ETSI TS 101 756 
+    // Table 2b: DSCTy types
+    // 60 = MOT (usually just a slideshow)
+    LOG_MESSAGE("[fig-xpad] CA?={} CA_org?={} rfu1={} xpad_appty={} dg?={} rfu2={} dscty={} caorg={}",
+        CA_flag, CA_Org_flag, rfu1, xpad_appty, dg_flag, rfu2, dscty, CAOrg);
+    
 }
 
 // fig 0/14 - Packet mode FEC type 
