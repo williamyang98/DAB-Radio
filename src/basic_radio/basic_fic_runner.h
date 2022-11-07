@@ -1,9 +1,9 @@
 #pragma once
 
 #include "basic_threaded_channel.h"
-#include "dab/algorithms/viterbi_decoder.h"
 #include "dab/constants/dab_parameters.h"
 #include "dab/dab_misc_info.h"
+#include "../viterbi_config.h"
 
 class DAB_Database;
 class DAB_Database_Updater;

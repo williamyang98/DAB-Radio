@@ -6,14 +6,11 @@
 #include "basic_threaded_channel.h"
 #include "basic_radio_dependencies.h"
 #include "basic_slideshow.h"
-
-#include "dab/algorithms/viterbi_decoder.h"
 #include "dab/constants/dab_parameters.h"
 #include "dab/database/dab_database_entities.h"
-
 #include "audio/pcm_player.h"
-
 #include "../observable.h"
+#include "../viterbi_config.h"
 
 class MSC_Decoder;
 class AAC_Frame_Processor;

@@ -20,10 +20,11 @@ struct vitdec_t;
 #define RENORMALIZE_THRESHOLD   (SHRT_MAX-3000) // If the error starts to overflow, reduce it to this
 #define INITIAL_START_ERROR     SHRT_MIN        // Initial error of initial state
 #define INITIAL_NON_START_ERROR (SHRT_MIN+3000) // Initial error of non-initial states
-#define SOFT_DECISION_HIGH      256             // Value associated with high bit
-#define SOFT_DECISION_LOW       0               // Value associated with low bit
 
-vitdec_t* create_viterbi(const uint8_t polys[CODE_RATE], const int len);
+vitdec_t* create_viterbi(
+    const uint8_t polys[CODE_RATE], const int len, 
+    const COMPUTETYPE soft_decision_high, const COMPUTETYPE soft_decision_low);
+
 void delete_viterbi(vitdec_t* vp);
 void init_viterbi(vitdec_t* vp, int starting_state);
 

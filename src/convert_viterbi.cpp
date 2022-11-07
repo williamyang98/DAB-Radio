@@ -6,8 +6,7 @@
 
 #include "getopt/getopt.h"
 #include "dab/constants/dab_parameters.h"
-#include "dab/algorithms/viterbi_decoder.h"
-#include "dab/algorithms/phil_karn_viterbi_decoder.h"
+#include "../viterbi_config.h"
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
@@ -138,13 +137,13 @@ void DecodeBytesToBits(const uint8_t* bytes, viterbi_bit_t* bits, const int nb_b
     for (int i = 0; i < nb_bytes; i++) {
         for (int j = 0; j < 8; j++) {
             uint8_t v = (bytes[i] >> j) & 0b1;
-            bits[curr_bit++] = v ? SOFT_DECISION_HIGH : SOFT_DECISION_LOW;
+            bits[curr_bit++] = v ? SOFT_DECISION_VITERBI_HIGH : SOFT_DECISION_VITERBI_LOW;
         }
     }
 }
 
 void EncodeBitsToBytes(const viterbi_bit_t* bits, uint8_t* bytes, const int nb_bits) {
-    const viterbi_bit_t mid = (SOFT_DECISION_HIGH+SOFT_DECISION_LOW)/2;
+    const viterbi_bit_t mid = (SOFT_DECISION_VITERBI_HIGH+SOFT_DECISION_VITERBI_LOW)/2;
 
     int curr_byte = 0;
     for (int i = 0; i < nb_bits; i+=8) {

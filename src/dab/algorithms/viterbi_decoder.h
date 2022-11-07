@@ -2,8 +2,9 @@
 
 #include <stdint.h>
 
-// Phil Karn's implementation uses soft decision decoding
-typedef int16_t viterbi_bit_t;
+#include "../viterbi_config.h"
+
+// Phil Karn's implementation
 struct vitdec_t;
 
 // A wrapper around the C styled api in Phil Karn's viterbi decoder implementation

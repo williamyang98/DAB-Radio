@@ -29,10 +29,14 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     // x0 = 1-2*b0, x1 = 1-2*b1
     // b = (1-x)/2
 
-    // NOTE: Phil Karn's viterbi decoder is configured so that [b,b'] => {(0,0), (1,256)}
+    // NOTE: Phil Karn's viterbi decoder is configured so that b => b' : (0,1) => (-127,+127)
     // Where b is the logical bit value, and b' is the value used for soft decision decoding
-    // b' = b*256 = 128 - 128*b
-    return 128 - static_cast<viterbi_bit_t>(128.0f*x);
+    // b' = (2*b-1) * 127 
+    // b' = (1-x-1)*127
+    // b' = -127*x
+    constexpr float scale = static_cast<float>(SOFT_DECISION_VITERBI_HIGH);
+    const float v = -x*scale;
+    return static_cast<viterbi_bit_t>(v);
 }
 
 OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _prs_fft_ref, const int* _carrier_mapper)

@@ -13,14 +13,14 @@ CIF_Deinterleaver::CIF_Deinterleaver(const int _nb_bytes)
 : nb_bytes(_nb_bytes) 
 {
     const int nb_bits = nb_bytes*8;
-    bits_buffer = new deinterleaver_bit_t[nb_bits*TOTAL_CIF_DEINTERLEAVE];
+    bits_buffer = new viterbi_bit_t[nb_bits*TOTAL_CIF_DEINTERLEAVE];
 }
 
 CIF_Deinterleaver::~CIF_Deinterleaver() {
     delete [] bits_buffer;
 }
 
-void CIF_Deinterleaver::Consume(const deinterleaver_bit_t* bits_buf) {
+void CIF_Deinterleaver::Consume(const viterbi_bit_t* bits_buf) {
     const int nb_bits = nb_bytes*8;
 
     // Append data into circular buffer
@@ -36,7 +36,7 @@ void CIF_Deinterleaver::Consume(const deinterleaver_bit_t* bits_buf) {
     } 
 }
 
-bool CIF_Deinterleaver::Deinterleave(deinterleaver_bit_t* out_bits_buf) {
+bool CIF_Deinterleaver::Deinterleave(viterbi_bit_t* out_bits_buf) {
     const int nb_bits = nb_bytes*8;
 
     // insufficient frames to deinterleave
@@ -47,7 +47,7 @@ bool CIF_Deinterleaver::Deinterleave(deinterleaver_bit_t* out_bits_buf) {
     // Create a list of buffer pointers
     // Index=0   points to the newest frame
     // Index=end points to the oldest frame
-    deinterleaver_bit_t* BUFFER_LOOKUP[TOTAL_CIF_DEINTERLEAVE]; 
+    viterbi_bit_t* BUFFER_LOOKUP[TOTAL_CIF_DEINTERLEAVE]; 
     for (int i = 0; i < TOTAL_CIF_DEINTERLEAVE; i++) {
         const int frame_index = ((curr_frame-1) -i + TOTAL_CIF_DEINTERLEAVE) % TOTAL_CIF_DEINTERLEAVE;
         BUFFER_LOOKUP[i] = &bits_buffer[frame_index*nb_bits];

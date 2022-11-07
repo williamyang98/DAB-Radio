@@ -1,9 +1,8 @@
 #pragma once
 
 #include <stdint.h>
+#include "../viterbi_config.h"
 #include "../observable.h"
-
-typedef int16_t viterbi_bit_t;
 
 class ViterbiDecoder;
 class AdditiveScrambler;

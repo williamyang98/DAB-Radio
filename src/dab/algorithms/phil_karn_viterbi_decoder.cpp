@@ -118,6 +118,8 @@ struct vitdec_t {
 
     int maximum_decoded_bits;
     int curr_decoded_bit;
+
+    COMPUTETYPE soft_decision_max_error;
 };
 
 static inline uint8_t parityb(const uint8_t x) {
@@ -165,7 +167,10 @@ void init_viterbi(vitdec_t* vp, int starting_state) {
 }
 
 /* Create a new instance of a Viterbi decoder */
-vitdec_t* create_viterbi(const uint8_t polys[CODE_RATE], const int len) {
+vitdec_t* create_viterbi(
+    const uint8_t polys[CODE_RATE], const int len,
+    COMPUTETYPE soft_decision_high, COMPUTETYPE soft_decision_low) 
+{
     vitdec_t* vp;
     if (posix_memalign((void**)&vp, ALIGN_AMOUNT, sizeof(vitdec_t))) {
         return NULL;
@@ -183,10 +188,10 @@ vitdec_t* create_viterbi(const uint8_t polys[CODE_RATE], const int len) {
     for (int state = 0; state < NUMSTATES/2; state++) {
         for (int i = 0; i < CODE_RATE; i++) {
             const int v = parity((state << 1) & polys[i]);
-            vp->BranchTable[i].buf[state] = v ? SOFT_DECISION_HIGH : SOFT_DECISION_LOW;
+            vp->BranchTable[i].buf[state] = v ? soft_decision_high : soft_decision_low;
         }
     }
-
+    vp->soft_decision_max_error = soft_decision_high - soft_decision_low;
     init_viterbi(vp, 0);
     return vp;
 }
@@ -236,7 +241,7 @@ inline void BFLY(int i, int s, const COMPUTETYPE *syms, vitdec_t *vp, decision_t
     }
     metric = metric >> PRECISIONSHIFT;
 
-    const COMPUTETYPE max = ((CODE_RATE * (SOFT_DECISION_HIGH >> METRICSHIFT)) >> PRECISIONSHIFT);
+    const COMPUTETYPE max = ((CODE_RATE * (vp->soft_decision_max_error >> METRICSHIFT)) >> PRECISIONSHIFT);
 
     m0 = vp->old_metrics->buf[i] + metric;
     m1 = vp->old_metrics->buf[i+NUMSTATES/2] + (max-metric);
@@ -316,7 +321,7 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
                 metric = _mm_add_epi16(metric, branch_errors[j]);
             }
 
-            const COMPUTETYPE max = ((CODE_RATE*(SOFT_DECISION_HIGH >> METRICSHIFT)) >> PRECISIONSHIFT);
+            const COMPUTETYPE max = ((CODE_RATE*(vp->soft_decision_max_error >> METRICSHIFT)) >> PRECISIONSHIFT);
             __m128i m_metric = _mm_sub_epi16(_mm_set1_epi16(max), metric);
 
             /* Add branch metrics to path metrics */
