@@ -29,18 +29,22 @@ private:
     bool is_end;
     std::mutex mutex_end;
     std::condition_variable cv_end;
+
+    bool is_terminated;
 public:
     OFDM_Demod_Pipeline_Thread(const int _start, const int _end);
     ~OFDM_Demod_Pipeline_Thread();
     inline int GetSymbolStart(void) const { return symbol_start; }
     inline int GetSymbolEnd(void) const { return symbol_end; }
     inline float& GetAveragePhaseError(void) { return average_phase_error; }
-// reader thread
+    void Stop();
+    bool IsStopped() const { return is_terminated; }
+    // reader thread
     void Start();
     void WaitFFT();
     void StartDQPSK();
     void WaitEnd();
-// worker thread
+    // worker thread
     void WaitStart();
     void SignalFFT();
     void WaitDQPSK();
@@ -57,13 +61,17 @@ private:
     bool is_end;
     std::mutex mutex_end;
     std::condition_variable cv_end;
+
+    bool is_terminated;
 public:
     OFDM_Demod_Coordinator_Thread();
     ~OFDM_Demod_Coordinator_Thread();
-// reader thread
+    void Stop();
+    bool IsStopped() const { return is_terminated; }
+    // reader thread
     void Start();
     void Wait();
-// worker thread
+    // worker thread
     void WaitStart();
     void SignalEnd();
 };

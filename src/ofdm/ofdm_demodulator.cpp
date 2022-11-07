@@ -29,10 +29,14 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     // x0 = 1-2*b0, x1 = 1-2*b1
     // b = (1-x)/2
 
-    // NOTE: Phil Karn's viterbi decoder is configured so that [b,b'] => {(0,0), (1,256)}
+    // NOTE: Phil Karn's viterbi decoder is configured so that b => b' : (0,1) => (-127,+127)
     // Where b is the logical bit value, and b' is the value used for soft decision decoding
-    // b' = b*256 = 128 - 128*b
-    return 128 - static_cast<viterbi_bit_t>(128.0f*x);
+    // b' = (2*b-1) * 127 
+    // b' = (1-x-1)*127
+    // b' = -127*x
+    constexpr float scale = static_cast<float>(SOFT_DECISION_VITERBI_HIGH);
+    const float v = -x*scale;
+    return static_cast<viterbi_bit_t>(v);
 }
 
 OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _prs_fft_ref, const int* _carrier_mapper)
@@ -88,12 +92,14 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
     // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
     pipeline_fft_buffer   = new std::complex<float>[params.nb_fft*(params.nb_frame_symbols+1)];
     {
-        const int N = params.nb_fft*(params.nb_symbol_period-1);
+        const int nb_dqpsk_symbols = params.nb_frame_symbols-1;
+        const int N = params.nb_fft*nb_dqpsk_symbols;
         pipeline_dqpsk_vec_buffer = new std::complex<float>[N];
         pipeline_dqpsk_buffer = new float[N];
     }
     {
-        const int N = params.nb_data_carriers*(params.nb_frame_symbols-1)*2;
+        const int nb_dqpsk_symbols = params.nb_frame_symbols-1;
+        const int N = params.nb_data_carriers*nb_dqpsk_symbols*2;
         pipeline_out_bits = new viterbi_bit_t[N];
     }
     pipeline_fft_mag_buffer = new float[params.nb_fft];
@@ -105,10 +111,11 @@ OFDM_Demod::OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _pr
     // Setup our multithreaded processing pipeline
     coordinator_thread = new OFDM_Demod_Coordinator_Thread();
     {
-        const int nb_threads = static_cast<int>(std::thread::hardware_concurrency());
-        // const int nb_threads = 1;
-        // const int nb_threads = 16;
         const int nb_all_syms = params.nb_frame_symbols+1;
+        const int nb_threads = std::min(
+            nb_all_syms, 
+            static_cast<int>(std::thread::hardware_concurrency()));
+            
         const int nb_sym_per_thread = nb_all_syms/nb_threads;
         for (int i = 0; i < nb_threads; i++) {
             const int symbol_start = i*nb_sym_per_thread;
@@ -145,9 +152,9 @@ OFDM_Demod::~OFDM_Demod() {
     // join all threads 
     coordinator_thread->Wait();
     is_running = false;
-    coordinator_thread->Start();
+    coordinator_thread->Stop();
     for (auto& pipeline: pipelines) {
-        pipeline->Start();
+        pipeline->Stop();
     }
     for (auto& thread: threads) {
         thread->join();
@@ -377,7 +384,7 @@ int OFDM_Demod::FillBuffer(const std::complex<float>* buf, const int N) {
 
 void OFDM_Demod::CoordinatorThread() {
     coordinator_thread->WaitStart();
-    if (!is_running) {
+    if (coordinator_thread->IsStopped()) {
         return;
     }
     for (auto& pipeline: pipelines) {
@@ -416,7 +423,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread* thread_data, OFDM_De
     const int symbol_end_dqpsk = std::min(symbol_end, params.nb_frame_symbols-1);
 
     thread_data->WaitStart();
-    if (!is_running) {
+    if (thread_data->IsStopped()) {
         return;
     }
 
@@ -505,8 +512,8 @@ float OFDM_Demod::ApplyPLL(
     float dt = dt0;
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
-            std::cosf(dt),
-            std::sinf(dt));
+            std::cos(dt),
+            std::sin(dt));
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * freq_fine_offset * Ts;
     }
@@ -601,7 +608,7 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float cyclic_error) {
     const float ofdm_freq_spacing = static_cast<float>(params.freq_carrier_spacing);
     const float fine_freq_adjust = cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
     freq_fine_offset -= cfg.fine_freq_update_beta*fine_freq_adjust;
-    freq_fine_offset = std::fmodf(freq_fine_offset, ofdm_freq_spacing/2.0f);
+    freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f);
 }
 
 void OFDM_Demod::CalculateMagnitude(const std::complex<float>* fft_buf, float* mag_buf) {

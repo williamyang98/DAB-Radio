@@ -17,7 +17,7 @@
 
 #define PRINT_LOG 1
 #if PRINT_LOG 
-  #define LOG_MESSAGE(...) fprintf(stderr, ##__VA_ARGS__)
+  #define LOG_MESSAGE(...) fprintf(stderr, __VA_ARGS__)
 #else
   #define LOG_MESSAGE(...) (void)0
 #endif
@@ -45,7 +45,7 @@ int main(int argc, char** argv)
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "b:i:M:Dh")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:o:M:Dh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));

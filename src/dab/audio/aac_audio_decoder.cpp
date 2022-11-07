@@ -1,13 +1,13 @@
 #include <stdint.h>
-#include "aac_decoder.h"
+#include "aac_audio_decoder.h"
 
 #include <neaacdec.h>
 
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "aac-decoder") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "aac-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "aac-audio-decoder") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "aac-audio-decoder") << fmt::format(__VA_ARGS__)
 
 // Push bits into a buffer
 class BitPusherHelper 
@@ -73,7 +73,11 @@ uint8_t get_sr_index(const uint32_t samplerate)
     return 11;
 }
 
-void AAC_Decoder::GenerateBitfileConfig() {
+void AAC_Audio_Decoder::GenerateBitfileConfig() {
+    // Source: https://wiki.multimedia.cx/index.php/MPEG-4_Audio
+    // This is the simplified explanation of how the mpeg-4 header is generated
+    // The code in libfaad has a comprehensive implementation of this
+
     // NOTE: We have to use the 960 transform for DAB+ audio
     // Source: https://stackoverflow.com/questions/37734341/aac-and-naudio-sampling-rate-mismatch
     // We can do this by using a somewhat undocumented api
@@ -192,6 +196,18 @@ void AAC_Decoder::GenerateBitfileConfig() {
         params.is_SBR ? (params.sampling_frequency/2) : params.sampling_frequency;
     const uint8_t core_sample_rate_index = get_sr_index(core_sample_rate);
 
+    // Source: https://wiki.multimedia.cx/index.php/MPEG-4_Audio
+    // Subsection - Channel configurations
+    // Value | Description
+    //   0   | Defined in AOT Specifc Config
+    //   1   | 1 channel: front-center
+    //   2   | 2 channels: front-left, front-right
+    //   3   | 3 channels: front-center, front-left, front-right
+    //   4   | 4 channels: front-center, front-left, front-right, back-center
+    //   5   | 5 channels: front-center, front-left, front-right, back-left, back-right
+    //   6   | 6 channels: front-center, front-left, front-right, back-left, back-right, LFE-channel
+    //   7   | 8 channels: front-center, front-left, front-right, side-left, side-right, back-left, back-right, LFE-channel
+    //  8-15 | Reserved
     const uint8_t channel_config = params.is_stereo ? 2 : 1;
 
     // Build the mp4 bitfield header
@@ -226,7 +242,7 @@ void AAC_Decoder::GenerateBitfileConfig() {
     nb_mp4_bitfile_config_bytes = bit_pusher.GetTotalBytesCeil();
 }
 
-AAC_Decoder::AAC_Decoder(const struct Params _params)
+AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
 : params(_params)
 {
     // TODO: Add bounds check when we construct the mp4 bitfield
@@ -251,14 +267,14 @@ AAC_Decoder::AAC_Decoder(const struct Params _params)
     // TODO: manage the errors that libfaad spits out
 }
 
-AAC_Decoder::~AAC_Decoder() {
+AAC_Audio_Decoder::~AAC_Audio_Decoder() {
     NeAACDecClose(decoder_handle);
     delete [] mp4_bitfile_config;
     delete decoder_frame_info;
 }
 
-AAC_Decoder::Result AAC_Decoder::DecodeFrame(uint8_t* data, const int N) {
-    AAC_Decoder::Result res;
+AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(uint8_t* data, const int N) {
+    AAC_Audio_Decoder::Result res;
     res.audio_buf = NULL;
     res.nb_audio_buf_bytes = 0;
     res.is_error = false;

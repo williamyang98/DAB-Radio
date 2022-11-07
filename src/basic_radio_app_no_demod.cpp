@@ -13,33 +13,45 @@
 #include "easylogging++.h"
 
 #include "dab/logging.h"
-#include "basic_radio.h"
+#include "basic_radio/basic_radio.h"
 
-#include "gui/render_basic_radio.h"
+#include "gui/basic_radio/render_basic_radio.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
+
+#include "audio/win32_pcm_player.h"
 
 #include <GLFW/glfw3.h> 
 #include "imgui.h"
 
+class AppDependencies: public Basic_Radio_Dependencies 
+{
+public:
+    virtual PCM_Player* Create_PCM_Player(void) {
+        return new Win32_PCM_Player();
+    }
+};
+
 class App: public ImguiSkeleton 
 {
 private:
-    // Number of bytes per OFDM frame in transmission mode I
-    // NOTE: we are hard coding this because all other transmission modes have been deprecated
-    const int nb_buf_bits = 75*1536*2;
+    AppDependencies dependencies;
+
+    int nb_buf_bits;
     viterbi_bit_t* bits_buf;
-    FILE* const fp_in;
+    FILE* fp_in;
 
     bool is_running;
     BasicRadio* radio;
     std::thread* radio_thread;
 public:
-    App(FILE* const _fp_in)
+    App(const int transmission_mode, FILE* const _fp_in)
     : fp_in(_fp_in) 
     {
-        const int transmission_mode = 1;
-        radio = new BasicRadio(get_dab_parameters(transmission_mode));
+        auto params = get_dab_parameters(transmission_mode);
+        nb_buf_bits = params.nb_frame_bits;
+
+        radio = new BasicRadio(params, &dependencies);
         bits_buf = new viterbi_bit_t[nb_buf_bits];
         is_running = true;
         radio_thread = new std::thread([this]() {
@@ -48,6 +60,8 @@ public:
     }
     ~App() {
         is_running = false;
+        fclose(fp_in);
+        fp_in = NULL;
         radio_thread->join();
         delete [] bits_buf;
         delete radio;
@@ -80,6 +94,7 @@ public:
 private:
     void RunnerThread() {
         while (is_running) {
+            if (fp_in == NULL) return;
             const auto nb_read = fread(bits_buf, sizeof(viterbi_bit_t), nb_buf_bits, fp_in);
             if (nb_read != nb_buf_bits) {
                 fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, nb_buf_bits);
@@ -95,6 +110,7 @@ void usage() {
         "basic_radio_app_no_demod, decodes logical OFDM frame as a DAB transmission into a basic radio\n\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
+        "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -104,12 +120,16 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     char* rd_filename = NULL;
     bool is_logging = false;
+    int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "i:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "i:M:vh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
+            break;
+        case 'M':
+            transmission_mode = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -121,7 +141,11 @@ int main(int argc, char** argv) {
         }
     }
 
-    // app startup
+    if (transmission_mode <= 0 || transmission_mode > 4) {
+        fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
+        return 1;
+    }
+
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
         errno_t err = fopen_s(&fp_in, rd_filename, "r");
@@ -146,7 +170,7 @@ int main(int argc, char** argv) {
     defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, logging_level);
     el::Loggers::reconfigureAllLoggers(defaultConf);
 
-    auto app = new App(fp_in);
+    auto app = new App(transmission_mode, fp_in);
     const int rv = RenderImguiSkeleton(app);
     delete app;
     return rv;

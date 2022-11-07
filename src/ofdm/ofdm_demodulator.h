@@ -13,8 +13,8 @@
 #include "circular_buffer.h"
 #include "reconstruction_buffer.h"
 #include "../observable.h"
+#include "../viterbi_config.h"
 
-typedef int16_t viterbi_bit_t;
 typedef struct kiss_fft_state* kiss_fft_cfg;
 
 class OFDM_Demod_Pipeline_Thread;

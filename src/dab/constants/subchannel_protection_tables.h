@@ -157,7 +157,7 @@ static EEP_Descriptor GetEEPDescriptor(const Subchannel& subchannel) {
 //       n = CU / k0
 // bitrate = k1*n = k1/k0 * CU
 static uint32_t CalculateEEPBitrate(const Subchannel& subchannel) {
-    auto& descriptor = GetEEPDescriptor(subchannel);
+    auto descriptor = GetEEPDescriptor(subchannel);
     const int n = subchannel.length / descriptor.capacity_unit_multiple;
     return n * descriptor.bitrate_multiple;
 }

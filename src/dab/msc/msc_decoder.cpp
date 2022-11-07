@@ -10,8 +10,8 @@
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "msc-decoder") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "msc-decoder") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(__VA_ARGS__)
 
 // NOTE: Capacity channel sizes for mode I are constant
 constexpr int NB_CU_BITS = 64;
@@ -110,7 +110,7 @@ int MSC_Decoder::DecodeEEP() {
     }
     VITDEC_RUN(24, PI_X, 24);
 
-    const uint32_t error = vitdec->GetPathError();
+    const auto error = vitdec->GetPathError();
 
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
@@ -152,7 +152,8 @@ int MSC_Decoder::DecodeUEP() {
     }
     VITDEC_RUN(24, PI_X, 24);
 
-    const uint32_t error = vitdec->GetPathError();
+    const auto error = vitdec->GetPathError();
+
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
     LOG_MESSAGE("puncture: {}", curr_puncture_bit);

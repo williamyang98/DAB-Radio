@@ -239,12 +239,7 @@ public:
                 (nb_updates == other.nb_updates);
         }
         bool operator!=(const Statistics& other) {
-            return 
-                (nb_total != other.nb_total) ||
-                (nb_pending != other.nb_pending) || 
-                (nb_completed != other.nb_completed) || 
-                (nb_conflicts != other.nb_conflicts) || 
-                (nb_updates != other.nb_updates);
+            return !(*this == other);
         }
     };
 private:
@@ -284,8 +279,6 @@ public:
     // Returns NULL if it couldn't find the instance
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
-    // TODO: remove this is for debugging
-    inline std::vector<UpdaterChild*>& GetUpdaters() { return all_updaters; }
     // Create a copy of the database with complete entities
     void ExtractCompletedDatabase(DAB_Database& dest_db);
     // Get status of database

@@ -6,14 +6,11 @@
 #include "fig_processor.h"
 #include "fig_handler_interface.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "easylogging++.h"
 #include "fmt/core.h"
 
-#define LOG_MESSAGE(...) CLOG(INFO, "fig-processor") << fmt::format(##__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "fig-processor") << fmt::format(##__VA_ARGS__)
+#define LOG_MESSAGE(...) CLOG(INFO, "fig-processor") << fmt::format(__VA_ARGS__)
+#define LOG_ERROR(...) CLOG(ERROR, "fig-processor") << fmt::format(__VA_ARGS__)
 
 struct ServiceIdentifier {
     uint8_t country_id = 0;
@@ -55,7 +52,11 @@ struct EnsembleIdentifier {
     }
 };
 
-void FIG_Processor::ProcessFIG(const uint8_t* buf) {
+// DOC: ETSI EN 300 401
+// Clause 5.2: Fast Information Channel (FIC) 
+// Clause 5.2.1: Fast Information Block (FIB) 
+// A FIB (fast information block) contains many FIGs (fast information groups)
+void FIG_Processor::ProcessFIB(const uint8_t* buf) {
     // Dont do anything if we don't have an associated handler
     if (handler == NULL) {
         return;
@@ -1229,8 +1230,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
                 return;
             }
 
-            // TODO: process this app data somehow
-            // Sometimes it is XPAD data, sometimes it isn't
             LOG_MESSAGE("fig 0/13 pd={} country_id={:>2} service_ref={:>4} ecc={} SCIdS={} i={}-{}/{} app_type={} L={}",
                 header.pd,
                 sid.country_id, sid.service_reference, sid.ecc,
@@ -1300,6 +1299,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         ServiceIdentifier sid;
         sid.ProcessShortForm(b);
 
+        // NOTE: Fields according to ETSI EN 300 401
         // const uint8_t SD =    (b[2] & 0b10000000) >> 7;
         // const uint8_t Rfa1 =  (b[2] & 0b01000000) >> 6;
         // const uint8_t Rfu1 =  (b[2] & 0b00110000) >> 4;
@@ -1309,13 +1309,15 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         // const uint8_t international_code = 
         //                       (b[4] & 0b00011111) >> 0;
 
+        // NOTE: Fields according to 
+        // Source: https://github.com/AlbrechtL/welle.io
+        // Reference: src/backend/fib-processor.cpp 
         const uint8_t SD =            (b[2] & 0b10000000) >> 7;
         const uint8_t language_flag = (b[2] & 0b00100000) >> 5;
         const uint8_t cc_flag =       (b[2] & 0b00010000) >> 4;
 
         uint8_t language_type = 0;
         uint8_t cc_type = 0;
-
 
         const int nb_bytes = nb_min_bytes + language_flag + cc_flag;
         int data_index = 3;

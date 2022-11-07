@@ -5,7 +5,7 @@
 struct NeAACDecFrameInfo;
 
 // Wrapper around libfaad2
-class AAC_Decoder 
+class AAC_Audio_Decoder 
 {
 public:
     struct Result {
@@ -19,6 +19,18 @@ public:
         bool is_SBR;
         bool is_stereo;
         bool is_PS;
+        bool operator==(const Params& other) const {
+            return (sampling_frequency == other.sampling_frequency) &&
+                   (is_SBR == other.is_SBR) &&
+                   (is_stereo == other.is_stereo) &&
+                   (is_PS == other.is_PS);
+        }
+        bool operator!=(const Params& other) const {
+            return (sampling_frequency != other.sampling_frequency) || 
+                   (is_SBR != other.is_SBR) || 
+                   (is_stereo != other.is_stereo) ||
+                   (is_PS != other.is_PS);
+        }
     };
 private:
     const struct Params params;
@@ -29,8 +41,8 @@ private:
     void* decoder_handle;
     struct NeAACDecFrameInfo* decoder_frame_info;
 public:
-    AAC_Decoder(const struct Params _params);
-    ~AAC_Decoder();
+    AAC_Audio_Decoder(const struct Params _params);
+    ~AAC_Audio_Decoder();
     Result DecodeFrame(uint8_t* data, const int N);
     Params GetParams() { return params; }
 private:

@@ -8,9 +8,15 @@ OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const int _start, const i
     is_fft_done = false;
     is_start_dqpsk = false;
     is_end = false;
+    is_terminated = false;
 }
 
 OFDM_Demod_Pipeline_Thread::~OFDM_Demod_Pipeline_Thread() {
+    Start();
+}
+
+void OFDM_Demod_Pipeline_Thread::Stop() {
+    is_terminated = true;
     Start();
 }
 
@@ -21,6 +27,7 @@ void OFDM_Demod_Pipeline_Thread::Start() {
 }
 
 void OFDM_Demod_Pipeline_Thread::WaitStart() {
+    if (is_terminated) return;
     auto lock = std::unique_lock(mutex_start);
     cv_start.wait(lock, [this]() { return is_start; });
     is_start = false;
@@ -66,10 +73,16 @@ void OFDM_Demod_Pipeline_Thread::WaitEnd() {
 OFDM_Demod_Coordinator_Thread::OFDM_Demod_Coordinator_Thread() {
     is_start = false;
     is_end = true;
+    is_terminated = false;
     cv_end.notify_all();
 }
 
 OFDM_Demod_Coordinator_Thread::~OFDM_Demod_Coordinator_Thread() {
+    Start();
+}
+
+void OFDM_Demod_Coordinator_Thread::Stop() {
+    is_terminated = true;
     Start();
 }
 
@@ -80,6 +93,7 @@ void OFDM_Demod_Coordinator_Thread::Start() {
 }
 
 void OFDM_Demod_Coordinator_Thread::WaitStart() {
+    if (is_terminated) return;
     auto lock = std::unique_lock(mutex_start);
     cv_start.wait(lock, [this]() { return is_start; });
     is_start = false;

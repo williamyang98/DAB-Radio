@@ -171,8 +171,8 @@ void get_DAB_PRS_reference(const int transmission_mode,
         const int h = H_TABLE[e.i][k-e.k_min];
         const float phi = (float)M_PI / 2.0f * (float)(h + e.n);
         const auto prs = std::complex<float>(
-            std::cosf(phi),
-            std::sinf(phi)
+            std::cos(phi),
+            std::sin(phi)
         );
         if (k >= e.k_max) {
             p_table_index++;
@@ -186,8 +186,8 @@ void get_DAB_PRS_reference(const int transmission_mode,
         const int h = H_TABLE[e.i][k-e.k_min];
         const float phi = (float)M_PI / 2.0f * (float)(h + e.n);
         const auto prs = std::complex<float>(
-            std::cosf(phi),
-            std::sinf(phi)
+            std::cos(phi),
+            std::sin(phi)
         );
         if (k >= e.k_max) {
             p_table_index++;

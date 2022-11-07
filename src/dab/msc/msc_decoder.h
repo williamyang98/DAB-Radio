@@ -2,8 +2,7 @@
 #include <stdint.h>
 
 #include "database/dab_database_entities.h"
-
-typedef int16_t viterbi_bit_t;
+#include "../viterbi_config.h"
 
 class CIF_Deinterleaver;
 class ViterbiDecoder;
