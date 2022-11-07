@@ -9,10 +9,14 @@
 
 void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controller);
 void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, Service* service);
+
 void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service);
 void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component);
-void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, const service_id_t service_id);
-void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller);
+
+void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, const subchannel_id_t subchannel_id);
+void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController* controller);
+
+void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller, Service* service);
 void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controller, LinkService* link_service);
 void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio);
 
@@ -33,9 +37,10 @@ void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
         RenderDateTime(radio);
         RenderDatabaseStatistics(radio);
 
+        RenderSimple_BasicSlideshowSelected(radio, controller);
         RenderSimple_GlobalBasicAudioChannelControls(radio);
         RenderOtherEnsembles(radio);
-        RenderSimple_LinkServices(radio, controller);
+        RenderSimple_LinkServices(radio, controller, selected_service);
         RenderSimple_ServiceComponentList(radio, controller, selected_service);
     }
     ImGui::End();
@@ -164,13 +169,13 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* cont
         ImGui::EndTable();
     }
 
-    auto* channel = radio->GetAudioChannel(component->subchannel_id);
+    auto* channel = radio->GetAudioChannel(subchannel_id);
     if (channel != NULL) {
-        RenderSimple_BasicAudioChannel(radio, controller, channel, component->service_reference);
+        RenderSimple_BasicAudioChannel(radio, controller, channel, subchannel_id);
     }
 }
 
-void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, service_id_t service_id) {
+void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, subchannel_id_t subchannel_id) {
     // Channel controls
     auto& controls = channel->GetControls();
     if (ImGui::Button("Run All")) {
@@ -202,38 +207,132 @@ void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* con
     auto& label = channel->GetDynamicLabel();
     ImGui::Text("Dynamic label: %.*s", label.length(), label.c_str());
 
-    auto& slideshow_controller = controller->slideshow_controller;
     auto& slideshow_manager = channel->GetSlideshowManager();
     auto& slideshows = slideshow_manager.GetSlideshows();
 
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize;
     if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), true, window_flags)) {
-        for (auto& [transport_id, slideshow]: slideshows) {
-            auto* texture = slideshow_controller.AddSlideshow(
-                { service_id, transport_id},
-                slideshow.data, slideshow.nb_data_bytes);
+        ImGuiStyle& style = ImGui::GetStyle();
+        const float window_width = ImGui::GetWindowContentRegionMax().x;
+        float curr_x = 0.0f;
+        int slideshow_id = 0;
 
+        for (auto& [transport_id, slideshow]: slideshows) {
+            auto* texture = controller->AddTexture({ subchannel_id, transport_id}, slideshow.data, slideshow.nb_data_bytes);
+            if (texture == NULL) {
+                continue;
+            }
+
+            // Determine size of thumbnail
+            const auto texture_id = reinterpret_cast<ImTextureID>(texture->GetTextureID());
+            const float target_height = 200.0f;
+            const float scale = target_height / static_cast<float>(texture->GetHeight());
+            const auto texture_size = ImVec2(
+                static_cast<float>(texture->GetWidth()) * scale, 
+                static_cast<float>(texture->GetHeight()) * scale
+            );
+
+            // Determine if the thumbnail needs to be on a new line
+            const float next_x = curr_x + style.ItemSpacing.x + texture_size.x;
+            const bool is_next_line = next_x > window_width;
+            if (is_next_line) {
+                curr_x = texture_size.x;
+            } else {
+                if (slideshow_id != 0) ImGui::SameLine();
+                curr_x = next_x;
+            }
+
+            ImGui::PushID(slideshow_id++);
+            ImGui::Image(texture_id, texture_size);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
+            }
+            if (ImGui::IsItemClicked()) {
+                controller->SetSelectedSlideshow({ subchannel_id, transport_id, &slideshow });
+            }
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndChild();
+}
+
+void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController* controller) {
+    auto selection = controller->GetSelectedSlideshow();
+    auto* slideshow = selection.slideshow;
+    if (slideshow == NULL) {
+        return;
+    }
+
+    auto* texture = controller->GetTexture({selection.subchannel_id, selection.transport_id});
+
+    bool is_open = true;
+    if (ImGui::Begin("Slideshow Viewer", &is_open)) {
+        auto dockspace_id = ImGui::GetID("Slideshow viewer dockspace");
+        ImGui::DockSpace(dockspace_id);
+
+        ImGuiWindowFlags image_flags = ImGuiWindowFlags_HorizontalScrollbar;
+        if (ImGui::Begin("Image Viewer", NULL, image_flags)) {
             if (texture != NULL) {
                 const auto texture_id = reinterpret_cast<ImTextureID>(texture->GetTextureID());
                 const auto texture_size = ImVec2(
                     static_cast<float>(texture->GetWidth()), 
                     static_cast<float>(texture->GetHeight())
                 );
-                ImGui::SameLine();
                 ImGui::Image(texture_id, texture_size);
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
-                }
             }
         }
+        ImGui::End();
+
+        if (ImGui::Begin("Description")) {
+            ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
+            if (ImGui::BeginTable("Component", 2, flags)) {
+                ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableHeadersRow();
+
+                int row_id  = 0;
+                #define FIELD_MACRO(name, fmt, ...) {\
+                    ImGui::PushID(row_id++);\
+                    ImGui::TableNextRow();\
+                    ImGui::TableSetColumnIndex(0);\
+                    ImGui::TextWrapped(name);\
+                    ImGui::TableSetColumnIndex(1);\
+                    ImGui::TextWrapped(fmt, __VA_ARGS__);\
+                    ImGui::PopID();\
+                }\
+
+                FIELD_MACRO("Subchannel ID", "%u", selection.subchannel_id);
+                FIELD_MACRO("Transport ID", "%u", selection.transport_id);
+                FIELD_MACRO("Name", "%.*s", slideshow->name.length(), slideshow->name.c_str());
+                FIELD_MACRO("Trigger Time", "%llu", slideshow->trigger_time);
+                FIELD_MACRO("Expire Time", "%llu", slideshow->expire_time);
+                FIELD_MACRO("Category ID", "%u", slideshow->category_id);
+                FIELD_MACRO("Slide ID", "%u", slideshow->slide_id);
+                FIELD_MACRO("Category title", "%.*s", slideshow->category_title.length(), slideshow->category_title.c_str());
+                FIELD_MACRO("Click Through URL", "%.*s", slideshow->click_through_url.length(), slideshow->click_through_url.c_str());
+                FIELD_MACRO("Alt Location URL", "%.*s", slideshow->alt_location_url.length(), slideshow->alt_location_url.c_str());
+                FIELD_MACRO("Size", "%u Bytes", slideshow->nb_data_bytes);
+
+                if (texture != NULL) {
+                    FIELD_MACRO("Resolution", "%u x %u", texture->GetWidth(), texture->GetHeight());
+                    FIELD_MACRO("Internal Texture ID", "%u", texture->GetTextureID());
+                }
+                
+                #undef FIELD_MACRO
+                ImGui::EndTable();
+            }
+        }
+        ImGui::End();
     }
-    ImGui::EndChild();
+    ImGui::End();
+
+    if (!is_open) {
+        controller->SetSelectedSlideshow({0,0,NULL});
+    }
 }
 
-void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller) {
+void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller, Service* service) {
     auto* db = radio->GetDatabaseManager()->GetDatabase();
-    const auto selected_service_id = controller->selected_service;
-    auto* service = (selected_service_id == -1) ? NULL : db->GetService(selected_service_id);
 
     auto* linked_services = service ? db->GetServiceLSNs(service->reference) : NULL;
     const size_t nb_linked_services = linked_services ? linked_services->size() : 0;
