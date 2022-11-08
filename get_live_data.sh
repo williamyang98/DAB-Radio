@@ -122,4 +122,4 @@ fi
 
 (>&2 echo Selected channel ${channel} at ${frequency};
 set -x;
-./bin/rtl_sdr.exe -f ${frequency} -s ${sample_rate} -b ${block_size} -g ${gain} -;)
+./bin/rtl_sdr.exe -f ${frequency} -s ${sample_rate} -b ${block_size} -g ${gain};)
