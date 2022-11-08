@@ -37,7 +37,6 @@ private:
     // runner state
     bool is_running = true;
     bool flag_step = false;
-    bool flag_apply_rd_offset = false;
     bool flag_dump_frame = false;
     // runner thread
     std::thread* runner_thread;
@@ -142,9 +141,6 @@ public:
 private:
     void RenderAppControls() {
         if (ImGui::Begin("Input controls")) {
-            if (ImGui::Button("Offset input stream")) {
-                flag_apply_rd_offset = true;
-            }
             ImGui::Checkbox("Enable stepping", &is_wait_step);
             if (is_wait_step) {
                 if (ImGui::Button("Step")) {
@@ -168,19 +164,6 @@ private:
                 std::this_thread::sleep_for(std::chrono::milliseconds(30));
             }
             flag_step = false;
-
-            // NOTE: forcefully induce a single byte desync
-            // This is required when the receiver is overloaded and something causes a single byte to be dropped
-            // This causes the IQ values to become desynced and produce improper values
-            // Inducing another single byte dropout will correct the stream
-            if (flag_apply_rd_offset) {
-                uint8_t dummy = 0x00;
-                if (fp_in == NULL) {
-                    return;
-                }
-                auto nb_read = fread(&dummy, sizeof(uint8_t), 1, fp_in);
-                flag_apply_rd_offset = false;
-            }
 
             if (fp_in == NULL) {
                 return;

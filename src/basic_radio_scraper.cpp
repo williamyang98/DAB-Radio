@@ -43,8 +43,6 @@ private:
     const int block_size;
     std::complex<uint8_t>* rd_in_raw;
     std::complex<float>* rd_in_float;
-    // We need this if the rtl_sdr.exe app drops a byte and causes the I and Q channels to swap
-    bool flag_rd_byte_offset = false;
 
     // Double buffer our demodulator frame data to radio thread
     DoubleBuffer<viterbi_bit_t>* double_buffer;
@@ -119,14 +117,6 @@ private:
     // ofdm thread -> ofdm frame callback -> double buffer -> dab thread
     void RunnerThread_OFDM_Demod() {
         while (true) {
-            // Resynchronise the IQ values if the rtl_sdr.exe app dropped a byte
-            if (flag_rd_byte_offset) {
-                uint8_t dummy = 0x00;
-                if (fp_in == NULL) return;
-                auto nb_read = fread(&dummy, sizeof(uint8_t), 1, fp_in);
-                flag_rd_byte_offset = false;
-            }
-
             // Read raw 8bit IQ values and convert them to floating point
             if (fp_in == NULL) return;
             const auto nb_read = fread((void*)rd_in_raw, sizeof(std::complex<uint8_t>), block_size, fp_in);
