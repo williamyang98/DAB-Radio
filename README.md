@@ -84,7 +84,7 @@ But the core algorithms are platform independent. You just need to write code to
 
 **NOTE**: <code>tee</code> is a unix application that reads in stdin and outputs to stdout and the specified filepath.
 
-### 6. Run data scraper with OFDM demodulator GUI while storing OFDM frames as packed bytes
+### 7. Run data scraper with OFDM demodulator GUI while storing OFDM frames as packed bytes
 
 <code>./get_live_data.sh -c 9C | ./ofdm_demod_gui.exe | ./convert_viterbi.exe | tee data/frame_bytes_9C.bin | ./convert_viterbi.exe -d | ./basic_radio_scraper_no_demod.exe</code>
 
