@@ -162,8 +162,11 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
 
     // Part 3.1: (optional) CRC16 on entire buffer
     if (crc_flag) {
-        const bool is_valid = CRC16_CALC->Process(buf, N-TOTAL_CRC16_BYTES);
+        const uint16_t crc16_rx = (buf[N-2] << 8) | buf[N-1];
+        const uint16_t crc16_calc = CRC16_CALC->Process(buf, N-TOTAL_CRC16_BYTES);
+        const bool is_valid = (crc16_rx == crc16_calc);
         if (!is_valid) {
+            LOG_ERROR("CRC mismatch {:04X}!={:04X}", crc16_rx, crc16_calc);
             return res;
         }
     }
