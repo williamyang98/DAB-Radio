@@ -24,6 +24,12 @@ static bool ValidateDataType(const MOT_Data_Type type) {
     return false;
 }
 
+MOT_Processor::MOT_Processor(const int max_transport_objects)
+: assembler_tables(max_transport_objects) 
+{
+
+}
+
 void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, const uint8_t* buf, const int N) {
     const int MIN_SEGMENT_HEADER_BYTES = 2;
     if (N < MIN_SEGMENT_HEADER_BYTES) {
@@ -66,12 +72,7 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, cons
 }
 
 MOT_Assembler_Table& MOT_Processor::GetAssemblerTable(const mot_transport_id_t transport_id) {
-    auto res = assembler_tables.find(transport_id);
-    if (res == assembler_tables.end()) {
-        LOG_MESSAGE("Got new transport_id={}", transport_id);
-        res = assembler_tables.insert({transport_id, {}}).first;
-    }
-    return res->second;
+    return assembler_tables.emplace(transport_id);
 }
 
 MOT_Assembler& MOT_Processor::GetAssembler(MOT_Assembler_Table& table, const MOT_Data_Type type) {

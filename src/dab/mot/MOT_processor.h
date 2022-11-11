@@ -5,6 +5,7 @@
 #include <vector>
 #include "MOT_assembler.h"
 #include "../observable.h"
+#include "../lru_cache.h"
 
 // DOC: ETSI EN 301 234 
 // Clause 5.2.2: X-PAD
@@ -40,14 +41,13 @@ private:
     // DOC: ETSI EN 301 234
     // Clause 5.3.2.1: Interleaving MOT entities in one MOT stream 
     // NOTE: In MOT directory mode we can encounter multiple parallel transport ids
-    //       Thus we need a data structure which can keep track of them
-    // TODO: We need to remove entities that are no longer updated
-    //       Implement a LRU queue
-    std::unordered_map<mot_transport_id_t, MOT_Assembler_Table> assembler_tables;
+    //       We use an LRU queue to forget entries that are no longer updated
+    LRU_Cache<mot_transport_id_t, MOT_Assembler_Table> assembler_tables;
 
     // args: entity update
     Observable<MOT_Entity> obs_on_entity_complete;
 public:
+    MOT_Processor(const int max_transport_objects=10);
     void Process_Segment(const MOT_MSC_Data_Group_Header header, const uint8_t* buf, const int N);
     auto& OnEntityComplete(void) { return obs_on_entity_complete; }
 private:
