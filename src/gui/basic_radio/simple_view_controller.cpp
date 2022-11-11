@@ -1,17 +1,11 @@
 #include "simple_view_controller.h"
 
-Texture* TextureTable::AddTexture(slideshow_key_t id, const uint8_t* data, const int N) {
-    const auto key = GetKey(id);
-    auto res = textures.find(key);
-    if (res == textures.end()) {
-        res = textures.insert({key, std::make_unique<Texture>(data, N)}).first;
-    }
-
-    return res->second.get();
+void SimpleViewController::ClearSearch(void) {
+    services_filter.Clear();
 }
 
-Texture* TextureTable::GetTexture(slideshow_key_t id) {
-    const auto key = GetKey(id);
+Texture* SimpleViewController::GetTexture(subchannel_id_t subchannel_id, mot_transport_id_t transport_id) {
+    const auto key = GetKey(subchannel_id, transport_id);
     auto res = textures.find(key);
     if (res == textures.end()) {
         return NULL;
@@ -19,18 +13,33 @@ Texture* TextureTable::GetTexture(slideshow_key_t id) {
     return res->second.get();
 }
 
-uint32_t TextureTable::GetKey(slideshow_key_t key) {
-    return (key.first << 16) | (key.second);
+Texture* SimpleViewController::AddTexture(
+    subchannel_id_t subchannel_id, mot_transport_id_t transport_id, 
+    const uint8_t* data, const int N) 
+{
+    const auto key = GetKey(subchannel_id, transport_id);
+    auto res = textures.find(key);
+    if (res == textures.end()) {
+        res = textures.insert({key, std::make_unique<Texture>(data, N)}).first;
+    }
+    return res->second.get();
 }
 
-void SimpleViewController::ClearSearch(void) {
-    services_filter.Clear();
+void SimpleViewController::AttachRadio(BasicRadio* radio) {
+    radio->OnNewAudioChannel().Attach([this](subchannel_id_t subchannel_id, BasicAudioChannel* channel) {
+        auto& slideshow_manager = channel->GetSlideshowManager();
+        slideshow_manager.OnRemoveSlideshow().Attach([this](Basic_Slideshow* slideshow) {
+            auto selection = GetSelectedSlideshow();
+            if (selection.slideshow == slideshow) {
+                SetSelectedSlideshow({0, NULL});
+            }
+        });
+    });
 }
 
-Texture* SimpleViewController::GetTexture(slideshow_key_t key) {
-    return texture_table.GetTexture(key);
+SelectedSlideshowView SimpleViewController::GetSelectedSlideshow() {
+    return selected_slideshow;
 }
-
-Texture* SimpleViewController::AddTexture(slideshow_key_t key, const uint8_t* data, const int N) {
-    return texture_table.AddTexture(key, data, N);
+void SimpleViewController::SetSelectedSlideshow(SelectedSlideshowView _selected_slideshow) {
+    selected_slideshow = _selected_slideshow;
 }

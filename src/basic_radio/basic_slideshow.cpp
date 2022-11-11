@@ -21,8 +21,9 @@ static std::time_t Convert_MOT_Time(MOT_UTC_Time& time) {
     return std::mktime(&t);
 }
 
-Basic_Slideshow_Manager::Basic_Slideshow_Manager() {
+Basic_Slideshow_Manager::Basic_Slideshow_Manager(const int _max_size) {
     slideshow_processor = new MOT_Slideshow_Processor();
+    SetMaxSize(_max_size);
 }
 
 Basic_Slideshow_Manager::~Basic_Slideshow_Manager() {
@@ -51,12 +52,6 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
         return NULL;
     }
 
-    auto res = slideshows.find(entity->transport_id);
-    if (res != slideshows.end()) {
-        // TODO: do we want to update existing slideshows?
-        return &(res->second);
-    }
-
     // User application header extension parameters
     MOT_Slideshow slideshow_header;
     for (auto& p: entity->header.user_app_params) {
@@ -65,8 +60,10 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
             p.type, p.data, p.nb_data_bytes);
     }
 
-    res = slideshows.insert({entity->transport_id, {}}).first;
-    auto& slideshow = res->second;
+    slideshows.emplace_front(entity->transport_id);
+    RestrictSize();
+
+    auto& slideshow = slideshows.front();
     slideshow.image_type = image_type;
 
     const int N = entity->nb_body_bytes;
@@ -121,7 +118,29 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
         break;
     }
 
-    LOG_MESSAGE("Added slideshow tid={} name={}", entity->transport_id, slideshow.name);
+    LOG_MESSAGE("Added slideshow tid={} name={}", slideshow.transport_id, slideshow.name);
     obs_on_new_slideshow.Notify(&slideshow);
     return &slideshow;
+}
+
+void Basic_Slideshow_Manager::SetMaxSize(const int _max_size) {
+    max_size = _max_size;
+    RestrictSize();
+}
+
+void Basic_Slideshow_Manager::RestrictSize(void) {
+    if (slideshows.size() <= max_size) {
+        return;
+    }
+
+    auto start = slideshows.begin();
+    auto end = slideshows.end();
+    std::advance(start, max_size);
+
+    for (auto it = start; it != end; it++) {
+        auto* v = &(*it);
+        obs_on_remove_slideshow.Notify(v);
+    }
+
+    slideshows.erase(start, end);
 }

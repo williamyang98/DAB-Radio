@@ -2,8 +2,8 @@
 
 #include <stdint.h>
 #include <string>
-#include <unordered_map>
 #include <ctime>
+#include <list>
 
 #include "../observable.h"
 
@@ -22,6 +22,8 @@ enum Basic_Image_Type {
 class Basic_Slideshow 
 {
 public:
+    const mot_transport_id_t transport_id;
+
     Basic_Image_Type image_type;
     uint8_t name_charset = 0;
     std::string name;
@@ -39,7 +41,8 @@ public:
     uint8_t* data = NULL;
     int nb_data_bytes = 0;
 public:
-    Basic_Slideshow() {}
+    Basic_Slideshow(const mot_transport_id_t _id)
+    : transport_id(_id) {}
     ~Basic_Slideshow() {
         if (data) delete [] data;
     }
@@ -48,15 +51,21 @@ public:
 
 class Basic_Slideshow_Manager 
 {
-public:
 private:
-    std::unordered_map<mot_transport_id_t, Basic_Slideshow> slideshows;
+    std::list<Basic_Slideshow> slideshows;
     MOT_Slideshow_Processor* slideshow_processor;
     Observable<Basic_Slideshow*> obs_on_new_slideshow;
+    Observable<Basic_Slideshow*> obs_on_remove_slideshow;
+    int max_size;
 public:
-    Basic_Slideshow_Manager();
+    Basic_Slideshow_Manager(const int _max_size=10);
     ~Basic_Slideshow_Manager();
     Basic_Slideshow* Process_MOT_Entity(MOT_Entity* entity);
     auto& GetSlideshows(void) { return slideshows; }
     auto& OnNewSlideshow(void) { return obs_on_new_slideshow; }
+    auto& OnRemoveSlideshow(void) { return obs_on_remove_slideshow; }
+    void SetMaxSize(const int _max_size);
+    int GetMaxSize(void) const { return max_size; };
+private:
+    void RestrictSize(void);
 };

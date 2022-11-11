@@ -217,8 +217,8 @@ void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* con
         float curr_x = 0.0f;
         int slideshow_id = 0;
 
-        for (auto& [transport_id, slideshow]: slideshows) {
-            auto* texture = controller->AddTexture({ subchannel_id, transport_id}, slideshow.data, slideshow.nb_data_bytes);
+        for (auto& slideshow: slideshows) {
+            auto* texture = controller->AddTexture(subchannel_id, slideshow.transport_id, slideshow.data, slideshow.nb_data_bytes);
             if (texture == NULL) {
                 continue;
             }
@@ -248,7 +248,7 @@ void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* con
                 ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
             }
             if (ImGui::IsItemClicked()) {
-                controller->SetSelectedSlideshow({ subchannel_id, transport_id, &slideshow });
+                controller->SetSelectedSlideshow({ subchannel_id, &slideshow });
             }
             ImGui::PopID();
         }
@@ -263,7 +263,7 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController
         return;
     }
 
-    auto* texture = controller->GetTexture({selection.subchannel_id, selection.transport_id});
+    auto* texture = controller->GetTexture(selection.subchannel_id, slideshow->transport_id);
 
     bool is_open = true;
     if (ImGui::Begin("Slideshow Viewer", &is_open)) {
@@ -302,7 +302,7 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController
                 }\
 
                 FIELD_MACRO("Subchannel ID", "%u", selection.subchannel_id);
-                FIELD_MACRO("Transport ID", "%u", selection.transport_id);
+                FIELD_MACRO("Transport ID", "%u", slideshow->transport_id);
                 FIELD_MACRO("Name", "%.*s", slideshow->name.length(), slideshow->name.c_str());
                 FIELD_MACRO("Trigger Time", "%llu", slideshow->trigger_time);
                 FIELD_MACRO("Expire Time", "%llu", slideshow->expire_time);
@@ -327,7 +327,7 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController
     ImGui::End();
 
     if (!is_open) {
-        controller->SetSelectedSlideshow({0,0,NULL});
+        controller->SetSelectedSlideshow({0,NULL});
     }
 }
 

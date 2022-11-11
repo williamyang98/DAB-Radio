@@ -19,7 +19,7 @@
 #include "basic_radio/basic_radio.h"
 
 #include "gui/render_ofdm_demod.h"
-#include "gui/basic_radio/render_basic_radio.h"
+#include "gui/basic_radio/render_simple_view.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
@@ -54,12 +54,11 @@ private:
     std::complex<uint8_t>* rd_in_raw;
     std::complex<float>* rd_in_float;
 
-    // Double buffer our demodulator frame data to radio thread
     DoubleBuffer<viterbi_bit_t>* double_buffer;
 
-    // Blocks that make our radio
     OFDM_Demod* ofdm_demod;
     BasicRadio* radio;
+    SimpleViewController* radio_gui_controller;
 
     // Separate threads for the radio, and raw IQ to OFDM frame demodulator
     std::thread* ofdm_demod_thread;
@@ -69,6 +68,9 @@ public:
     : fp_in(_fp_in), block_size(_block_size)
     {
         radio = new BasicRadio(get_dab_parameters(transmission_mode), &dependencies);
+        radio_gui_controller = new SimpleViewController();
+        radio_gui_controller->AttachRadio(radio);
+
         Init_OFDM_Demodulator(transmission_mode);
 
         // Buffer to read raw IQ 8bit values and convert to floating point
@@ -92,6 +94,7 @@ public:
             basic_radio_thread->join();
             delete basic_radio_thread;
         }
+        delete radio_gui_controller;
         delete radio;
         delete ofdm_demod;
         delete [] rd_in_raw;
@@ -208,7 +211,7 @@ public:
             RenderSourceBuffer(rd_in_float, block_size);
             RenderOFDMDemodulator(ofdm_demod);
         }
-        RenderBasicRadio(radio);
+        RenderSimple_Root(radio, radio_gui_controller);
         ImGui::End();
     }
     virtual void AfterShutdown() {

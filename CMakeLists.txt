@@ -78,7 +78,6 @@ target_compile_definitions(basic_radio PRIVATE ELPP_THREAD_SAFE)
 
 set(BASIC_RADIO_GUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/basic_radio)
 add_library(basic_radio_gui STATIC
-    ${BASIC_RADIO_GUI_DIR}/render_basic_radio.cpp
     ${BASIC_RADIO_GUI_DIR}/render_simple_view.cpp
     ${BASIC_RADIO_GUI_DIR}/render_common.cpp
     ${BASIC_RADIO_GUI_DIR}/simple_view_controller.cpp

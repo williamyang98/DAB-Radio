@@ -15,7 +15,7 @@
 #include "dab/logging.h"
 #include "basic_radio/basic_radio.h"
 
-#include "gui/basic_radio/render_basic_radio.h"
+#include "gui/basic_radio/render_simple_view.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
@@ -43,6 +43,7 @@ private:
 
     bool is_running;
     BasicRadio* radio;
+    SimpleViewController* gui_controller;
     std::thread* radio_thread;
 public:
     App(const int transmission_mode, FILE* const _fp_in)
@@ -52,6 +53,9 @@ public:
         nb_buf_bits = params.nb_frame_bits;
 
         radio = new BasicRadio(params, &dependencies);
+        gui_controller = new SimpleViewController();
+        gui_controller->AttachRadio(radio);
+
         bits_buf = new viterbi_bit_t[nb_buf_bits];
         is_running = true;
         radio_thread = new std::thread([this]() {
@@ -63,9 +67,10 @@ public:
         fclose(fp_in);
         fp_in = NULL;
         radio_thread->join();
-        delete [] bits_buf;
+        delete gui_controller;
         delete radio;
         delete radio_thread;
+        delete [] bits_buf;
     }
 public:
     virtual GLFWwindow* Create_GLFW_Window(void) {
@@ -89,7 +94,7 @@ public:
         ImGuiSetupCustomConfig();
     }
     virtual void Render() {
-        RenderBasicRadio(radio);
+        RenderSimple_Root(radio, gui_controller);
     }
 private:
     void RunnerThread() {
