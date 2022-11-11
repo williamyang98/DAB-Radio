@@ -1,6 +1,8 @@
 #include "dab_ofdm_params_ref.h"
 
 #include <stdlib.h>
+#include <stdexcept>
+#include <fmt/core.h>
 
 // DOC: doc/DAB_parameters.pdf
 // Clause A1.1 - System parameters
@@ -54,8 +56,7 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
         }
         break;
     default:
-        // TODO: handle errors
-        exit(1);
+        throw std::runtime_error(fmt::format("Invalid transmission mode {}", transmission_mode));
     }
 
     return p;

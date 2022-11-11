@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdexcept>
+
 struct DAB_Parameters {
     int nb_frame_bits;      // number of bits in frame
     int nb_symbols;         // number of symbols in frame
@@ -71,7 +73,7 @@ static DAB_Parameters get_dab_parameters(const int transmission_mode)
         }
         break;
     default:
-        // TODO: throw error here
+        throw std::runtime_error("Invalid transmission mode");
         break;
     }
 

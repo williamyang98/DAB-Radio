@@ -2,6 +2,8 @@
 #include <cmath>
 
 #include "dab_prs_ref.h"
+#include <stdexcept>
+#include <fmt/core.h>
 
 struct PRS_Table_Entry {
     int k_min;
@@ -138,18 +140,17 @@ void get_DAB_PRS_reference(const int transmission_mode,
     std::complex<float>* buf,
     const int nb_fft)
 {
-    // TODO: return error code or exception
     if (transmission_mode <= 0 || transmission_mode > 4) {
-        exit(1);
+        throw std::runtime_error(fmt::format("Invalid transmission mode {}", transmission_mode));
         return;
     }
 
     auto p_table = PRS_PARAMS_MODE_TABLE[transmission_mode-1];
     const int nb_carriers = -2*p_table[0].k_min + 1;
 
-    // TODO: return error code if we cant fit PRS fft reference into buffer 
     if (nb_fft < nb_carriers) {
-        exit(1);
+        throw std::runtime_error(fmt::format("FFT buffer not large enough to fit phase reference symbol {}<{}", 
+            nb_fft, nb_carriers));
         return;
     }
 

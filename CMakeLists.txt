@@ -27,7 +27,7 @@ add_library(ofdm_core STATIC
     ${OFDM_CORE_DIR}/quantized_oscillator.cpp)
 target_include_directories(ofdm_core PUBLIC ${OFDM_CORE_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
-target_link_libraries(ofdm_core PRIVATE kissfft)
+target_link_libraries(ofdm_core PRIVATE kissfft fmt)
 
 set(DAB_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/dab)
 add_library(dab_core STATIC
