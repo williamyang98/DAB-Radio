@@ -31,6 +31,7 @@ public:
         ReleaseActiveBuffer();
     }
     ~DoubleBuffer() {
+        Close();
         delete [] active_buffer;
         delete [] inactive_buffer;
     }

@@ -223,6 +223,17 @@ void OFDM_Demod::Process(const std::complex<float>* buf, const int N) {
     }
 }
 
+void OFDM_Demod::Reset() {
+    state = State::FINDING_NULL_POWER_DIP;
+    correlation_time_buffer.SetLength(0);
+    total_frames_desync++;
+
+    // NOTE: We also reset fine frequency synchronisation since an incorrect value
+    // can reduce performance of fine time synchronisation using the impulse response
+    freq_fine_offset = 0.0f;
+    signal_l1_average = 0.0f;
+}
+
 int OFDM_Demod::FindNullPowerDip(const std::complex<float>* buf, const int N) {
     // Clause 3.12.2 - Frame synchronisation using power detection
     // we run this if we dont have an initial estimate for the prs index

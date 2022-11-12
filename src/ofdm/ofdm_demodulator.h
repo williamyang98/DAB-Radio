@@ -89,6 +89,7 @@ public:
     OFDM_Demod(const OFDM_Params _params, const std::complex<float>* _prs_fft_ref, const int* _carrier_mapper);
     ~OFDM_Demod();
     void Process(const std::complex<float>* block, const int N);
+    void Reset();
 public:
     inline State GetState(void) const { return state; }
     inline float GetFineFrequencyOffset(void) const { return freq_fine_offset; }

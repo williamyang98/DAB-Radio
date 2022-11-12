@@ -9,6 +9,9 @@ find_package(kissfft REQUIRED)
 find_package(easyloggingpp REQUIRED)
 find_package(fmt REQUIRED)
 
+set(rtlsdr_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/librtlsdr)
+find_package(rtlsdr CONFIG REQUIRED)
+
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
 if(WIN32)
@@ -173,6 +176,33 @@ target_include_directories(convert_viterbi PUBLIC src/)
 set_target_properties(convert_viterbi PROPERTIES CXX_STANDARD 17)
 target_link_libraries(convert_viterbi PRIVATE getopt)
 
+add_executable(radio_app 
+    src/radio_app.cpp 
+    src/convenience.c
+    src/gui/imgui_skeleton.cpp
+    src/gui/render_ofdm_demod.cpp
+    src/audio/win32_pcm_player.cpp
+)
+target_include_directories(radio_app PUBLIC src/)
+set_target_properties(radio_app PROPERTIES CXX_STANDARD 17)
+target_link_libraries(radio_app PRIVATE 
+    getopt fmt easyloggingpp
+    rtlsdr ofdm_core dab_core basic_radio 
+    basic_radio_gui
+    imgui implot)
+target_compile_definitions(radio_app PRIVATE ELPP_THREAD_SAFE)
+
+# vcpkg.cmake has internal stuff that autogenerates this
+# we have to do this manually
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    add_custom_command(TARGET radio_app 
+        POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${rtlsdr_DIR}/bin/x64/
+        $<TARGET_FILE_DIR:radio_app>)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR "x86 rtlsdr is unsupported")
+endif()
+
 if (WIN32)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(dab_core             PRIVATE "/MP")
@@ -189,5 +219,6 @@ target_compile_options(basic_radio_scraper_no_demod PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(convert_viterbi      PRIVATE "/MP")
+target_compile_options(radio_app            PRIVATE "/MP")
 
 endif(WIN32)

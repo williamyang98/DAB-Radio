@@ -19,3 +19,6 @@
 [submodule "vendor/stb"]
 	path = vendor/stb
 	url = https://github.com/nothings/stb.git
+[submodule "vendor/librtlsdr"]
+	path = vendor/librtlsdr
+	url = https://github.com/FiendChain/librtlsdr_cmake.git
