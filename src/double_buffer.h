@@ -23,8 +23,8 @@ private:
 public:
     DoubleBuffer(const int _length)
     : length(_length) {
-        active_buffer = new viterbi_bit_t[length];
-        inactive_buffer = new viterbi_bit_t[length];
+        active_buffer = new T[length];
+        inactive_buffer = new T[length];
         is_start_buffer = false;
         is_end_buffer = false;
         is_send_terminate = false;

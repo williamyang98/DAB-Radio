@@ -224,14 +224,13 @@ public:
 class DeviceSelector 
 {
 private:
-	Observable<const std::complex<float>*, const int> obs_on_data;
+	Observable<const std::complex<uint8_t>*, const int> obs_on_data;
 	Observable<Device*> obs_on_device_change;
 
 	std::vector<DeviceDescriptor> device_list;
 	std::list<std::string> error_list;
 	std::unique_ptr<Device> device = NULL;	
 	std::mutex mutex_device;
-	std::vector<std::complex<float>> block_data;
 public:
 	DeviceSelector() {
 		SearchDevices();
@@ -272,8 +271,6 @@ public:
 
 		auto lock = std::unique_lock(mutex_device);
 		device = std::make_unique<Device>(dev, descriptor, 4);
-		const int N = device->GetBlockSize() / sizeof(std::complex<uint8_t>);
-		block_data.resize(N);
 
 		using namespace std::placeholders;
 		obs_on_device_change.Notify(device.get());
@@ -286,20 +283,13 @@ public:
 	}
 	Device* GetDevice() { return device.get(); }
 	auto& GetDeviceMutex() { return mutex_device; }
-	const auto& GetBlockData() { return block_data; }
 	const auto& GetDeviceList() { return device_list; }
 	auto& GetErrorList() { return error_list; }
 	auto& OnData() { return obs_on_data; }
 	auto& OnDeviceChange() { return obs_on_device_change; }
 private:
 	void OnRawData(const std::complex<uint8_t>* data, const int N) {
-		block_data.resize(N);
-		for (int i = 0; i < N; i++) {
-			const float I = static_cast<float>(data[i].real()) - 127.0f;
-			const float Q = static_cast<float>(data[i].imag()) - 127.0f;
-			block_data[i] = std::complex<float>(I, Q);
-		}
-		obs_on_data.Notify(block_data.data(), N);
+		obs_on_data.Notify(data, N);
 	}
 };
 
@@ -330,7 +320,10 @@ public:
 	typedef std::pair<std::unique_ptr<BasicRadio>, std::unique_ptr<SimpleViewController>> radio_instance_t;
 	std::unordered_map<std::string, radio_instance_t> basic_radios;
 
+	std::unique_ptr<DoubleBuffer<std::complex<float>>> rx_double_buffer;
 	std::unique_ptr<DoubleBuffer<viterbi_bit_t>> double_buffer;
+
+	std::unique_ptr<std::thread> ofdm_demod_thread;
 	std::unique_ptr<std::thread> basic_radio_thread;
 public:
 	App() {
@@ -339,6 +332,9 @@ public:
 		const auto dab_params = get_dab_parameters(transmission_mode);
 		ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
 		double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits);
+
+		// TODO: add resize method to double buffer if the length doesn't match
+		rx_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(16384*4/sizeof(std::complex<uint8_t>));
 
 		device_selector->OnDeviceChange().Attach([this](Device* device) {
 			if (device == NULL) {
@@ -349,13 +345,36 @@ public:
 			device->SetCenterFrequency("9C", block_frequencies.at("9C"));
 		});
 
-		device_selector->OnData().Attach([this](const std::complex<float>* data, const int N) {
+		device_selector->OnData().Attach([this](const std::complex<uint8_t>* data, const int N) {
 			if (demodulator_cooldown > 0) {
 				demodulator_cooldown--;
 				ofdm_demod->Reset();
 				return;
 			}
-			ofdm_demod->Process(data, N);
+
+			auto* inactive_buf = rx_double_buffer->AcquireInactiveBuffer();
+			if (inactive_buf == NULL) {
+				return;
+			}
+			for (int i = 0; i < N; i++) {
+				const float I = static_cast<float>(data[i].real()) - 127.0f;
+				const float Q = static_cast<float>(data[i].imag()) - 127.0f;
+				inactive_buf[i] = std::complex<float>(I, Q);
+			}
+			rx_double_buffer->ReleaseInactiveBuffer();
+
+		});
+
+		ofdm_demod_thread = std::make_unique<std::thread>([this]() {
+			while (true) {
+				auto* active_buf = rx_double_buffer->AcquireActiveBuffer();
+				if (active_buf == NULL) {
+					return;
+				}
+				const int N = rx_double_buffer->GetLength();
+				ofdm_demod->Process(active_buf, N);
+				rx_double_buffer->ReleaseActiveBuffer();
+			}
 		});
 
 		ofdm_demod->On_OFDM_Frame().Attach([this](const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
@@ -457,9 +476,13 @@ public:
 		if (ImGui::Begin("Demodulator Controls")) {
 			ImGui::DockSpace(ImGui::GetID("Demodulator Dockspace"));
 			RenderDeviceSelector(*app.device_selector.get());
-			RenderSourceBuffer(
-				app.device_selector->GetBlockData().data(), 
-				app.device_selector->GetBlockData().size());
+			{
+				auto* buf = app.rx_double_buffer->AcquireInactiveBuffer();
+				if (buf != NULL) {
+					const int N = app.rx_double_buffer->GetLength();
+					RenderSourceBuffer(buf, N);
+				}
+			}
 			RenderOFDMDemodulator(app.ofdm_demod.get());
 		}
 		ImGui::End();
