@@ -6,11 +6,9 @@
 #include <imgui.h>
 #include <fmt/core.h>
 
-#include "block_frequencies.h"
+void RenderDeviceControls(Device& device, const block_frequency_table_t& block_frequencies);
 
-void RenderDeviceControls(Device& device);
-
-void RenderDeviceSelector(DeviceSelector& app) {
+void RenderDeviceSelector(DeviceSelector& app, const block_frequency_table_t& block_frequencies) {
 	if (ImGui::Begin("Controls")) {
 		if (ImGui::Button("Search")) {
 			app.SearchDevices();
@@ -51,14 +49,14 @@ void RenderDeviceSelector(DeviceSelector& app) {
 			auto lock = std::unique_lock(app.GetDeviceMutex());
 			selected_device = app.GetDevice();
 			if (selected_device != NULL) {
-				RenderDeviceControls(*selected_device);
+				RenderDeviceControls(*selected_device, block_frequencies);
 			}
 		}
 	}
 	ImGui::End();
 }
 
-void RenderDeviceControls(Device& device) {
+void RenderDeviceControls(Device& device, const block_frequency_table_t& block_frequencies) {
 	std::string preview_label;
 	if (!device.GetIsGainManual()) {
 		preview_label = "Automatic";

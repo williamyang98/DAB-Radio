@@ -254,7 +254,7 @@ public:
     virtual void Render() {
 		if (ImGui::Begin("Demodulator Controls")) {
 			ImGui::DockSpace(ImGui::GetID("Demodulator Dockspace"));
-			RenderDeviceSelector(app.GetDeviceSelector());
+			RenderDeviceSelector(app.GetDeviceSelector(), block_frequencies);
 			{
 				auto& double_buffer = app.GetInputBuffer();
 				auto* buf = double_buffer.AcquireInactiveBuffer();
