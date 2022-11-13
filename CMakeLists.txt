@@ -14,10 +14,12 @@ find_package(rtlsdr CONFIG REQUIRED)
 
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
-if(WIN32)
+if(MSVC)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-endif(WIN32)
+elseif(UNIX)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2 -msse4.1 -ffast-math")
+endif()
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -197,7 +199,7 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "x86 rtlsdr is unsupported")
 endif()
 
-if (WIN32)
+if(MSVC)
 target_compile_options(ofdm_core            PRIVATE "/MP")
 target_compile_options(dab_core             PRIVATE "/MP")
 target_compile_options(basic_radio          PRIVATE "/MP")
@@ -215,4 +217,4 @@ target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(convert_viterbi      PRIVATE "/MP")
 target_compile_options(radio_app            PRIVATE "/MP")
 
-endif(WIN32)
+endif()

@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #include "utility/observable.h"
 
 class Reed_Solomon_Decoder;
