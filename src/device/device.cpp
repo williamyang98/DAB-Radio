@@ -88,6 +88,9 @@ void Device::SetCenterFrequency(const std::string& label, const uint32_t freq) {
     const int r = rtlsdr_set_center_freq(device, freq);
     if (r < 0) {
         error_list.push_back(fmt::format("Couldn't set center frequency to {}:{}", label, freq));
+        // Resend notification with original frequency
+        obs_on_center_frequency.Notify(selected_frequency_label, selected_frequency);
+        return;
     }
     selected_frequency_label = label;
     selected_frequency = freq;
