@@ -117,6 +117,11 @@ But the core algorithms are platform independent. You just need to write code to
 ### Documentation
 - Add as much comments to link specific pieces of code to parts of the standard that were heavily referenced. This includes the specific document number, the specific clause and specific table/chart used.
 
+### Compliance
+- Conform to rule of 0/3/5 by using stl containers
+- Delete move/copy constructors for objects which rely on callbacks that take in pointers
+- Use smart pointers to manage memory instead of manually managing memory 
+
 ## Inspirations
 - The welle.io open source radio has an excellent implementation of DAB radio. Their implementation is much more featureful and optimised than mine. Their repository can be found [here](https://github.com/albrechtl/welle.io). They also have a youtube video showcasing their wonderful software [here](https://www.youtube.com/watch?v=IJcgdmud-AI). 
 
