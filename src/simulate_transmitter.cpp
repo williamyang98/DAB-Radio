@@ -7,16 +7,17 @@
 #include <complex>
 #include <stdio.h>
 
-#include "ofdm_modulator.h"
-#include "ofdm_params.h"
-#include "dab_prs_ref.h"
-#include "dab_ofdm_params_ref.h"
-#include "dab_mapper_ref.h"
-
-#include "./getopt/getopt.h"
-
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#endif
+
+#include "modules/ofdm/ofdm_modulator.h"
+#include "modules/ofdm/ofdm_params.h"
+#include "modules/ofdm/dab_prs_ref.h"
+#include "modules/ofdm/dab_ofdm_params_ref.h"
+#include "modules/ofdm/dab_mapper_ref.h"
+#include "utility/getopt/getopt.h"
 
 // scrambler that is used for DVB transmissions
 class Scrambler 
@@ -61,8 +62,11 @@ void usage() {
 
 int main(int argc, char** argv) 
 {
+
+#ifdef _WIN32
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
+#endif
 
     int transmission_mode = 1;
     bool print_sample_message = false;

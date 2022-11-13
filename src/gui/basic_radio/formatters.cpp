@@ -1,7 +1,7 @@
 #include "formatters.h"
 #include <fmt/core.h>
 
-#include "dab/constants/subchannel_protection_tables.h"
+#include "modules/dab/constants/subchannel_protection_tables.h"
 
 std::string GetSubchannelProtectionLabel(Subchannel& subchannel) {
     if (subchannel.is_uep) {

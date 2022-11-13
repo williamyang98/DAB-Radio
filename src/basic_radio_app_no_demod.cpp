@@ -5,28 +5,28 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#endif
 
-#include "getopt/getopt.h"
-#include "easylogging++.h"
-
-#include "dab/logging.h"
-#include "basic_radio/basic_radio.h"
-
+#include "modules/basic_radio/basic_radio.h"
 #include "gui/basic_radio/render_simple_view.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
-
 #include "audio/win32_pcm_player.h"
 
 #include <GLFW/glfw3.h> 
-#include "imgui.h"
+#include <imgui.h>
 
 #include <thread>
 #include <memory>
 #include <vector>
 #include <unordered_map>
+
+#include "utility/getopt/getopt.h"
+#include "easylogging++.h"
+#include "modules/dab/logging.h"
 
 class App 
 {
@@ -66,12 +66,13 @@ private:
         while (true) {
             if (fp_in == NULL) return;
 
-            const auto nb_read = fread(frame_bits.data(), sizeof(viterbi_bit_t), frame_bits.size(), fp_in);
-            if (nb_read != frame_bits.size()) {
-                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, frame_bits.size());
+            const int N = (int)frame_bits.size();
+            const int nb_read = (int)fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
+            if (nb_read != N) {
+                fprintf(stderr, "Failed to read soft-decision bits (%d/%d)\n", nb_read, N);
                 break;
             }
-            radio->Process(frame_bits.data(), frame_bits.size());
+            radio->Process(frame_bits.data(), N);
         }
     }
 	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
@@ -176,15 +177,17 @@ int main(int argc, char** argv) {
 
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
-        errno_t err = fopen_s(&fp_in, rd_filename, "r");
-        if (err != 0) {
+        fp_in = fopen(rd_filename, "rb");
+        if (fp_in == NULL) {
             fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
     }
 
+#ifdef _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
+#endif
 
     auto dab_loggers = RegisterLogging();
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");

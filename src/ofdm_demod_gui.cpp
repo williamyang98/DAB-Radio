@@ -5,17 +5,17 @@
 #include <stdint.h>
 #include <thread>
 
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#endif
 
-#include "./getopt/getopt.h"
+#include "utility/getopt/getopt.h"
 
-#include <complex>
-#include "ofdm/ofdm_demodulator.h"
-
-#include "dab_ofdm_params_ref.h"
-#include "dab_prs_ref.h"
-#include "dab_mapper_ref.h"
+#include "modules/ofdm/ofdm_demodulator.h"
+#include "modules/ofdm/dab_ofdm_params_ref.h"
+#include "modules/ofdm/dab_prs_ref.h"
+#include "modules/ofdm/dab_mapper_ref.h"
 
 #include <GLFW/glfw3.h> 
 #include "implot.h"
@@ -23,6 +23,7 @@
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
+#include <complex>
 #include <memory>
 #include <vector>
 #include <mutex>
@@ -133,7 +134,7 @@ private:
             }
             flag_step = false;
 
-            const int block_size = buf_rd.size();
+            const int block_size = (int)buf_rd.size();
             int nb_read = 0;
             {
                 auto lock = std::scoped_lock(mutex_fp_in);
@@ -141,7 +142,7 @@ private:
                     is_running = false;
                     break;
                 }
-                nb_read = fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+                nb_read = (int)fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
             }
 
             if (nb_read != block_size) {
@@ -173,7 +174,7 @@ private:
             if (fp_out == NULL) {
                 return;
             }
-            nb_write = fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
+            nb_write = (int)fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
         }
 
         if (nb_write != N) {
@@ -213,7 +214,7 @@ public:
 
     virtual void Render() {
         auto& buf = app.GetRawBuffer();
-        RenderSourceBuffer(buf.data(), buf.size());
+        RenderSourceBuffer(buf.data(), (int)buf.size());
         RenderOFDMDemodulator(app.GetDemod());
         RenderAppControls();
     }
@@ -307,8 +308,8 @@ int main(int argc, char** argv)
 
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
-        errno_t err = fopen_s(&fp_in, rd_filename, "r");
-        if (err != 0) {
+        fp_in = fopen(rd_filename, "rb");
+        if (fp_in == NULL) {
             fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
@@ -316,15 +317,17 @@ int main(int argc, char** argv)
 
     FILE* fp_out = stdout;
     if (wr_filename != NULL) {
-        errno_t err = fopen_s(&fp_out, wr_filename, "w");
-        if (err != 0) {
+        fp_out = fopen(wr_filename, "wb+");
+        if (fp_out == NULL) {
             fprintf(stderr, "Failed to open file for writing\n");
             return 1;
         }
     }
 
+#ifdef _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
+#endif
 
     auto app = App(transmission_mode, fp_in, fp_out, block_size);
     auto renderer = Renderer(app);

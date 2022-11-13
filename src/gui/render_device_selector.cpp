@@ -1,7 +1,7 @@
 #include "render_device_selector.h"
 
-#include "device/device.h"
-#include "device/device_selector.h"
+#include "modules/device/device.h"
+#include "modules/device/device_selector.h"
 
 #include <imgui.h>
 #include <fmt/core.h>

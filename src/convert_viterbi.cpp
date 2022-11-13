@@ -1,19 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
-
-#include "getopt/getopt.h"
-#include "dab/constants/dab_parameters.h"
-#include "../viterbi_config.h"
-
-#define PRINT_LOG 1
-#if PRINT_LOG 
-  #define LOG_MESSAGE(...) fprintf(stderr, __VA_ARGS__)
-#else
-  #define LOG_MESSAGE(...) (void)0
 #endif
+
+#include "utility/getopt/getopt.h"
+#include "modules/dab/constants/dab_parameters.h"
+#include "viterbi_config.h"
 
 void usage() {
     fprintf(stderr, 
@@ -69,24 +64,26 @@ int main(int argc, char** argv) {
     // app startup
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
-        errno_t err = fopen_s(&fp_in, rd_filename, "r");
-        if (err != 0) {
-            LOG_MESSAGE("Failed to open file for reading\n");
+        fp_in = fopen(rd_filename, "rb");
+        if (fp_in == NULL) {
+            fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
     }
 
     FILE* fp_out = stdout;
     if (wr_filename != NULL) {
-        errno_t err = fopen_s(&fp_out, wr_filename, "w");
-        if (err != 0) {
-            LOG_MESSAGE("Failed to open file for writing\n");
+        fp_out = fopen(wr_filename, "wb+");
+        if (fp_out == NULL) {
+            fprintf(stderr, "Failed to open file for writing\n");
             return 1;
         }
     }
 
+#ifdef _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
+#endif
     
     const DAB_Parameters params = get_dab_parameters(transmission_mode);
     const int nb_bits = params.nb_frame_bits; 
@@ -98,32 +95,32 @@ int main(int argc, char** argv) {
     // Convert hard bytes to soft bits
     if (is_decode) {
         while (true) {
-            auto nb_read = fread((void*)hard_bytes, sizeof(uint8_t), nb_bytes, fp_in);
+            const int nb_read = (int)fread((void*)hard_bytes, sizeof(uint8_t), nb_bytes, fp_in);
             if (nb_read != nb_bytes) {
-                fprintf(stderr, "Failed to read in hard bytes\n");
+                fprintf(stderr, "Failed to read in hard bytes %d/%d\n", nb_read, nb_bytes);
                 break;
             }
 
             DecodeBytesToBits(hard_bytes, soft_bits, nb_bytes);
-            auto nb_write = fwrite((void*)soft_bits, sizeof(viterbi_bit_t), nb_bits, fp_out);
+            const int nb_write = (int)fwrite((void*)soft_bits, sizeof(viterbi_bit_t), nb_bits, fp_out);
             if (nb_write != nb_bits) {
-                fprintf(stderr, "Failed to write out soft bits\n");
+                fprintf(stderr, "Failed to write out soft bits %d/%d\n", nb_write, nb_bits);
                 break;
             }
         }
     // Convert soft bits to hard bytes
     } else {
         while (true) {
-            auto nb_read = fread((void*)soft_bits, sizeof(viterbi_bit_t), nb_bits, fp_in);
+            const int nb_read = (int)fread((void*)soft_bits, sizeof(viterbi_bit_t), nb_bits, fp_in);
             if (nb_read != nb_bits) {
-                fprintf(stderr, "Failed to read in soft bits\n");
+                fprintf(stderr, "Failed to read in soft bits %d/%d\n", nb_read, nb_bits);
                 break;
             }
 
             EncodeBitsToBytes(soft_bits, hard_bytes, nb_bits);
-            auto nb_write = fwrite((void*)hard_bytes, sizeof(uint8_t), nb_bytes, fp_out);
+            const int nb_write = (int)fwrite((void*)hard_bytes, sizeof(uint8_t), nb_bytes, fp_out);
             if (nb_write != nb_bytes) {
-                fprintf(stderr, "Failed to write out hard bytes\n");
+                fprintf(stderr, "Failed to write out hard bytes %d/%d\n", nb_write, nb_bytes);
                 break;
             }
         }

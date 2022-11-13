@@ -7,9 +7,9 @@
 #include "imgui.h"
 #include "texture.h"
 
-#include "dab/database/dab_database_entities.h"
-#include "basic_radio/basic_slideshow.h"
-#include "basic_radio/basic_radio.h"
+#include "modules/dab/database/dab_database_entities.h"
+#include "modules/basic_radio/basic_slideshow.h"
+#include "modules/basic_radio/basic_radio.h"
 
 struct SelectedSlideshowView {
     subchannel_id_t subchannel_id = 0;

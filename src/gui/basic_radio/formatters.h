@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dab/database/dab_database_entities.h"
+#include "modules/dab/database/dab_database_entities.h"
 
 std::string GetSubchannelProtectionLabel(Subchannel& subchannel);
 uint32_t GetSubchannelBitrate(Subchannel& subchannel);

@@ -1,5 +1,5 @@
 #include "render_ofdm_demod.h"
-#include "ofdm/ofdm_demodulator.h"
+#include "modules/ofdm/ofdm_demodulator.h"
 
 #include "imgui.h"
 #include "implot.h"

@@ -1,15 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
-
-#include "getopt/getopt.h"
+#endif
 
 #include <GLFW/glfw3.h>
-#include "imgui.h"
+#include <imgui.h>
+#include <implot.h>
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
-#include "implot.h"
 
 #include <unordered_map>
 #include <thread>
@@ -17,25 +18,23 @@
 #include <memory>
 #include <fmt/core.h>
 
-#include "block_frequencies.h"
-#include "observable.h"
-#include "double_buffer.h"
-
-#include "device/device_selector.h"
-#include "ofdm/ofdm_demodulator.h"
-#include "ofdm/dab_ofdm_params_ref.h"
-#include "ofdm/dab_prs_ref.h"
-#include "ofdm/dab_mapper_ref.h"
-#include "basic_radio/basic_radio.h"
-
+#include "modules/device/device_selector.h"
+#include "modules/ofdm/ofdm_demodulator.h"
+#include "modules/ofdm/dab_ofdm_params_ref.h"
+#include "modules/ofdm/dab_prs_ref.h"
+#include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/basic_radio/basic_radio.h"
 #include "gui/render_device_selector.h"
 #include "gui/render_ofdm_demod.h"
 #include "gui/basic_radio/render_simple_view.h"
-
 #include "audio/win32_pcm_player.h"
 
+#include "block_frequencies.h"
+#include "utility/double_buffer.h"
+
+#include "utility/getopt/getopt.h"
 #include "easylogging++.h"
-#include "dab/logging.h"
+#include "modules/dab/logging.h"
 
 std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
@@ -339,7 +338,10 @@ int main(int argc, char **argv)
             return 0;
         }
     }
+
+#ifdef _WIN32
 	_setmode(_fileno(stdout), _O_BINARY);
+#endif
 
     auto dab_loggers = RegisterLogging();
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");

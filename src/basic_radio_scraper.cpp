@@ -4,23 +4,25 @@
 #include <stdint.h>
 #include <complex>
 
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#endif
 
-#include "ofdm/ofdm_demodulator.h"
-#include "ofdm/dab_ofdm_params_ref.h"
-#include "ofdm/dab_prs_ref.h"
-#include "ofdm/dab_mapper_ref.h"
-#include "basic_radio/basic_radio.h"
-#include "basic_scraper/basic_scraper.h"
+#include "modules/ofdm/ofdm_demodulator.h"
+#include "modules/ofdm/dab_ofdm_params_ref.h"
+#include "modules/ofdm/dab_prs_ref.h"
+#include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/basic_radio/basic_radio.h"
+#include "modules/basic_scraper/basic_scraper.h"
 
 #include <thread>
 #include <memory>
-#include "double_buffer.h"
+#include "utility/double_buffer.h"
 
-#include "getopt/getopt.h"
+#include "utility/getopt/getopt.h"
 #include "easylogging++.h"
-#include "dab/logging.h"
+#include "modules/dab/logging.h"
 
 std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
@@ -94,12 +96,10 @@ private:
         while (true) {
             if (fp_in == NULL) return;
 
-            const int block_size = rd_in_raw.size();
-
-            const auto nb_read = fread(rd_in_raw.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+            const int block_size = (int)rd_in_raw.size();
+            const auto nb_read = (int)fread(rd_in_raw.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
             if (nb_read != block_size) {
-                fprintf(stderr, "Failed to read in %d bytes, got %llu bytes\n", 
-                    block_size, nb_read);
+                fprintf(stderr, "Failed to read in %d bytes, got %d bytes\n", block_size, nb_read);
                 break;
             }
 
@@ -201,15 +201,17 @@ int main(int argc, char** argv) {
     // app startup
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
-        errno_t err = fopen_s(&fp_in, rd_filename, "r");
-        if (err != 0) {
+        fp_in = fopen(rd_filename, "rb");
+        if (fp_in == NULL) {
             fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
     }
 
+#ifdef _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
+#endif
 
     auto dab_loggers = RegisterLogging();
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");

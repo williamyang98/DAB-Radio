@@ -6,14 +6,16 @@
 #include <complex>
 #include <assert.h>
 
+#ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#endif
 
-#include "getopt/getopt.h"
-#include "ofdm/ofdm_demodulator.h"
-#include "ofdm/dab_ofdm_params_ref.h"
-#include "ofdm/dab_prs_ref.h"
-#include "ofdm/dab_mapper_ref.h"
+#include "utility/getopt/getopt.h"
+#include "modules/ofdm/ofdm_demodulator.h"
+#include "modules/ofdm/dab_ofdm_params_ref.h"
+#include "modules/ofdm/dab_prs_ref.h"
+#include "modules/ofdm/dab_mapper_ref.h"
 
 #include <memory>
 #include <vector>
@@ -80,15 +82,15 @@ public:
     auto& GetIsOutput(void) { return is_output; }
     void Run() {
         while (true) {
-            const int block_size = buf_rd.size();
+            const int block_size = (int)buf_rd.size();
             int nb_read = 0;
             {
                 auto lock = std::scoped_lock(mutex_fp_in);
-                nb_read = fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+                nb_read = (int)fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
             }
 
             if (nb_read != block_size) {
-                fprintf(stderr, "Failed to read data %d/%d\n", nb_read, block_size);
+                fprintf(stderr, "Failed to read data %u/%d\n", nb_read, block_size);
                 break;
             }
 
@@ -128,7 +130,7 @@ private:
             if (fp_out == NULL) {
                 return;
             }
-            nb_write = fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
+            nb_write = (int)fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
         }
 
         if (nb_write != N) {
@@ -198,8 +200,8 @@ int main(int argc, char** argv)
     // app startup
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
-        errno_t err = fopen_s(&fp_in, rd_filename, "r");
-        if (err != 0) {
+        fp_in = fopen(rd_filename, "rb");
+        if (fp_in == NULL) {
             fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
@@ -207,15 +209,17 @@ int main(int argc, char** argv)
 
     FILE* fp_out = stdout;
     if (wr_filename != NULL) {
-        errno_t err = fopen_s(&fp_out, wr_filename, "w");
-        if (err != 0) {
+        fp_out = fopen(wr_filename, "wb+");
+        if (fp_out == NULL) {
             fprintf(stderr, "Failed to open file for writing\n");
             return 1;
         }
     }
 
+#ifdef _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
+#endif
 
     auto app = App(transmission_mode, fp_in, fp_out, block_size);
     app.GetIsOutput() = is_output;
