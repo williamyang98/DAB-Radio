@@ -29,118 +29,97 @@
 #include "imgui.h"
 #include "implot.h"
 
+#include <unordered_map>
+#include <vector>
+#include <memory>
 #include <thread>
 #include "double_buffer.h"
 
-class AppDependencies: public Basic_Radio_Dependencies 
-{
-public:
-    virtual PCM_Player* Create_PCM_Player(void) {
-        return new Win32_PCM_Player();
-    }
-};
 
-// Class that connects our analog OFDM demodulator and digital DAB decoder
-// Also provides the skeleton of the Imgui application
-class App: public ImguiSkeleton 
+std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
+	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
+	auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
+	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
+	auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
+	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+
+	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
+
+	{
+		auto& cfg = ofdm_demod->GetConfig();
+		cfg.toggle_flags.is_update_data_sym_mag = true;
+		cfg.toggle_flags.is_update_tii_sym_mag = true;
+	}
+
+	delete [] ofdm_prs_ref;
+	delete [] ofdm_mapper_ref;
+
+	return ofdm_demod;
+}	
+
+class App 
 {
 private:
-    AppDependencies dependencies;
-
-    // Number of bytes per OFDM frame in transmission mode I
-    // NOTE: we are hard coding this because all other transmission modes have been deprecated
     FILE* fp_in;
-    const int block_size;
-    std::complex<uint8_t>* rd_in_raw;
-    std::complex<float>* rd_in_float;
 
-    DoubleBuffer<viterbi_bit_t>* double_buffer;
+    std::vector<std::complex<uint8_t>> rd_in_raw;
+    std::vector<std::complex<float>> rd_in_float;
+    std::unique_ptr<DoubleBuffer<viterbi_bit_t>> frame_double_buffer;
 
-    OFDM_Demod* ofdm_demod;
-    BasicRadio* radio;
-    SimpleViewController* radio_gui_controller;
+    std::unique_ptr<OFDM_Demod> ofdm_demod;
+    std::unique_ptr<BasicRadio> radio;
+    std::unique_ptr<SimpleViewController> radio_view_controller;
 
-    // Separate threads for the radio, and raw IQ to OFDM frame demodulator
-    std::thread* ofdm_demod_thread;
-    std::thread* basic_radio_thread;
+    std::unique_ptr<std::thread> ofdm_demod_thread;
+    std::unique_ptr<std::thread> basic_radio_thread;
+
+    std::unordered_map<subchannel_id_t, std::unique_ptr<PCM_Player>> dab_plus_audio_players;
 public:
     App(const int transmission_mode, FILE* const _fp_in, const int _block_size)
-    : fp_in(_fp_in), block_size(_block_size)
+    : fp_in(_fp_in) 
     {
-        radio = new BasicRadio(get_dab_parameters(transmission_mode), &dependencies);
-        radio_gui_controller = new SimpleViewController();
-        radio_gui_controller->AttachRadio(radio);
+        auto params = get_dab_parameters(transmission_mode);
 
-        Init_OFDM_Demodulator(transmission_mode);
+        rd_in_raw.resize(_block_size);
+        rd_in_float.resize(_block_size);
+        frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(params.nb_frame_bits);
 
-        // Buffer to read raw IQ 8bit values and convert to floating point
-        rd_in_raw = new std::complex<uint8_t>[block_size];
-        rd_in_float = new std::complex<float>[block_size];
+        ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
+        radio = std::make_unique<BasicRadio>(params);
+        radio_view_controller = std::make_unique<SimpleViewController>();
+        radio_view_controller->AttachRadio(radio.get());
 
-        // Create our runner threads
-        ofdm_demod_thread = NULL;
-        basic_radio_thread = NULL;
-        Start();
-    }
-    ~App() {
-        double_buffer->Close();
-        if (ofdm_demod_thread != NULL) {
-            fclose(fp_in);
-            fp_in = NULL;
-            ofdm_demod_thread->join();
-            delete ofdm_demod_thread;
-        }
-        if (basic_radio_thread != NULL) {
-            basic_radio_thread->join();
-            delete basic_radio_thread;
-        }
-        delete radio_gui_controller;
-        delete radio;
-        delete ofdm_demod;
-        delete [] rd_in_raw;
-        delete [] rd_in_float;
-        delete double_buffer;
-    }
-private:
-    // Get our OFDM demodulator and frequency deinterleaver 
-    void Init_OFDM_Demodulator(const int transmission_mode) {
-        const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-        auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-        get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-        auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-        get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
-        ofdm_demod = new OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
+        using namespace std::placeholders;
+        radio->On_DAB_Plus_Channel().Attach(std::bind(&App::Attach_DAB_Plus_Audio_Player, this, _1, _2));
+        ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
 
-        const int nb_frame_bits = ofdm_demod->Get_OFDM_Frame_Total_Bits();
-        double_buffer = new DoubleBuffer<viterbi_bit_t>(nb_frame_bits);
-        {
-            using namespace std::placeholders;
-            ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
-        } 
-        {
-            auto& cfg = ofdm_demod->GetConfig();
-            cfg.toggle_flags.is_update_data_sym_mag = true;
-            cfg.toggle_flags.is_update_tii_sym_mag = true;
-        }
-
-        delete [] ofdm_prs_ref;
-        delete [] ofdm_mapper_ref;
-    }
-    void Start() {
-        basic_radio_thread = new std::thread([this]() {
-            RunnerThread_Radio();
-        });
-        ofdm_demod_thread = new std::thread([this]() {
+        ofdm_demod_thread = std::make_unique<std::thread>([this]() {
             RunnerThread_OFDM_Demod();
         });
+        basic_radio_thread = std::make_unique<std::thread>([this]() {
+            RunnerThread_Radio();
+        });
     }
+    ~App() {
+        fclose(fp_in);
+        fp_in = NULL;
+        frame_double_buffer->Close();
+        ofdm_demod_thread->join();
+        basic_radio_thread->join();
+    }
+    const auto& GetSourceBuffer() { return rd_in_float; }
+    auto* GetOFDMDemod() { return ofdm_demod.get(); }
+    auto* GetRadio() { return radio.get(); }
+    auto* GetRadioViewController() { return radio_view_controller.get(); }
 private:
     // ofdm thread -> ofdm frame callback -> double buffer -> dab thread
     void RunnerThread_OFDM_Demod() {
+        // Read raw 8bit IQ values and convert them to floating point
         while (true) {
-            // Read raw 8bit IQ values and convert them to floating point
             if (fp_in == NULL) return;
-            const auto nb_read = fread((void*)rd_in_raw, sizeof(std::complex<uint8_t>), block_size, fp_in);
+
+            const int block_size = rd_in_raw.size();
+            const auto nb_read = fread(rd_in_raw.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
             if (nb_read != block_size) {
                 fprintf(stderr, "Failed to read in %d bytes, got %llu bytes\n", 
                     block_size, nb_read);
@@ -154,34 +133,57 @@ private:
                 rd_in_float[i] = std::complex<float>(I, Q);
             }
 
-            ofdm_demod->Process(rd_in_float, block_size);
+            ofdm_demod->Process(rd_in_float.data(), block_size);
         }
     }    
     void OnOFDMFrame(const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
-        auto* inactive_frame_buffer = double_buffer->AcquireInactiveBuffer();
-        const int nb_frame_bits = double_buffer->GetLength();
-        if (inactive_frame_buffer == NULL) {
-            return;
-        }
+        auto* inactive_buf = frame_double_buffer->AcquireInactiveBuffer();
+        if (inactive_buf == NULL) return;
 
+        const int nb_frame_bits = frame_double_buffer->GetLength();
         for (int i = 0; i < nb_frame_bits; i++) {
-            inactive_frame_buffer[i] = buf[i];
+            inactive_buf[i] = buf[i];
         }
-        double_buffer->ReleaseInactiveBuffer();
+        frame_double_buffer->ReleaseInactiveBuffer();
     }
     void RunnerThread_Radio() {
         while (true) {
-            auto* active_frame_buffer = double_buffer->AcquireActiveBuffer();
-            const int nb_frame_bits = double_buffer->GetLength();
-            if (active_frame_buffer == NULL) {
-                return;
-            }
-            radio->Process(active_frame_buffer, nb_frame_bits);
-            double_buffer->ReleaseActiveBuffer();
+            auto* active_buf = frame_double_buffer->AcquireActiveBuffer();
+            if (active_buf == NULL) return;
+
+            const int nb_frame_bits = frame_double_buffer->GetLength();
+            radio->Process(active_buf, nb_frame_bits);
+            frame_double_buffer->ReleaseActiveBuffer();
         }
     }
-// All our imgui skeleton code
+    // Create audio player for each subchannel
+    void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+		auto& controls = channel.GetControls();
+		auto res = dab_plus_audio_players.emplace(
+			subchannel_id, 
+			std::move(std::make_unique<Win32_PCM_Player>())).first;
+		auto* pcm_player = res->second.get(); 
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, const uint8_t* data, const int N) {
+			if (!controls.GetIsPlayAudio()) {
+				return;
+			}
+
+			auto pcm_params = pcm_player->GetParameters();
+			pcm_params.sample_rate = params.frequency;
+			pcm_params.total_channels = 2;
+			pcm_params.bytes_per_sample = 2;
+			pcm_player->SetParameters(pcm_params);
+			pcm_player->ConsumeBuffer(data, N);
+		});
+	}
+};
+
+class Renderer: public ImguiSkeleton 
+{
+private:
+    App& app;
 public:
+    Renderer(App& _app): app(_app) {}
     virtual GLFWwindow* Create_GLFW_Window(void) {
         return glfwCreateWindow(
             1280, 720, 
@@ -208,10 +210,12 @@ public:
         if (ImGui::Begin("Demodulator")) {
             ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
             ImGui::DockSpace(dockspace_id);
-            RenderSourceBuffer(rd_in_float, block_size);
-            RenderOFDMDemodulator(ofdm_demod);
+
+            auto& buf = app.GetSourceBuffer();
+            RenderSourceBuffer(buf.data(), buf.size());
+            RenderOFDMDemodulator(app.GetOFDMDemod());
         }
-        RenderSimple_Root(radio, radio_gui_controller);
+        RenderSimple_Root(app.GetRadio(), app.GetRadioViewController());
         ImGui::End();
     }
     virtual void AfterShutdown() {
@@ -295,9 +299,9 @@ int main(int argc, char** argv) {
     el::Loggers::reconfigureAllLoggers(defaultConf);
     el::Helpers::setThreadName("main-thread");
 
-    auto app = new App(transmission_mode, fp_in, block_size);
-    const int rv = RenderImguiSkeleton(app);
-    delete app;
+    auto app = App(transmission_mode, fp_in, block_size);
+    auto renderer = Renderer(app);
+    const int rv = RenderImguiSkeleton(&renderer);
     return rv;
 }
 

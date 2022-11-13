@@ -58,19 +58,57 @@ std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	return ofdm_demod;
 }	
 
-class RadioDependencies: public Basic_Radio_Dependencies 
+class RadioInstance 
 {
+private:
+	std::unique_ptr<BasicRadio> radio;
+	std::unique_ptr<SimpleViewController> view_controller;	
+	std::unordered_map<subchannel_id_t, std::unique_ptr<PCM_Player>> dab_plus_audio_players;
 public:
-    virtual PCM_Player* Create_PCM_Player(void) {
-        return new Win32_PCM_Player();
-    }
+	RadioInstance(std::unique_ptr<BasicRadio> _radio, std::unique_ptr<SimpleViewController> _view_controller)
+	: dab_plus_audio_players() 
+	{
+		radio = std::move(_radio);
+		view_controller = std::move(_view_controller);
+		view_controller->AttachRadio(radio.get());
+
+		using namespace std::placeholders;
+		radio->On_DAB_Plus_Channel().Attach(std::bind(&RadioInstance::Attach_DAB_Plus_Audio_Player, this, _1, _2));
+	}
+	// We bind callbacks to this instance so we can't move or copy it
+	RadioInstance(const RadioInstance &) = delete;
+	RadioInstance(RadioInstance &&) = delete;
+	RadioInstance &operator=(const RadioInstance &) = delete;
+	RadioInstance &operator=(RadioInstance &&) = delete;
+	auto* GetRadio() { return radio.get(); }
+	auto* GetViewController() { return view_controller.get(); }
+private:
+	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+		auto& controls = channel.GetControls();
+		auto res = dab_plus_audio_players.emplace(
+			subchannel_id, 
+			std::move(std::make_unique<Win32_PCM_Player>())).first;
+		auto* pcm_player = res->second.get(); 
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, const uint8_t* data, const int N) {
+			if (!controls.GetIsPlayAudio()) {
+				return;
+			}
+
+			auto pcm_params = pcm_player->GetParameters();
+			pcm_params.sample_rate = params.frequency;
+			pcm_params.total_channels = 2;
+			pcm_params.bytes_per_sample = 2;
+			pcm_player->SetParameters(pcm_params);
+			pcm_player->ConsumeBuffer(data, N);
+		});
+	}
 };
 
 // Class to glue all of the components together
 class App 
 {
 private:
-	RadioDependencies dependencies;
+	const int transmission_mode = 1;
 	// When switching between block frequencies, interrupt the data flow so we dont have data from 
 	// the previous block frequency entering the data models for the new block frequency
 	int demodulator_cooldown_max = 10;
@@ -79,8 +117,7 @@ private:
 	std::unique_ptr<OFDM_Demod> ofdm_demod;
 	// Have a unique radio/view controller for each block frequency
 	std::string selected_radio;	// name of radio is the block frequency key
-	typedef std::pair<std::unique_ptr<BasicRadio>, std::unique_ptr<SimpleViewController>> radio_instance_t;
-	std::unordered_map<std::string, radio_instance_t> basic_radios;
+	std::unordered_map<std::string, std::unique_ptr<RadioInstance>> basic_radios;
 	// Double buffer data flow
 	// rtlsdr_device -> double_buffer -> ofdm_demodulator -> double_buffer -> basic_radio
 	std::unique_ptr<DoubleBuffer<std::complex<float>>> raw_double_buffer;
@@ -91,7 +128,6 @@ private:
 public:
 	App() {
 		device_selector = std::make_unique<DeviceSelector>();
-		const int transmission_mode = 1;
 		const auto dab_params = get_dab_parameters(transmission_mode);
 		ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
 
@@ -132,9 +168,8 @@ public:
 				}
 				const int N = frame_double_buffer->GetLength();
 				auto instance = GetSelectedRadio();
-				auto* basic_radio = instance.first;
-				if ((basic_radio != NULL) && (demodulator_cooldown == 0)) {
-					basic_radio->Process(active_buf, N);
+				if ((instance != NULL) && (demodulator_cooldown == 0)) {
+					instance->GetRadio()->Process(active_buf, N);
 				}
 
 				frame_double_buffer->ReleaseActiveBuffer();
@@ -143,14 +178,19 @@ public:
 
 		device_selector->SelectDevice(0);
 	}	
-	std::pair<BasicRadio*, SimpleViewController*> GetSelectedRadio() {
+	~App() {
+		raw_double_buffer->Close();
+		frame_double_buffer->Close();
+		ofdm_demod_thread->join();
+		basic_radio_thread->join();
+	}
+	RadioInstance* GetSelectedRadio() {
 		auto res = basic_radios.find(selected_radio);
 		if (res == basic_radios.end()) {
-			return {NULL, NULL};
+			return NULL;
 		}
 		
-		auto& instance = res->second;
-		return { instance.first.get(), instance.second.get() };
+		return res->second.get();
 	}
 	auto& GetOFDMDemodulator(void) { return *(ofdm_demod.get()); }
 	auto& GetInputBuffer(void) { return *(raw_double_buffer.get()); }
@@ -180,20 +220,11 @@ private:
 		});
 	}
 	void OnFrequencyChange(const std::string& label, const uint32_t freq) {
-		const int transmission_mode = 1;
-		const auto dab_params = get_dab_parameters(transmission_mode);
 		demodulator_cooldown = demodulator_cooldown_max;
 
 		auto res = basic_radios.find(label);
 		if (res == basic_radios.end()) {
-			auto basic_radio = std::make_unique<BasicRadio>(dab_params, &dependencies);
-			auto controller = std::make_unique<SimpleViewController>();
-			controller->AttachRadio(basic_radio.get());
-			basic_radios.insert({
-				label, 
-				std::make_pair<std::unique_ptr<BasicRadio>, std::unique_ptr<SimpleViewController>>(
-					std::move(basic_radio), std::move(controller))
-			});
+			CreateRadio(label);
 		}
 		selected_radio = label;
 	}
@@ -214,6 +245,14 @@ private:
 			inactive_buf[i] = std::complex<float>(I, Q);
 		}
 		raw_double_buffer->ReleaseInactiveBuffer();
+	}
+private:
+	void CreateRadio(const std::string& key) {
+		const auto dab_params = get_dab_parameters(transmission_mode);
+		auto instance = std::make_unique<RadioInstance>(
+			std::move(std::make_unique<BasicRadio>(dab_params)), 
+			std::move(std::make_unique<SimpleViewController>()));
+		basic_radios.insert({key, std::move(instance)});
 	}
 };
 
@@ -268,9 +307,9 @@ public:
 		ImGui::End();
 
 		{
-			auto instance = app.GetSelectedRadio();
-			if (instance.first && instance.second) {
-				RenderSimple_Root(instance.first, instance.second);
+			auto* instance = app.GetSelectedRadio();
+			if (instance != NULL) {
+				RenderSimple_Root(instance->GetRadio(), instance->GetViewController());
 			}
 		}
     }

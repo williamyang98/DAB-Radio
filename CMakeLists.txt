@@ -68,7 +68,7 @@ add_library(basic_radio STATIC
     ${BASIC_RADIO_DIR}/basic_radio.cpp
     ${BASIC_RADIO_DIR}/basic_threaded_channel.cpp
     ${BASIC_RADIO_DIR}/basic_fic_runner.cpp
-    ${BASIC_RADIO_DIR}/basic_audio_channel.cpp
+    ${BASIC_RADIO_DIR}/basic_dab_plus_channel.cpp
     ${BASIC_RADIO_DIR}/basic_slideshow.cpp
     ${BASIC_RADIO_DIR}/basic_database_manager.cpp
 )

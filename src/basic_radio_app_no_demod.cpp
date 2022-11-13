@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <thread>
 
 #include <io.h>
 #include <fcntl.h>
@@ -24,54 +23,86 @@
 #include <GLFW/glfw3.h> 
 #include "imgui.h"
 
-class AppDependencies: public Basic_Radio_Dependencies 
-{
-public:
-    virtual PCM_Player* Create_PCM_Player(void) {
-        return new Win32_PCM_Player();
-    }
-};
+#include <thread>
+#include <memory>
+#include <vector>
+#include <unordered_map>
 
-class App: public ImguiSkeleton 
+class App 
 {
 private:
-    AppDependencies dependencies;
-
-    int nb_buf_bits;
-    viterbi_bit_t* bits_buf;
     FILE* fp_in;
 
-    bool is_running;
-    BasicRadio* radio;
-    SimpleViewController* gui_controller;
-    std::thread* radio_thread;
+    std::vector<viterbi_bit_t> frame_bits;
+    std::unique_ptr<BasicRadio> radio;
+    std::unique_ptr<SimpleViewController> gui_controller;
+    std::unique_ptr<std::thread> radio_thread;
+    std::unordered_map<subchannel_id_t, std::unique_ptr<PCM_Player>> dab_plus_audio_players;
 public:
-    App(const int transmission_mode, FILE* const _fp_in)
-    : fp_in(_fp_in) 
-    {
+    App(const int transmission_mode, FILE* const _fp_in) 
+    : fp_in(_fp_in) {
         auto params = get_dab_parameters(transmission_mode);
-        nb_buf_bits = params.nb_frame_bits;
+        frame_bits.resize(params.nb_frame_bits);
+        radio = std::make_unique<BasicRadio>(params);
+        gui_controller = std::make_unique<SimpleViewController>();
+        gui_controller->AttachRadio(radio.get());
 
-        radio = new BasicRadio(params, &dependencies);
-        gui_controller = new SimpleViewController();
-        gui_controller->AttachRadio(radio);
+		using namespace std::placeholders;
+		radio->On_DAB_Plus_Channel().Attach(std::bind(&App::Attach_DAB_Plus_Audio_Player, this, _1, _2));
 
-        bits_buf = new viterbi_bit_t[nb_buf_bits];
-        is_running = true;
-        radio_thread = new std::thread([this]() {
+        radio_thread = std::make_unique<std::thread>([this]() {
             RunnerThread();
         });
     }
     ~App() {
-        is_running = false;
         fclose(fp_in);
         fp_in = NULL;
         radio_thread->join();
-        delete gui_controller;
-        delete radio;
-        delete radio_thread;
-        delete [] bits_buf;
     }
+    auto* GetRadio() { return radio.get(); }
+    auto* GetViewController() { return gui_controller.get(); }
+private:
+    void RunnerThread() {
+        while (true) {
+            if (fp_in == NULL) return;
+
+            const auto nb_read = fread(frame_bits.data(), sizeof(viterbi_bit_t), frame_bits.size(), fp_in);
+            if (nb_read != frame_bits.size()) {
+                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, frame_bits.size());
+                break;
+            }
+            radio->Process(frame_bits.data(), frame_bits.size());
+        }
+    }
+	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+		auto& controls = channel.GetControls();
+		auto res = dab_plus_audio_players.emplace(
+			subchannel_id, 
+			std::move(std::make_unique<Win32_PCM_Player>())).first;
+		auto* pcm_player = res->second.get(); 
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, const uint8_t* data, const int N) {
+			if (!controls.GetIsPlayAudio()) {
+				return;
+			}
+
+			auto pcm_params = pcm_player->GetParameters();
+			pcm_params.sample_rate = params.frequency;
+			pcm_params.total_channels = 2;
+			pcm_params.bytes_per_sample = 2;
+			pcm_player->SetParameters(pcm_params);
+			pcm_player->ConsumeBuffer(data, N);
+		});
+	}
+};
+
+class Renderer: public ImguiSkeleton 
+{
+private:
+    App& app;
+public:
+    Renderer(App& _app)
+    : app(_app)
+    {}
 public:
     virtual GLFWwindow* Create_GLFW_Window(void) {
         return glfwCreateWindow(
@@ -94,19 +125,11 @@ public:
         ImGuiSetupCustomConfig();
     }
     virtual void Render() {
-        RenderSimple_Root(radio, gui_controller);
+        RenderSimple_Root(app.GetRadio(), app.GetViewController());
     }
 private:
     void RunnerThread() {
-        while (is_running) {
-            if (fp_in == NULL) return;
-            const auto nb_read = fread(bits_buf, sizeof(viterbi_bit_t), nb_buf_bits, fp_in);
-            if (nb_read != nb_buf_bits) {
-                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, nb_buf_bits);
-                break;
-            }
-            radio->Process(bits_buf, nb_buf_bits);
-        }
+        
     }    
 };
 
@@ -175,9 +198,9 @@ int main(int argc, char** argv) {
     defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, logging_level);
     el::Loggers::reconfigureAllLoggers(defaultConf);
 
-    auto app = new App(transmission_mode, fp_in);
-    const int rv = RenderImguiSkeleton(app);
-    delete app;
+    auto app = App(transmission_mode, fp_in);
+    auto renderer = Renderer(app);
+    const int rv = RenderImguiSkeleton(&renderer);
     return rv;
 }
 

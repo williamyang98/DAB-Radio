@@ -23,52 +23,65 @@
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
-class App: public ImguiSkeleton
+#include <memory>
+#include <vector>
+#include <mutex>
+
+std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
+	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
+	auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
+	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
+	auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
+	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+
+	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
+
+	{
+		auto& cfg = ofdm_demod->GetConfig();
+		cfg.toggle_flags.is_update_data_sym_mag = true;
+		cfg.toggle_flags.is_update_tii_sym_mag = true;
+	}
+
+	delete [] ofdm_prs_ref;
+	delete [] ofdm_mapper_ref;
+
+	return ofdm_demod;
+}
+
+class App 
 {
 private:
     // buffers
     FILE* fp_in;
-    std::complex<uint8_t>* buf_rd;
-    std::complex<float>* buf_rd_raw;
-    const int block_size;
+    FILE* fp_out;
+    std::mutex mutex_fp_in;
+    std::mutex mutex_fp_out;
+
+    std::vector<std::complex<uint8_t>> buf_rd;
+    std::vector<std::complex<float>> buf_rd_raw;
     // objects
-    OFDM_Demod* demod;
-    OFDM_Demod::State demod_state;
+    std::unique_ptr<OFDM_Demod> demod;
     // runner state
     bool is_running = true;
     bool flag_step = false;
     bool flag_dump_frame = false;
     // runner thread
-    std::thread* runner_thread;
-public:
+    std::unique_ptr<std::thread> runner_thread;
     // External controls
     bool is_wait_step = false;
     bool is_always_dump_frame = false;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, const int _block_size)
-    : fp_in(_fp_in), block_size(_block_size)
+    App(const int transmission_mode, FILE* const _fp_in, FILE* const _fp_out, const int _block_size) 
+    : fp_in(_fp_in), fp_out(_fp_out)
     {
-        buf_rd = new std::complex<uint8_t>[block_size];
-        buf_rd_raw = new std::complex<float>[block_size];
+        buf_rd.resize(_block_size);
+        buf_rd_raw.resize(_block_size);
 
-        demod_state = OFDM_Demod::State::FINDING_NULL_POWER_DIP;
+        demod = Init_OFDM_Demodulator(transmission_mode);
 
-        // Get our OFDM demodulator and frequency deinterleaver 
-        {
-            const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-            auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-            get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-            auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-            get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+        using namespace std::placeholders;
+        demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
 
-            demod = new OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-            delete [] ofdm_prs_ref;
-            delete [] ofdm_mapper_ref;
-        }
-        {
-            using namespace std::placeholders;
-            demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
-        }
         {
             auto& cfg = demod->GetConfig();
             cfg.toggle_flags.is_update_data_sym_mag = true;
@@ -79,35 +92,103 @@ public:
         runner_thread = NULL;
     }
     ~App() {
-        is_running = false;
-        fclose(fp_in);
-        fp_in = NULL;
-        runner_thread->join();
-        delete demod;
-        delete runner_thread;
-        delete [] buf_rd;
-        delete [] buf_rd_raw;
+        Close();
+        if (runner_thread->joinable()) {
+            runner_thread->join();
+        }
     }
     void Start() {
-        if (is_running) {
-            return;
-        }
+        if (is_running) return;
         is_running = true;
-        runner_thread = new std::thread([this]() {
+        runner_thread = std::make_unique<std::thread>([this]() {
             RunnerThread();
         });
     }
-    inline OFDM_Demod::State GetDemodulatorState() const { return demod_state; }
+    auto* GetDemod(void) { return demod.get(); }
+    const auto& GetRawBuffer(void) { return buf_rd_raw; }
+    auto& GetIsWaitStep() { return is_wait_step; }
+    auto& GetIsDumpFrame() { return is_always_dump_frame; }
+    void TriggerStep() { flag_step = true; }
+    void TriggerDumpFrame()  { flag_dump_frame = true; }
+    void Close() {
+        is_running = false;
+        is_wait_step = false;
+        if (fp_in != NULL) {
+            fclose(fp_in);
+        }
+        if (fp_out != NULL) {
+            fclose(fp_out);
+        }
+
+        auto lock_fp_in = std::scoped_lock(mutex_fp_in);
+        auto lock_fp_out = std::scoped_lock(mutex_fp_out);
+        fp_in = NULL;
+        fp_out = NULL;
+    }
 private:
-    void OnOFDMFrame(const viterbi_bit_t* phases, const int nb_carriers, const int nb_symbols) {
-        if (flag_dump_frame || is_always_dump_frame) {
-            const int N = demod->Get_OFDM_Frame_Total_Bits();
-            fwrite(phases, sizeof(viterbi_bit_t), N, stdout);
-            flag_dump_frame = false;
+    void RunnerThread() {
+        while (is_running) {
+            while (!(flag_step) && (is_wait_step)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            }
+            flag_step = false;
+
+            const int block_size = buf_rd.size();
+            int nb_read = 0;
+            {
+                auto lock = std::scoped_lock(mutex_fp_in);
+                if (fp_in == NULL) {
+                    is_running = false;
+                    break;
+                }
+                nb_read = fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+            }
+
+            if (nb_read != block_size) {
+                fprintf(stderr, "Failed to read in data %d/%d\n", nb_read, block_size);
+                break;
+            }
+
+            for (int i = 0; i < block_size; i++) {
+                auto& v = buf_rd[i];
+                const float I = static_cast<float>(v.real()) - 127.5f;
+                const float Q = static_cast<float>(v.imag()) - 127.5f;
+                buf_rd_raw[i] = std::complex<float>(I, Q);
+            }
+
+            demod->Process(buf_rd_raw.data(), block_size);
         }
     }
-// Imgui skeleton code
+    void OnOFDMFrame(const viterbi_bit_t* phases, const int nb_carriers, const int nb_symbols) {
+        if (!flag_dump_frame && !is_always_dump_frame) {
+            return;
+        }
+        flag_dump_frame = false;
+
+        const int N = demod->Get_OFDM_Frame_Total_Bits();
+        int nb_write = 0;
+
+        {
+            auto lock = std::scoped_lock(mutex_fp_out);
+            if (fp_out == NULL) {
+                return;
+            }
+            nb_write = fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
+        }
+
+        if (nb_write != N) {
+            fprintf(stderr, "Failed to write ofdm frame %d/%d\n", nb_write, N);
+            Close();
+        }
+    }
+};
+
+class Renderer: public ImguiSkeleton
+{
+private:
+    App& app;
 public:
+    Renderer(App& _app): app(_app) {}
     virtual GLFWwindow* Create_GLFW_Window(void) {
         return glfwCreateWindow(
             1280, 720, 
@@ -131,8 +212,9 @@ public:
     }
 
     virtual void Render() {
-        RenderSourceBuffer(buf_rd_raw, block_size);
-        RenderOFDMDemodulator(demod);
+        auto& buf = app.GetRawBuffer();
+        RenderSourceBuffer(buf.data(), buf.size());
+        RenderOFDMDemodulator(app.GetDemod());
         RenderAppControls();
     }
     virtual void AfterShutdown() {
@@ -141,49 +223,21 @@ public:
 private:
     void RenderAppControls() {
         if (ImGui::Begin("Input controls")) {
-            ImGui::Checkbox("Enable stepping", &is_wait_step);
-            if (is_wait_step) {
+            ImGui::Checkbox("Enable stepping", &app.GetIsWaitStep());
+            if (app.GetIsWaitStep()) {
                 if (ImGui::Button("Step")) {
-                    flag_step = true;
+                    app.TriggerStep();
                 }
             }             
 
-            ImGui::Checkbox("Enable continuous frame dump", &is_always_dump_frame);
-            if (!is_always_dump_frame) {
+            ImGui::Checkbox("Enable continuous frame dump", &app.GetIsDumpFrame());
+            if (!app.GetIsDumpFrame()) {
                 if (ImGui::Button("Dump next block")) {
-                    flag_dump_frame = true;
+                    app.TriggerDumpFrame();
                 }
             } 
         }
         ImGui::End();
-    }
-private:
-    void RunnerThread() {
-        while (is_running) {
-            while (!(flag_step) && (is_wait_step)) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            }
-            flag_step = false;
-
-            if (fp_in == NULL) {
-                return;
-            }
-            auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
-            if (nb_read != block_size) {
-                fprintf(stderr, "Failed to read in data\n");
-                break;
-            }
-
-            for (int i = 0; i < block_size; i++) {
-                auto& v = buf_rd[i];
-                const float I = static_cast<float>(v.real()) - 127.5f;
-                const float Q = static_cast<float>(v.imag()) - 127.5f;
-                buf_rd_raw[i] = std::complex<float>(I, Q);
-            }
-
-            demod->Process(buf_rd_raw, block_size);
-            demod_state = demod->GetState();
-        }
     }
 };
 
@@ -194,6 +248,8 @@ void usage() {
         "\t[-b block size (default: 8192)]\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
+        "\t[-o output filename (default: None)]\n"
+        "\t    If no file is provided then stdout is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-S toggle step mode (default: false)]\n"
         "\t[-D toggle frame output (default: true)]\n"
@@ -207,20 +263,21 @@ int main(int argc, char** argv)
     int transmission_mode = 1;
     bool is_step_mode = false;
     bool is_frame_output = true;
+
     char* rd_filename = NULL;
+    char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "b:i:M:SDh")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:o:M:SDh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
-            if (block_size <= 0) {
-                fprintf(stderr, "Block size must be positive (%d)\n", block_size); 
-                return 1;
-            }
             break;
         case 'i':
             rd_filename = optarg;
+            break;
+        case 'o':
+            wr_filename = optarg;
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
@@ -238,6 +295,11 @@ int main(int argc, char** argv)
         }
     }
 
+    if (block_size <= 0) {
+        fprintf(stderr, "Block size must be positive (%d)\n", block_size); 
+        return 1;
+    }
+
     if (transmission_mode <= 0 || transmission_mode > 4) {
         fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
         return 1;
@@ -252,16 +314,25 @@ int main(int argc, char** argv)
         }
     }
 
+    FILE* fp_out = stdout;
+    if (wr_filename != NULL) {
+        errno_t err = fopen_s(&fp_out, wr_filename, "w");
+        if (err != 0) {
+            fprintf(stderr, "Failed to open file for writing\n");
+            return 1;
+        }
+    }
+
     _setmode(_fileno(fp_in), _O_BINARY);
-    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(fp_out), _O_BINARY);
 
-    auto app = new App(transmission_mode, fp_in, block_size);
-    app->is_wait_step = is_step_mode;
-    app->is_always_dump_frame = is_frame_output;
-    app->Start();
+    auto app = App(transmission_mode, fp_in, fp_out, block_size);
+    auto renderer = Renderer(app);
 
-    RenderImguiSkeleton(app);
-    delete app;
+    app.GetIsWaitStep() = is_step_mode;
+    app.GetIsDumpFrame() = is_frame_output;
+    app.Start();
 
-    return 0;
+    const int rv = RenderImguiSkeleton(&renderer);
+    return rv;
 }

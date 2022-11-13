@@ -15,12 +15,128 @@
 #include "ofdm/dab_prs_ref.h"
 #include "ofdm/dab_mapper_ref.h"
 
-#define PRINT_LOG 1
-#if PRINT_LOG 
-  #define LOG_MESSAGE(...) fprintf(stderr, __VA_ARGS__)
-#else
-  #define LOG_MESSAGE(...) (void)0
-#endif
+#include <memory>
+#include <vector>
+#include <mutex>
+
+std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
+	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
+	auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
+	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
+	auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
+	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+
+	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
+
+	{
+		auto& cfg = ofdm_demod->GetConfig();
+		cfg.toggle_flags.is_update_data_sym_mag = true;
+		cfg.toggle_flags.is_update_tii_sym_mag = true;
+	}
+
+	delete [] ofdm_prs_ref;
+	delete [] ofdm_mapper_ref;
+
+	return ofdm_demod;
+}
+
+class App 
+{
+private:
+    FILE* fp_in;
+    FILE* fp_out;
+    std::mutex mutex_fp_in;
+    std::mutex mutex_fp_out;
+    // buffers
+    std::vector<std::complex<uint8_t>> buf_rd;
+    std::vector<std::complex<float>> buf_rd_raw;
+    // objects
+    std::unique_ptr<OFDM_Demod> demod;
+    // runner state
+    bool is_output = true;
+public:
+    App(const int transmission_mode, FILE* const _fp_in, FILE* const _fp_out, const int _block_size) 
+    : fp_in(_fp_in), fp_out(_fp_out)
+    {
+        buf_rd.resize(_block_size);
+        buf_rd_raw.resize(_block_size);
+
+        demod = Init_OFDM_Demodulator(transmission_mode);
+
+        using namespace std::placeholders;
+        demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
+
+        {
+            auto& cfg = demod->GetConfig();
+            cfg.toggle_flags.is_update_data_sym_mag = true;
+            cfg.toggle_flags.is_update_tii_sym_mag = true;
+        }
+    }
+    ~App() {
+        Close();
+    }
+    auto* GetDemod(void) { return demod.get(); }
+    const auto& GetRawBuffer(void) { return buf_rd_raw; }
+    auto& GetIsOutput(void) { return is_output; }
+    void Run() {
+        while (true) {
+            const int block_size = buf_rd.size();
+            int nb_read = 0;
+            {
+                auto lock = std::scoped_lock(mutex_fp_in);
+                nb_read = fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+            }
+
+            if (nb_read != block_size) {
+                fprintf(stderr, "Failed to read data %d/%d\n", nb_read, block_size);
+                break;
+            }
+
+            for (int i = 0; i < block_size; i++) {
+                auto& v = buf_rd[i];
+                const float I = static_cast<float>(v.real()) - 127.5f;
+                const float Q = static_cast<float>(v.imag()) - 127.5f;
+                buf_rd_raw[i] = std::complex<float>(I, Q);
+            }
+
+            demod->Process(buf_rd_raw.data(), block_size);
+        }
+    }
+    void Close() {
+        if (fp_in != NULL) {
+            fclose(fp_in);
+        }
+        if (fp_out != NULL) {
+            fclose(fp_out);
+        }
+        auto lock_fp_in = std::scoped_lock(mutex_fp_in);
+        auto lock_fp_out = std::scoped_lock(mutex_fp_out);
+        fp_in = NULL;
+        fp_out = NULL;
+    }
+private:
+    void OnOFDMFrame(const viterbi_bit_t* phases, const int nb_carriers, const int nb_symbols) {
+        if (!is_output) {
+            return;
+        }
+
+        const int N = demod->Get_OFDM_Frame_Total_Bits();
+        int nb_write = 0;
+
+        {
+            auto lock = std::scoped_lock(mutex_fp_out);
+            if (fp_out == NULL) {
+                return;
+            }
+            nb_write = fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
+        }
+
+        if (nb_write != N) {
+            fprintf(stderr, "Failed to write ofdm frame %d/%d\n", nb_write, N);
+            Close();
+        }
+    }
+};
 
 void usage() {
     fprintf(stderr, 
@@ -49,10 +165,6 @@ int main(int argc, char** argv)
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
-            if (block_size <= 0) {
-                fprintf(stderr, "Block size must be positive (%d)\n", block_size); 
-                return 1;
-            }
             break;
         case 'i':
             rd_filename = optarg;
@@ -65,10 +177,6 @@ int main(int argc, char** argv)
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
-            if (transmission_mode <= 0 || transmission_mode > 4) {
-                fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
-                return 1;
-            }
             break;
         case 'h':
         default:
@@ -77,12 +185,22 @@ int main(int argc, char** argv)
         }
     }
 
+    if (block_size <= 0) {
+        fprintf(stderr, "Block size must be positive (%d)\n", block_size); 
+        return 1;
+    }
+
+    if (transmission_mode <= 0 || transmission_mode > 4) {
+        fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
+        return 1;
+    }
+
     // app startup
     FILE* fp_in = stdin;
     if (rd_filename != NULL) {
         errno_t err = fopen_s(&fp_in, rd_filename, "r");
         if (err != 0) {
-            LOG_MESSAGE("Failed to open file for reading\n");
+            fprintf(stderr, "Failed to open file for reading\n");
             return 1;
         }
     }
@@ -91,56 +209,17 @@ int main(int argc, char** argv)
     if (wr_filename != NULL) {
         errno_t err = fopen_s(&fp_out, wr_filename, "w");
         if (err != 0) {
-            LOG_MESSAGE("Failed to open file for writing\n");
+            fprintf(stderr, "Failed to open file for writing\n");
             return 1;
         }
     }
 
-    auto buf_rd = new std::complex<uint8_t>[block_size];
-    auto buf_rd_raw = new std::complex<float>[block_size];
-
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
-    
-    const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-    auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-    get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-    auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-    get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
 
-    auto ofdm_demod = OFDM_Demod(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-
-    const auto on_ofdm_frame = [&fp_out, &ofdm_demod](const viterbi_bit_t* bits, const int nb_carriers, const int nb_symbols) {
-        const int N = ofdm_demod.Get_OFDM_Frame_Total_Bits();
-        fwrite(bits, sizeof(viterbi_bit_t), N, fp_out);
-    };
-
-    if (is_output) {
-        ofdm_demod.On_OFDM_Frame().Attach(on_ofdm_frame);
-    }
-
-    delete [] ofdm_prs_ref;
-    delete [] ofdm_mapper_ref;
-
-    while (true) {
-        auto nb_read = fread((void*)buf_rd, sizeof(std::complex<uint8_t>), block_size, fp_in);
-        if (nb_read != block_size) {
-            fprintf(stderr, "Failed to read in data\n");
-            break;
-        }
-
-        for (int i = 0; i < block_size; i++) {
-            auto& v = buf_rd[i];
-            const float I = static_cast<float>(v.real()) - 127.5f;
-            const float Q = static_cast<float>(v.imag()) - 127.5f;
-            buf_rd_raw[i] = std::complex<float>(I, Q);
-        }
-
-        ofdm_demod.Process(buf_rd_raw, block_size);
-    }
-
-    delete [] buf_rd;
-    delete [] buf_rd_raw;
+    auto app = App(transmission_mode, fp_in, fp_out, block_size);
+    app.GetIsOutput() = is_output;
+    app.Run();
 
     return 0;
 }

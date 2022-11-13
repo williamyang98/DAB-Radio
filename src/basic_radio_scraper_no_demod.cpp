@@ -6,57 +6,42 @@
 #include <io.h>
 #include <fcntl.h>
 
+#include "basic_radio/basic_radio.h"
+#include "basic_scraper/basic_scraper.h"
+
+#include <memory>
+#include <vector>
+
 #include "getopt/getopt.h"
 #include "easylogging++.h"
 #include "dab/logging.h"
-#include "basic_radio/basic_radio.h"
 
-#include "basic_scraper/basic_scraper.h"
-
-class AppDependencies: public Basic_Radio_Dependencies 
-{
-public:
-    virtual PCM_Player* Create_PCM_Player(void) {
-        return NULL;
-    }
-};
-
-// Class that connects our analog OFDM demodulator and digital DAB decoder
-// Also provides the skeleton of the Imgui application
 class App
 {
 private:
-    AppDependencies dependencies;
-
-    int nb_buf_bits;
-    viterbi_bit_t* bits_buf;
     FILE* const fp_in;
 
-    BasicRadio* radio;
-    BasicScraper* scraper;
+    std::vector<viterbi_bit_t> frame_bits;
+    std::unique_ptr<BasicRadio> radio;
+    std::unique_ptr<BasicScraper> scraper;
 public:
     App(const int transmission_mode, FILE* const _fp_in, const char* dir)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
-        nb_buf_bits = params.nb_frame_bits;
-        radio = new BasicRadio(params, &dependencies);
-        scraper = new BasicScraper(radio, dir);
-        bits_buf = new viterbi_bit_t[nb_buf_bits];
-    }
-    ~App() {
-        delete scraper;
-        delete radio;
-        delete [] bits_buf;
+        frame_bits.resize(params.nb_frame_bits);
+        radio = std::make_unique<BasicRadio>(params);
+        scraper = std::make_unique<BasicScraper>(radio.get(), dir);
     }
     void Run() {
         while (true) {
-            const auto nb_read = fread(bits_buf, sizeof(viterbi_bit_t), nb_buf_bits, fp_in);
-            if (nb_read != nb_buf_bits) {
-                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, nb_buf_bits);
+            const int N = frame_bits.size();
+            const auto nb_read = fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
+            if (nb_read != N) {
+                fprintf(stderr, "Failed to read soft-decision bits (%llu/%d)\n", nb_read, N);
                 break;
             }
-            radio->Process(bits_buf, nb_buf_bits);
+            radio->Process(frame_bits.data(), N);
         }
     }
 };
@@ -141,9 +126,8 @@ int main(int argc, char** argv) {
     scraper_conf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
     basic_scraper_logger->configure(scraper_conf);
 
-    auto app = new App(transmission_mode, fp_in, output_dir);
-    app->Run();
-    delete app;
+    auto app = App(transmission_mode, fp_in, output_dir);
+    app.Run();
     return 0;
 }
 
