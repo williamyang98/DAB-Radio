@@ -27,12 +27,12 @@ BasicScraper::BasicScraper(BasicRadio* _radio, const char* _root_directory)
 : radio(_radio), root_directory(_root_directory) 
 {
     using namespace std::placeholders;
-    radio->OnNewAudioChannel().Attach(
-        std::bind(&BasicScraper::ConnectAudioChannel, this, _1, _2));
+    radio->On_DAB_Plus_Channel().Attach(
+        std::bind(&BasicScraper::Connect_DAB_Plus_Channel, this, _1, _2));
 }
 
-void BasicScraper::ConnectAudioChannel(subchannel_id_t id, BasicAudioChannel* channel) {
-    auto& controls = channel->GetControls();
+void BasicScraper::Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_Channel& channel) {
+    auto& controls = channel.GetControls();
     controls.SetIsDecodeAudio(true);
     controls.SetIsDecodeData(true);
     controls.SetIsPlayAudio(false);
@@ -55,23 +55,24 @@ void BasicScraper::ConnectAudioChannel(subchannel_id_t id, BasicAudioChannel* ch
 
     auto base_path = fs::path(root_folder) / fs::path(service_folder) / fs::path(component_folder);
     auto abs_path = fs::absolute(base_path);
-    scrapers.emplace_back(std::make_unique<BasicComponentScraper>(abs_path, channel));
+    scrapers.emplace_back(std::make_unique<Basic_DAB_Plus_Scraper>(abs_path, channel));
 }
 
-BasicComponentScraper::BasicComponentScraper(const fs::path& _dir, BasicAudioChannel* channel) 
+Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_Plus_Channel& channel) 
 : dir(_dir), 
   audio_scraper(_dir / "audio"), 
   slideshow_scraper(_dir / "slideshow"),
   mot_scraper(_dir / "MOT")
 {
+    LOG_MESSAGE("[DAB+] Opened directory {}", dir.string());
     using namespace std::placeholders;
-    channel->OnAudioData().Attach(
+    channel.OnAudioData().Attach(
         std::bind(&BasicAudioScraper::OnAudioData, &audio_scraper, _1, _2, _3));
 
-    channel->OnSlideshow().Attach(
+    channel.OnSlideshow().Attach(
         std::bind(&BasicSlideshowScraper::OnSlideshow, &slideshow_scraper, _1, _2));
 
-    channel->OnMOTEntity().Attach(
+    channel.OnMOTEntity().Attach(
         std::bind(&BasicMOTScraper::OnMOTEntity, &mot_scraper, _1));
 }
 
@@ -118,6 +119,8 @@ FILE* BasicAudioScraper::CreateWavFile(BasicAudioParams params) {
         LOG_ERROR("[audio] Failed to open file {}", filepath_str);
         return fp;
     }
+
+    LOG_MESSAGE("[audio] Opened file {}", filepath_str);
 
     // Source: http://soundfile.sapp.org/doc/WaveFormat/
     struct WavHeader {
@@ -201,6 +204,8 @@ void BasicSlideshowScraper::OnSlideshow(mot_transport_id_t id, Basic_Slideshow* 
         LOG_ERROR("[slideshow] Failed to write bytes {}/{}", nb_written, slideshow->nb_data_bytes);
     }
     fclose(fp);
+
+    LOG_MESSAGE("[slideshow] Wrote file {}", filepath_str);
 }
 
 void BasicMOTScraper::OnMOTEntity(MOT_Entity* mot) {
@@ -229,4 +234,6 @@ void BasicMOTScraper::OnMOTEntity(MOT_Entity* mot) {
         LOG_ERROR("[MOT] Failed to write bytes {}/{}", nb_written, mot->nb_body_bytes);
     }
     fclose(fp);
+
+    LOG_MESSAGE("[MOT] Wrote file {}", filepath_str);
 }

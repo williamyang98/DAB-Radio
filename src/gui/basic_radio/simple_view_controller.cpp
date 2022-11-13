@@ -26,8 +26,8 @@ Texture* SimpleViewController::AddTexture(
 }
 
 void SimpleViewController::AttachRadio(BasicRadio* radio) {
-    radio->OnNewAudioChannel().Attach([this](subchannel_id_t subchannel_id, BasicAudioChannel* channel) {
-        auto& slideshow_manager = channel->GetSlideshowManager();
+    radio->On_DAB_Plus_Channel().Attach([this](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+        auto& slideshow_manager = channel.GetSlideshowManager();
         slideshow_manager.OnRemoveSlideshow().Attach([this](Basic_Slideshow* slideshow) {
             auto selection = GetSelectedSlideshow();
             if (selection.slideshow == slideshow) {

@@ -57,7 +57,7 @@ public:
     void OnMOTEntity(MOT_Entity* mot);
 };
 
-class BasicComponentScraper
+class Basic_DAB_Plus_Scraper
 {
 private:
     const fs::path dir;
@@ -65,7 +65,7 @@ private:
     BasicSlideshowScraper slideshow_scraper;
     BasicMOTScraper mot_scraper;
 public:
-    BasicComponentScraper(const fs::path& _dir, BasicAudioChannel* channel);
+    Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_Plus_Channel& channel);
 };
 
 class BasicScraper 
@@ -73,9 +73,9 @@ class BasicScraper
 private:
     BasicRadio* radio;
     const char* root_directory;
-    std::vector<std::unique_ptr<BasicComponentScraper>> scrapers;
+    std::vector<std::unique_ptr<Basic_DAB_Plus_Scraper>> scrapers;
 public:
     BasicScraper(BasicRadio* _radio, const char* _root_directory);
 private:
-    void ConnectAudioChannel(subchannel_id_t id, BasicAudioChannel* channel);
+    void Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_Channel& channel);
 };

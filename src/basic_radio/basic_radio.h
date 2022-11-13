@@ -5,8 +5,7 @@
 #include <mutex>
 
 #include "basic_fic_runner.h"
-#include "basic_audio_channel.h"
-#include "basic_radio_dependencies.h"
+#include "basic_dab_plus_channel.h"
 #include "basic_database_manager.h"
 
 #include "dab/constants/dab_parameters.h"
@@ -18,23 +17,18 @@ class BasicRadio
 {
 private:
     const DAB_Parameters params;
-    Basic_Radio_Dependencies* dependencies;
     Basic_Database_Manager* db_manager;
-
-    // channels
     BasicFICRunner* fic_runner;
-    std::unordered_map<subchannel_id_t, std::unique_ptr<BasicAudioChannel>> channels;
+    std::unordered_map<subchannel_id_t, std::unique_ptr<Basic_DAB_Plus_Channel>> dab_plus_channels;
     std::mutex mutex_channels;
-
-    // callbacks
-    Observable<subchannel_id_t, BasicAudioChannel*> obs_new_audio_channel;
+    Observable<subchannel_id_t, Basic_DAB_Plus_Channel&> obs_dab_plus_channel;
 public:
-    BasicRadio(const DAB_Parameters _params, Basic_Radio_Dependencies* _dependencies);
+    BasicRadio(const DAB_Parameters _params);
     ~BasicRadio();
     void Process(viterbi_bit_t* const buf, const int N);
     auto* GetDatabaseManager(void) { return db_manager; }
-    BasicAudioChannel* GetAudioChannel(const subchannel_id_t id);
-    auto& OnNewAudioChannel(void) { return obs_new_audio_channel; }
+    Basic_DAB_Plus_Channel* Get_DAB_Plus_Channel(const subchannel_id_t id);
+    auto& On_DAB_Plus_Channel(void) { return obs_dab_plus_channel; }
 private:
     void UpdateDatabase();
     bool AddSubchannel(const subchannel_id_t id);

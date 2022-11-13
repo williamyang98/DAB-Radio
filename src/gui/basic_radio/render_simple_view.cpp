@@ -13,7 +13,7 @@ void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, S
 void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service);
 void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component);
 
-void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, const subchannel_id_t subchannel_id);
+void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController* controller, Basic_DAB_Plus_Channel* channel, const subchannel_id_t subchannel_id);
 void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController* controller);
 
 void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller, Service* service);
@@ -169,13 +169,13 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* cont
         ImGui::EndTable();
     }
 
-    auto* channel = radio->GetAudioChannel(subchannel_id);
-    if (channel != NULL) {
-        RenderSimple_BasicAudioChannel(radio, controller, channel, subchannel_id);
+    auto* dab_plus_channel = radio->Get_DAB_Plus_Channel(subchannel_id);
+    if (dab_plus_channel != NULL) {
+        RenderSimple_Basic_DAB_Plus_Channel(radio, controller, dab_plus_channel, subchannel_id);
     }
 }
 
-void RenderSimple_BasicAudioChannel(BasicRadio* radio, SimpleViewController* controller, BasicAudioChannel* channel, subchannel_id_t subchannel_id) {
+void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController* controller, Basic_DAB_Plus_Channel* channel, subchannel_id_t subchannel_id) {
     // Channel controls
     auto& controls = channel->GetControls();
     if (ImGui::Button("Run All")) {
@@ -474,7 +474,7 @@ void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio) {
     }
 
     for (auto& subchannel: subchannels) {
-        auto* channel = radio->GetAudioChannel(subchannel.id);
+        auto* channel = radio->Get_DAB_Plus_Channel(subchannel.id);
         if (channel == NULL) continue;
 
         auto& control = channel->GetControls();

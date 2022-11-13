@@ -4,11 +4,12 @@
 #include <stdint.h>
 
 #include "basic_threaded_channel.h"
-#include "basic_radio_dependencies.h"
 #include "basic_slideshow.h"
+#include "basic_audio_params.h"
+
 #include "dab/constants/dab_parameters.h"
 #include "dab/database/dab_database_entities.h"
-#include "audio/pcm_player.h"
+
 #include "../observable.h"
 #include "../viterbi_config.h"
 
@@ -18,22 +19,7 @@ class AAC_Audio_Decoder;
 class AAC_Data_Decoder;
 struct MOT_Entity;
 
-// Parameters of the audio stream decoded from audio channel
-struct BasicAudioParams {
-    uint32_t frequency;
-    uint8_t bytes_per_sample;
-    bool is_stereo;
-    bool operator==(const BasicAudioParams& other) const {
-        return (frequency == other.frequency) &&
-               (bytes_per_sample == other.bytes_per_sample) &&
-               (is_stereo == other.is_stereo);
-    }
-    bool operator!=(const BasicAudioParams& other) const {
-        return !(*this == other);
-    }
-};
-
-class BasicAudioChannelControls 
+class Basic_DAB_Plus_Controls 
 {
 private:
     uint8_t flags = 0;
@@ -57,18 +43,17 @@ private:
 };
 
 // Audio channel player for DAB+
-class BasicAudioChannel: public BasicThreadedChannel
+class Basic_DAB_Plus_Channel: public BasicThreadedChannel
 {
 private:
     const DAB_Parameters params;
     const Subchannel subchannel;
-    BasicAudioChannelControls controls;
+    Basic_DAB_Plus_Controls controls;
 
     MSC_Decoder* msc_decoder;
     AAC_Frame_Processor* aac_frame_processor;
     AAC_Audio_Decoder* aac_audio_decoder;
     AAC_Data_Decoder* aac_data_decoder;
-    PCM_Player* pcm_player;
 
     const viterbi_bit_t* msc_bits_buf = NULL;
     int nb_msc_bits = 0;
@@ -83,8 +68,8 @@ private:
     Observable<mot_transport_id_t, Basic_Slideshow*> obs_slideshow;
     Observable<MOT_Entity*> obs_MOT_entity;
 public:
-    BasicAudioChannel(const DAB_Parameters _params, const Subchannel _subchannel, Basic_Radio_Dependencies* dependencies);
-    ~BasicAudioChannel();
+    Basic_DAB_Plus_Channel(const DAB_Parameters _params, const Subchannel _subchannel);
+    ~Basic_DAB_Plus_Channel();
     void SetBuffer(const viterbi_bit_t* _buf, const int _N);
     auto& GetControls(void) { return controls; }
     const auto& GetDynamicLabel(void) const { return dynamic_label; }
