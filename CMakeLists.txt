@@ -178,8 +178,10 @@ target_link_libraries(convert_viterbi PRIVATE getopt)
 
 add_executable(radio_app 
     src/radio_app.cpp 
-    src/convenience.c
+    src/device/device_selector.cpp
+    src/device/device.cpp
     src/gui/imgui_skeleton.cpp
+    src/gui/render_device_selector.cpp
     src/gui/render_ofdm_demod.cpp
     src/audio/win32_pcm_player.cpp
 )
