@@ -28,6 +28,8 @@ public:
             int nb_decimate = 5;
         } signal_l1;
         float fine_freq_update_beta = 0.5f;
+        bool is_coarse_freq_correction = true;
+        int max_coarse_freq_correction = 20000;
         struct {
             float thresh_null_start = 0.35f;
             float thresh_null_end = 0.75f;
@@ -54,6 +56,7 @@ private:
     int total_frames_read;
     int total_frames_desync;
     // ofdm frequency correction
+    float freq_coarse_offset;
     float freq_fine_offset;
     // null power dip search
     bool is_null_start_found;
@@ -72,8 +75,10 @@ private:
     CircularBuffer<std::complex<float>> null_power_dip_buffer;
     ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
     std::vector<float>                  correlation_impulse_response;
+    std::vector<float>                  correlation_frequency_response;
     std::vector<std::complex<float>>    correlation_fft_buffer;
     std::vector<std::complex<float>>    correlation_prs_fft_reference;
+    std::vector<std::complex<float>>    correlation_prs_time_reference;
     // fft
     kiss_fft_cfg fft_cfg;
     kiss_fft_cfg ifft_cfg;
@@ -100,6 +105,8 @@ public:
 public:
     State GetState() const { return state; }
     float GetFineFrequencyOffset() const { return freq_fine_offset; }
+    float GetCoarseFrequencyOffset() const { return freq_coarse_offset; }
+    float GetNetFrequencyOffset() const { return freq_fine_offset + freq_coarse_offset; }
     size_t Get_OFDM_Frame_Total_Bits() const { 
         return params.nb_data_carriers*2*(params.nb_frame_symbols-1); 
     }
@@ -109,6 +116,7 @@ public:
     tcb::span<std::complex<float>> GetFrameDataVec() { return pipeline_dqpsk_vec_buffer; }
     tcb::span<float> GetFrameDataPhases() { return pipeline_dqpsk_buffer; }
     tcb::span<float> GetImpulseResponse() { return correlation_impulse_response; }
+    tcb::span<float> GetCoarseFrequencyResponse() { return correlation_frequency_response; }
     float GetSignalAverage() const { return signal_l1_average; }
     auto& GetConfig() { return cfg; }
     auto& On_OFDM_Frame() { return obs_on_ofdm_frame; }
@@ -128,8 +136,10 @@ private:
         tcb::span<const std::complex<float>> in0, tcb::span<const std::complex<float>> in1, 
         tcb::span<std::complex<float>> out_vec, tcb::span<float> out_phase);
     void CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::span<viterbi_bit_t> bit_buf);
+    void CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out);
     float CalculateL1Average(tcb::span<const std::complex<float>> block);
     void UpdateSignalAverage(tcb::span<const std::complex<float>> block);
     void UpdateFineFrequencyOffset(const float cyclic_error);
+    void UpdateCoarseFrequencyOffset(tcb::span<const std::complex<float>> prs_sym);
 };
 

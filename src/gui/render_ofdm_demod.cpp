@@ -85,6 +85,16 @@ void RenderOFDMDemodulator(OFDM_Demod& demod)
     }
     ImGui::End();
 
+    if (ImGui::Begin("Coarse frequency response")) {
+        if (ImPlot::BeginPlot("Coarse frequency response")) {
+            auto buf = demod.GetCoarseFrequencyResponse();
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 180, 260, ImPlotCond_Once);
+            ImPlot::PlotLine("Coarse frequency response", buf.data(), (int)buf.size());
+            ImPlot::EndPlot();
+        }
+    }
+    ImGui::End();
+
     // TODO:
     // {
     //     ImGui::Begin("Null symbol spectrum");
@@ -111,8 +121,7 @@ void RenderOFDMDemodulator(OFDM_Demod& demod)
     //     ImGui::End();
     // }
 
-    if (ImGui::Begin("Controls/Stats")) {
-
+    if (ImGui::Begin("Stats")) {
         switch (demod.GetState()) {
         case OFDM_Demod::State::FINDING_NULL_POWER_DIP:
             ImGui::Text("State: Finding dip");
@@ -128,9 +137,45 @@ void RenderOFDMDemodulator(OFDM_Demod& demod)
             break;
         }
         ImGui::Text("Fine freq: %.2f Hz", demod.GetFineFrequencyOffset());
+        ImGui::Text("Coarse freq: %.2f Hz", demod.GetCoarseFrequencyOffset());
+        ImGui::Text("Net freq: %.2f Hz", demod.GetNetFrequencyOffset());
         ImGui::Text("Signal level: %.2f", demod.GetSignalAverage());
         ImGui::Text("Frames read: %d", demod.GetTotalFramesRead());
         ImGui::Text("Frames desynced: %d", demod.GetTotalFramesDesync());
+    }
+    ImGui::End();
+
+    if (ImGui::Begin("Controls")) {
+        auto& cfg = demod.GetConfig();
+        auto params = demod.GetOFDMParams();
+
+        if (ImGui::Button("Reset")) {
+            demod.Reset();
+        }
+
+        ImGui::Checkbox("Update data symbol mag", &cfg.toggle_flags.is_update_data_sym_mag);
+        ImGui::Checkbox("Update tii symbol mag", &cfg.toggle_flags.is_update_tii_sym_mag);
+        ImGui::Checkbox("Coarse frequency correction", &cfg.is_coarse_freq_correction);
+        ImGui::SliderFloat("Fine frequency beta", &cfg.fine_freq_update_beta, 0.0f, 1.0f, "%.2f");
+
+        if (ImGui::SliderInt("Max coarse frequency (Hz)", &cfg.max_coarse_freq_correction, 0, 100000)) {
+            const int N = cfg.max_coarse_freq_correction / (int)params.freq_carrier_spacing;
+            cfg.max_coarse_freq_correction = N * (int)params.freq_carrier_spacing;
+        }
+
+        static float null_threshold[2] = {0,0};
+        null_threshold[0] = cfg.null_l1_search.thresh_null_start;
+        null_threshold[1] = cfg.null_l1_search.thresh_null_end;
+        if (ImGui::SliderFloat2("Null threshold", null_threshold, 0.0f, 1.0f, "%.2f")) {
+            null_threshold[0] = std::min(null_threshold[0], null_threshold[1]);
+            null_threshold[1] = std::max(null_threshold[0], null_threshold[1]);
+            cfg.null_l1_search.thresh_null_start = null_threshold[0];
+            cfg.null_l1_search.thresh_null_end = null_threshold[1];
+        }
+        ImGui::SliderFloat("Impulse peak threshold (dB)", &cfg.impulse_peak_threshold_db, 0, 100.0f, "%.f");
+        ImGui::SliderFloat("Data sym mag update beta", &cfg.data_sym_magnitude_update_beta, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("L1 signal update beta", &cfg.signal_l1.update_beta, 0.0f, 1.0f, "%.2f");
+
     }
     ImGui::End();
 }

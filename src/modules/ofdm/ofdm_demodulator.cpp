@@ -56,6 +56,7 @@ OFDM_Demod::OFDM_Demod(
     state = State::FINDING_NULL_POWER_DIP;
     total_frames_desync = 0;
     total_frames_read = 0;
+    freq_coarse_offset = 0;
     freq_fine_offset = 0;
     is_null_start_found = false;
     is_null_end_found = false;
@@ -63,13 +64,21 @@ OFDM_Demod::OFDM_Demod(
     is_running = true;
 
     // Copy over the frequency domain values of our PRS (phase reference symbol) 
-    // Correlation in time domain is the conjugate product in frequency domain
     {
         const size_t N = params.nb_fft;
         correlation_prs_fft_reference.resize(N);
+        correlation_prs_time_reference.resize(N);
+        // Fine time synchronisation
+        // Correlation in time domain is the conjugate product in frequency domain
         for (int i = 0; i < N; i++) {
             correlation_prs_fft_reference[i] = std::conj(_prs_fft_ref[i]);
         }
+        // Coarse frequency synchronisation
+        // Correlation in frequency domain is the conjugate product in time domain
+        // We are correlating the phase difference between each carrier
+        // This is done to account for phase shifts caused by imperfect fine time synchronisation
+        CalculateRelativePhase(_prs_fft_ref, correlation_prs_time_reference);
+        kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_prs_time_reference.data(), (kiss_fft_cpx*)correlation_prs_time_reference.data());
     }
 
     // DOC: ETSI EN 300 401
@@ -103,8 +112,11 @@ OFDM_Demod::OFDM_Demod(
     }
     pipeline_fft_mag_buffer.resize(params.nb_fft);
 
-    // Data structures used for fine frequency synchronisation using the PRS correlation
+    // Data structures used in PRS correlation for: 
+    // 1. Fine time synchronisation
+    // 2. Coarse frequency synchronisation
     correlation_impulse_response.resize(params.nb_fft);
+    correlation_frequency_response.resize(params.nb_fft);
     correlation_fft_buffer.resize(params.nb_fft);
 
     // Setup our multithreaded processing pipeline
@@ -183,6 +195,7 @@ void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
 
         // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
         // Clause 3.12.2: Frame synchronisation
+        // Clause 3.13.2 Integral frequency offset estimation
         case State::CALCULATE_PRS_CORRELATION:
             curr_index += FindPRSCorrelation({block, N_remain});
             break;
@@ -190,7 +203,6 @@ void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
         // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
         // Clause 3.13: Frequency offset estimation and correction
         // Clause 3.13.1: Fractional frequency offset estimation
-        // TODO: Clause 3.13.2: Integral frequency offset estimation (not implemented yet)
         // Clause 3.14: OFDM symbol demodulator
         // Clause 3.14.1: Cyclic prefix removal
         // Clause 3.14.2: FFT
@@ -212,8 +224,9 @@ void OFDM_Demod::Reset() {
 
     // NOTE: We also reset fine frequency synchronisation since an incorrect value
     // can reduce performance of fine time synchronisation using the impulse response
-    freq_fine_offset = 0.0f;
-    signal_l1_average = 0.0f;
+    freq_coarse_offset = 0;
+    freq_fine_offset = 0;
+    signal_l1_average = 0;
 }
 
 size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
@@ -276,13 +289,22 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
 size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) {
     // Clause 3.12.1 - Symbol timing synchronisation
     // To synchronise to start of the PRS we calculate the impulse response 
-    const size_t nb_read = (size_t)correlation_time_buffer.ConsumeBuffer(buf);
+    const size_t nb_read = correlation_time_buffer.ConsumeBuffer(buf);
     if (!correlation_time_buffer.IsFull()) {
         return nb_read;
     }
 
     auto corr_time_buf = correlation_time_buffer.GetData();
     auto corr_prs_buf = tcb::span(&corr_time_buf[params.nb_null_period], params.nb_fft);
+
+    // Clause: 3.13.2 Integral frequency offset estimation
+    // We need the PRS symbol to perform frequency correlation
+    if (cfg.is_coarse_freq_correction) {
+        UpdateCoarseFrequencyOffset(corr_prs_buf);
+    } else {
+        freq_coarse_offset = 0;
+    }
+
     for (int i = 0; i < params.nb_fft; i++) {
         correlation_fft_buffer[i] = corr_prs_buf[i];
     }
@@ -320,14 +342,7 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
     // If the main lobe is insufficiently powerful we do not have a valid impulse response
     // This probably means we had a severe desync and should restart
     if ((impulse_max_value - impulse_avg) < cfg.impulse_peak_threshold_db) {
-        state = State::FINDING_NULL_POWER_DIP;
-        correlation_time_buffer.SetLength(0);
-        total_frames_desync++;
-
-        // NOTE: We also reset fine frequency synchronisation since an incorrect value
-        // can reduce performance of fine time synchronisation using the impulse response
-        freq_fine_offset = 0.0f;
-        signal_l1_average = 0.0f;
+        Reset();
         return nb_read;
     }
 
@@ -349,14 +364,14 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
 }
 
 size_t OFDM_Demod::FillBuffer(tcb::span<const std::complex<float>> buf) {
-    const size_t nb_read = (size_t)inactive_buffer.ConsumeBuffer(buf);
+    const size_t nb_read = inactive_buffer.ConsumeBuffer(buf);
     if (!inactive_buffer.IsFull()) {
         return nb_read;
     }
 
     // Copy the null symbol so we can use it in the PRS correlation step
     auto block = inactive_buffer.GetData();
-    const size_t M = (size_t)inactive_buffer.Capacity();
+    const size_t M = inactive_buffer.Capacity();
     auto null_sym = tcb::span(&block[M-params.nb_null_period], params.nb_symbol_period);
     correlation_time_buffer.SetLength(params.nb_null_period);
     for (int i = 0; i < params.nb_null_period; i++) {
@@ -508,7 +523,10 @@ float OFDM_Demod::ApplyPLL(
     tcb::span<std::complex<float>> y, 
     const float dt0)
 {
+    const float net_freq_offset = freq_coarse_offset + freq_fine_offset;
+
     #if !USE_PLL_TABLE
+    const int N = (int)x.size();
 
     float dt = dt0;
     for (int i = 0; i < N; i++) {
@@ -516,7 +534,10 @@ float OFDM_Demod::ApplyPLL(
             std::cos(dt),
             std::sin(dt));
         y[i] = x[i] * pll;
-        dt += 2.0f * (float)M_PI * freq_fine_offset * Ts;
+        dt += 2.0f * (float)M_PI * net_freq_offset * Ts;
+
+        // stop precision loss when going to large values
+        dt = std::fmod(dt, 2.0f*(float)M_PI);
     }
     return dt;
 
@@ -525,7 +546,7 @@ float OFDM_Demod::ApplyPLL(
     const int N = (int)x.size();
     const int K = (int)PLL_TABLE.GetFrequencyResolution();
     const int M = (int)PLL_TABLE.GetTableSize();
-    const int step = (int)freq_fine_offset / (int)K;
+    const int step = (int)net_freq_offset / (int)K;
 
     int dt = (int)(dt0);
     dt = ((dt % M) + M) % M;
@@ -539,13 +560,17 @@ float OFDM_Demod::ApplyPLL(
 }
 
 float OFDM_Demod::CalculateTimeOffset(const size_t i) {
+    const float net_freq_offset = freq_coarse_offset + freq_fine_offset;
     #if !USE_PLL_TABLE
-    return 2.0f * (float)M_PI * freq_fine_offset * Ts * (float)i;
+    const float j = std::fmod((float)i, 2.0f*(float)M_PI);
+    return 2.0f * (float)M_PI * net_freq_offset * Ts * j;
     #else
     const int K = (int)PLL_TABLE.GetFrequencyResolution();
     const int M = (int)PLL_TABLE.GetTableSize();
-    const int step = (int)freq_fine_offset / (int)K;
-    const int j = (int)i;
+    const int step = (int)net_freq_offset / (int)K;
+
+    // (ab)modn = (amodn*bmodn)modn
+    const int j = (int)i % M;
     return (float)((step*j) % M);
     #endif
 }
@@ -615,6 +640,49 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float cyclic_error) {
     const float fine_freq_adjust = cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
     freq_fine_offset -= cfg.fine_freq_update_beta*fine_freq_adjust;
     freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f);
+}
+
+void OFDM_Demod::UpdateCoarseFrequencyOffset(tcb::span<const std::complex<float>> prs_sym) {
+    // Get the time domain relative phase vector
+    // time => fft => freq => relative phases => ifft => time
+    kiss_fft(fft_cfg, (kiss_fft_cpx*)prs_sym.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateRelativePhase(correlation_fft_buffer, correlation_fft_buffer);
+    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+
+    // Conjugate product in time domain
+    for (int i = 0; i < params.nb_fft; i++) {
+        correlation_fft_buffer[i] *= std::conj(correlation_prs_time_reference[i]);
+    }
+
+    // Get FFT to get correlation in frequency domain
+    kiss_fft(fft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateMagnitude(correlation_fft_buffer, correlation_frequency_response);
+
+    const int max_carrier_offset = cfg.max_coarse_freq_correction / (int)params.freq_carrier_spacing;
+    const int N = (int)params.nb_fft/2;
+
+    int max_index = -max_carrier_offset;
+    float max_value = correlation_frequency_response[max_index+N];
+    for (int i = -max_carrier_offset; i <= max_carrier_offset; i++) {
+        const int fft_index = i + N;
+        const float value = correlation_frequency_response[fft_index];
+        if (value > max_value) {
+            max_value = value;
+            max_index = i;
+        }
+    }
+
+    const float ofdm_freq_spacing = (float)(params.freq_carrier_spacing);
+    freq_coarse_offset = -(float)max_index * ofdm_freq_spacing;
+}
+
+void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out) {
+    const int N = (int)params.nb_fft;
+    for (int i = 0; i < (N-1); i++) {
+        const auto vec = std::conj(fft_in[i]) * fft_in[i+1];
+        arg_out[i] = vec;
+    }
+    arg_out[N-1] = {0,0};
 }
 
 void OFDM_Demod::CalculateMagnitude(

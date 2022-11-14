@@ -9,7 +9,7 @@
 void RenderDeviceControls(Device& device, const block_frequency_table_t& block_frequencies);
 
 void RenderDeviceSelector(DeviceSelector& app, const block_frequency_table_t& block_frequencies) {
-	if (ImGui::Begin("Controls")) {
+	if (ImGui::Begin("Device Controls")) {
 		if (ImGui::Button("Search")) {
 			app.SearchDevices();
 		}
