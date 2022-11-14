@@ -4,35 +4,36 @@
 #include "imgui.h"
 #include "implot.h"
 
-void RenderSourceBuffer(const std::complex<float>* buf_raw, const int block_size)
+void RenderSourceBuffer(tcb::span<const std::complex<float>> buf_raw)
 {
+    const size_t block_size = buf_raw.size();
     static double x = 0.0f;
     if (ImGui::Begin("Sampling buffer")) {
         if (ImPlot::BeginPlot("Block")) {
-            const auto* buf = reinterpret_cast<const float*>(buf_raw);
+            const auto* buf = reinterpret_cast<const float*>(buf_raw.data());
             ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
-            ImPlot::PlotLine("Real", &buf[0], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
-            ImPlot::PlotLine("Imag", &buf[1], block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+            ImPlot::PlotLine("Real", &buf[0], (int)block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
+            ImPlot::PlotLine("Imag", &buf[1], (int)block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
             ImPlot::EndPlot();
         }
     }
     ImGui::End();
 }
 
-void RenderOFDMDemodulator(OFDM_Demod* demod)
+void RenderOFDMDemodulator(OFDM_Demod& demod)
 {
-    const auto params = demod->GetOFDMParams();
+    const auto params = demod.GetOFDMParams();
     if (ImGui::Begin("DQPSK data")) {
-        const int total_symbols = params.nb_frame_symbols;
+        const int total_symbols = (int)params.nb_frame_symbols;
         static int symbol_index = 0;
 
         ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_symbols-2);
 
         static double dqsk_decision_boundaries[3] = {-3.1415/2, 0, 3.1415/2};
-        auto phase_buf = demod->GetFrameDataPhases();
+        auto phase_buf = demod.GetFrameDataPhases();
 
         if (ImPlot::BeginPlot("DQPSK data")) {
-            const int total_carriers = params.nb_data_carriers;
+            const int total_carriers = (int)params.nb_data_carriers;
             const int buffer_offset = symbol_index*total_carriers;
 
             ImPlot::SetupAxisLimits(ImAxis_Y1, -4, +4, ImPlotCond_Once);
@@ -41,7 +42,7 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
             static double y_axis_ticks[4] = {0,1,2,3};
             ImPlot::SetupAxisTicks(ImAxis_Y2, y_axis_ticks, 4);
             {
-                auto buf = &phase_buf[buffer_offset];
+                auto* buf = &phase_buf[buffer_offset];
                 ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
                 ImPlot::PlotScatter("Raw", buf, total_carriers);
                 for (int i = 0; i < 3; i++) {
@@ -55,15 +56,20 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
     ImGui::End();
 
     if (ImGui::Begin("Constellation")) {
+        static int maximum_points = 3000;
+        constexpr int slider_res = 1000;
+        if (ImGui::SliderInt("Total points", &maximum_points, 0, 20000)) {
+            maximum_points = (maximum_points / slider_res) * slider_res;
+        }
+
         if (ImPlot::BeginPlot("Constellation", ImVec2(-1,0), ImPlotFlags_Equal)) {
-            const int total_carriers = params.nb_data_carriers;
-            const int nb_symbols = params.nb_frame_symbols-1;
-            const int nb_points = nb_symbols * total_carriers;
-            auto* buf = reinterpret_cast<float*>(demod->GetFrameDataVec());
+            auto points = demod.GetFrameDataVec();
+            const size_t nb_points = points.size();
+            auto* buf = reinterpret_cast<float*>(points.data());
 
             const float marker_size = 1.5f;
             ImPlot::SetNextMarkerStyle(0, marker_size);
-            ImPlot::PlotScatter("IQ", &buf[0], &buf[1], std::min(nb_points, 3000), 0, 0, 2*sizeof(float));
+            ImPlot::PlotScatter("IQ", &buf[0], &buf[1], std::min((int)nb_points, maximum_points), 0, 0, 2*sizeof(float));
             ImPlot::EndPlot();
         }
     }
@@ -71,10 +77,9 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
 
     if (ImGui::Begin("Impulse response")) {
         if (ImPlot::BeginPlot("Impulse response")) {
-            auto buf = demod->GetImpulseResponse();
-            const int N = params.nb_fft;
+            auto buf = demod.GetImpulseResponse();
             ImPlot::SetupAxisLimits(ImAxis_Y1, 60, 150, ImPlotCond_Once);
-            ImPlot::PlotLine("Impulse response", buf, N);
+            ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
             ImPlot::EndPlot();
         }
     }
@@ -84,7 +89,7 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
     // {
     //     ImGui::Begin("Null symbol spectrum");
     //     if (ImPlot::BeginPlot("Null symbol")) {
-    //         auto buf = demod->GetNullSymbolMagnitude();
+    //         auto buf = demod.GetNullSymbolMagnitude();
     //         const int N = params.nb_fft;
     //         ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
     //         ImPlot::PlotLine("Null symbol", buf, N);
@@ -97,7 +102,7 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
     // {
     //     ImGui::Begin("Data symbol spectrum");
     //     if (ImPlot::BeginPlot("Data symbol spectrum")) {
-    //         auto buf = demod->GetFrameMagnitudeAverage();
+    //         auto buf = demod.GetFrameMagnitudeAverage();
     //         const int N = params.nb_fft;
     //         ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
     //         ImPlot::PlotLine("Data symbol", buf, N);
@@ -108,7 +113,7 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
 
     if (ImGui::Begin("Controls/Stats")) {
 
-        switch (demod->GetState()) {
+        switch (demod.GetState()) {
         case OFDM_Demod::State::FINDING_NULL_POWER_DIP:
             ImGui::Text("State: Finding dip");
             break;
@@ -122,10 +127,10 @@ void RenderOFDMDemodulator(OFDM_Demod* demod)
             ImGui::Text("State: Unknown");
             break;
         }
-        ImGui::Text("Fine freq: %.2f Hz", demod->GetFineFrequencyOffset());
-        ImGui::Text("Signal level: %.2f", demod->GetSignalAverage());
-        ImGui::Text("Frames read: %d", demod->GetTotalFramesRead());
-        ImGui::Text("Frames desynced: %d", demod->GetTotalFramesDesync());
+        ImGui::Text("Fine freq: %.2f Hz", demod.GetFineFrequencyOffset());
+        ImGui::Text("Signal level: %.2f", demod.GetSignalAverage());
+        ImGui::Text("Frames read: %d", demod.GetTotalFramesRead());
+        ImGui::Text("Frames desynced: %d", demod.GetTotalFramesDesync());
     }
     ImGui::End();
 }

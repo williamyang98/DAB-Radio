@@ -1,5 +1,10 @@
 #include "simple_view_controller.h"
 
+#include "modules/basic_radio/basic_radio.h"
+#include "modules/basic_radio/basic_slideshow.h"
+
+SimpleViewController::~SimpleViewController() = default;
+
 void SimpleViewController::ClearSearch(void) {
     services_filter.Clear();
 }
@@ -14,23 +19,24 @@ Texture* SimpleViewController::GetTexture(subchannel_id_t subchannel_id, mot_tra
 }
 
 Texture* SimpleViewController::AddTexture(
-    subchannel_id_t subchannel_id, mot_transport_id_t transport_id, 
-    const uint8_t* data, const int N) 
+    subchannel_id_t subchannel_id, 
+    mot_transport_id_t transport_id, 
+    tcb::span<const uint8_t> data) 
 {
     const auto key = GetKey(subchannel_id, transport_id);
     auto res = textures.find(key);
     if (res == textures.end()) {
-        res = textures.insert({key, std::make_unique<Texture>(data, N)}).first;
+        res = textures.insert({key, std::move(std::make_unique<Texture>(data))}).first;
     }
     return res->second.get();
 }
 
-void SimpleViewController::AttachRadio(BasicRadio* radio) {
-    radio->On_DAB_Plus_Channel().Attach([this](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+void SimpleViewController::AttachRadio(BasicRadio& radio) {
+    radio.On_DAB_Plus_Channel().Attach([this](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
         auto& slideshow_manager = channel.GetSlideshowManager();
-        slideshow_manager.OnRemoveSlideshow().Attach([this](Basic_Slideshow* slideshow) {
+        slideshow_manager.OnRemoveSlideshow().Attach([this](Basic_Slideshow& slideshow) {
             auto selection = GetSelectedSlideshow();
-            if (selection.slideshow == slideshow) {
+            if (selection.slideshow == (&slideshow)) {
                 SetSelectedSlideshow({0, NULL});
             }
         });

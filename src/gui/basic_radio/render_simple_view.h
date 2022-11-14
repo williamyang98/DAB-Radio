@@ -4,4 +4,4 @@
 
 class BasicRadio;
 
-void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller);
+void RenderSimple_Root(BasicRadio& radio, SimpleViewController& controller);

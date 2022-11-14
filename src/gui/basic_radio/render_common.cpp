@@ -7,9 +7,9 @@
 #include "formatters.h"
 
 // Render a list of all subchannels
-void RenderSubchannels(BasicRadio* radio) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
-    auto window_label = fmt::format("Subchannels ({})###Subchannels Full List", db->subchannels.size());
+void RenderSubchannels(BasicRadio& radio) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    auto window_label = fmt::format("Subchannels ({})###Subchannels Full List", db.subchannels.size());
     if (ImGui::Begin(window_label.c_str())) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Subchannels table", 6, flags)) 
@@ -23,9 +23,9 @@ void RenderSubchannels(BasicRadio* radio) {
             ImGui::TableHeadersRow();
 
             int row_id  = 0;
-            for (auto& subchannel: db->subchannels) {
-                auto service_component = db->GetServiceComponent_Subchannel(subchannel.id);
-                auto service = service_component ? db->GetService(service_component->service_reference) : NULL;
+            for (auto& subchannel: db.subchannels) {
+                auto service_component = db.GetServiceComponent_Subchannel(subchannel.id);
+                auto service = service_component ? db.GetService(service_component->service_reference) : NULL;
                 auto service_label = service ? service->label.c_str() : "";
 
                 const auto prot_label = GetSubchannelProtectionLabel(subchannel);
@@ -47,7 +47,7 @@ void RenderSubchannels(BasicRadio* radio) {
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%u kb/s", bitrate_kbps);
 
-                auto* dab_plus_channel = radio->Get_DAB_Plus_Channel(subchannel.id);
+                auto* dab_plus_channel = radio.Get_DAB_Plus_Channel(subchannel.id);
                 if (dab_plus_channel != NULL) {
                     auto& controls = dab_plus_channel->GetControls();
                     const bool is_selected = controls.GetAllEnabled();
@@ -69,9 +69,9 @@ void RenderSubchannels(BasicRadio* radio) {
 }
 
 // Render the ensemble information
-void RenderEnsemble(BasicRadio* radio) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
-    auto& ensemble = db->ensemble;
+void RenderEnsemble(BasicRadio& radio) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    auto& ensemble = db.ensemble;
 
     if (ImGui::Begin("Ensemble")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
@@ -109,8 +109,8 @@ void RenderEnsemble(BasicRadio* radio) {
 }
 
 // Render misc information about the date and time
-void RenderDateTime(BasicRadio* radio) {
-    const auto info = radio->GetDatabaseManager()->GetDABMiscInfo();
+void RenderDateTime(BasicRadio& radio) {
+    const auto info = radio.GetDatabaseManager().GetDABMiscInfo();
     if (ImGui::Begin("Date & Time")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -146,8 +146,8 @@ void RenderDateTime(BasicRadio* radio) {
 }
 
 // Database statistics
-void RenderDatabaseStatistics(BasicRadio* radio) {
-    const auto stats = radio->GetDatabaseManager()->GetDatabaseStatistics();
+void RenderDatabaseStatistics(BasicRadio& radio) {
+    const auto stats = radio.GetDatabaseManager().GetDatabaseStatistics();
     if (ImGui::Begin("Database Stats")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -180,25 +180,25 @@ void RenderDatabaseStatistics(BasicRadio* radio) {
 }
 
 // Linked ensembles
-void RenderOtherEnsembles(BasicRadio* radio) {
-    auto* db = radio->GetDatabaseManager()->GetDatabase();
+void RenderOtherEnsembles(BasicRadio& radio) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
     auto label = fmt::format("Other Ensembles ({})###Other Ensembles",
-        db->other_ensembles.size());
+        db.other_ensembles.size());
 
     if (ImGui::Begin(label.c_str())) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Components table", 6, flags)) 
         {
-            ImGui::TableSetupColumn("Reference",            ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Country ID",     ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Reference",                ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Country ID",               ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Continuous Output",        ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Geographically Adjacent",    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Mode I",   ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Frequency",             ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Geographically Adjacent",  ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Mode I",                   ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Frequency",                ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableHeadersRow();
 
             int row_id  = 0;
-            for (auto& ensemble: db->other_ensembles) {
+            for (auto& ensemble: db.other_ensembles) {
                 ImGui::PushID(row_id++);
 
                 const float frequency =  static_cast<float>(ensemble.frequency) * 1e-6f;

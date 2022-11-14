@@ -1,34 +1,39 @@
 #include "render_simple_view.h"
-#include "modules/basic_radio/basic_radio.h"
 
-#include "imgui.h"
+#include "modules/basic_radio/basic_radio.h"
+#include "modules/basic_radio/basic_slideshow.h"
+
 #include <fmt/core.h>
 #include "formatters.h"
 
+#include "imgui.h"
 #include "render_common.h"
 
-void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controller);
-void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, Service* service);
+void RenderSimple_ServiceList(BasicRadio& radio, SimpleViewController& controller);
+void RenderSimple_Service(BasicRadio& radio, SimpleViewController& controller, Service* service);
 
-void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service);
-void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component);
+void RenderSimple_ServiceComponentList(BasicRadio& radio, SimpleViewController& controller, Service* service);
+void RenderSimple_ServiceComponent(BasicRadio& radio, SimpleViewController& controller, ServiceComponent& component);
 
-void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController* controller, Basic_DAB_Plus_Channel* channel, const subchannel_id_t subchannel_id);
-void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController* controller);
+void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController& controller, Basic_DAB_Plus_Channel& channel, const subchannel_id_t subchannel_id);
+void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, SimpleViewController& controller);
 
-void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller, Service* service);
-void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controller, LinkService* link_service);
-void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio);
+void RenderSimple_LinkServices(BasicRadio& radio, SimpleViewController& controller, Service* service);
+void RenderSimple_LinkService(BasicRadio& radio, SimpleViewController& controller, LinkService& link_service);
+void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio);
 
 // Render a list of the services
-void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
+void RenderSimple_Root(BasicRadio& radio, SimpleViewController& controller) {
+    auto& db_manager = radio.GetDatabaseManager();
+    auto& db = db_manager.GetDatabase();
+    auto lock = std::scoped_lock(db_manager.GetDatabaseMutex());
+
     if (ImGui::Begin("Simple View")) 
     {
         ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
         ImGui::DockSpace(dockspace_id);
 
-        auto* selected_service = db->GetService(controller->selected_service);
+        auto* selected_service = db.GetService(controller.selected_service);
 
         RenderSimple_ServiceList(radio, controller);
         RenderSimple_Service(radio, controller, selected_service);
@@ -46,22 +51,22 @@ void RenderSimple_Root(BasicRadio* radio, SimpleViewController* controller) {
     ImGui::End();
 }
 
-void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controller) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
-    const auto window_title = fmt::format("Services ({})###Services panel", db->services.size());
+void RenderSimple_ServiceList(BasicRadio& radio, SimpleViewController& controller) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    const auto window_title = fmt::format("Services ({})###Services panel", db.services.size());
     if (ImGui::Begin(window_title.c_str())) {
-        auto& search_filter = controller->services_filter;
+        auto& search_filter = controller.services_filter;
         search_filter.Draw("###Services search filter", -1.0f);
         if (ImGui::BeginListBox("###Services list", ImVec2(-1,-1))) {
-            for (auto& service: db->services) {
+            for (auto& service: db.services) {
                 if (!search_filter.PassFilter(service.label.c_str())) {
                     continue;
                 }
                 const int service_id = static_cast<int>(service.reference);
-                const bool is_selected = (service_id == controller->selected_service);
+                const bool is_selected = (service_id == controller.selected_service);
                 auto label = fmt::format("{}###{}", service.label, service.reference);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    controller->selected_service = is_selected ? -1 : service_id;
+                    controller.selected_service = is_selected ? -1 : service_id;
                 }
             }
             ImGui::EndListBox();
@@ -70,8 +75,8 @@ void RenderSimple_ServiceList(BasicRadio* radio, SimpleViewController* controlle
     ImGui::End();
 }
 
-void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, Service* service) {
-    auto* db = radio->GetDatabaseManager()->GetDatabase();
+void RenderSimple_Service(BasicRadio& radio, SimpleViewController& controller, Service* service) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
 
     if (ImGui::Begin("Service Description") && service) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
@@ -107,25 +112,25 @@ void RenderSimple_Service(BasicRadio* radio, SimpleViewController* controller, S
     ImGui::End();
 }
 
-void RenderSimple_ServiceComponentList(BasicRadio* radio, SimpleViewController* controller, Service* service) {
-    auto* db = radio->GetDatabaseManager()->GetDatabase();
+void RenderSimple_ServiceComponentList(BasicRadio& radio, SimpleViewController& controller, Service* service) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
 
     // Render the service components along with their associated subchannel
-    auto* components = service ? db->GetServiceComponents(service->reference) : NULL;
+    auto* components = service ? db.GetServiceComponents(service->reference) : NULL;
     const auto window_label = fmt::format("Service Components ({})###Service Components Panel",
         components ? components->size() : 0);
     if (ImGui::Begin(window_label.c_str()) && components) {
-        for (auto& component: *components) {
-            RenderSimple_ServiceComponent(radio, controller, component);
+        for (auto component: *components) {
+            RenderSimple_ServiceComponent(radio, controller, *component);
         }
     }
     ImGui::End();
 }
 
-void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* controller, ServiceComponent* component) {
-    auto* db = radio->GetDatabaseManager()->GetDatabase();
-    const auto subchannel_id = component->subchannel_id;
-    auto* subchannel = db->GetSubchannel(subchannel_id);
+void RenderSimple_ServiceComponent(BasicRadio& radio, SimpleViewController& controller, ServiceComponent& component) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    const auto subchannel_id = component.subchannel_id;
+    auto* subchannel = db.GetSubchannel(subchannel_id);
     
     ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
     if (ImGui::BeginTable("Component", 2, flags)) {
@@ -144,17 +149,17 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* cont
             ImGui::PopID();\
         }\
 
-        const bool is_audio_type = (component->transport_mode == TransportMode::STREAM_MODE_AUDIO);
+        const bool is_audio_type = (component.transport_mode == TransportMode::STREAM_MODE_AUDIO);
         const char* type_str = is_audio_type ? 
-            GetAudioTypeString(component->audio_service_type) :
-            GetDataTypeString(component->data_service_type);
+            GetAudioTypeString(component.audio_service_type) :
+            GetDataTypeString(component.data_service_type);
         
-        FIELD_MACRO("Label", "%.*s", component->label.length(), component->label.c_str());
-        FIELD_MACRO("Component ID", "%u", component->component_id);
-        FIELD_MACRO("Global ID", "%u", component->global_id);
-        FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component->transport_mode));
+        FIELD_MACRO("Label", "%.*s", component.label.length(), component.label.c_str());
+        FIELD_MACRO("Component ID", "%u", component.component_id);
+        FIELD_MACRO("Global ID", "%u", component.global_id);
+        FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
         FIELD_MACRO("Type", "%s", type_str);
-        FIELD_MACRO("Subchannel ID", "%u", component->subchannel_id);
+        FIELD_MACRO("Subchannel ID", "%u", component.subchannel_id);
 
         if (subchannel != NULL) {
             const auto prot_label = GetSubchannelProtectionLabel(*subchannel);
@@ -169,15 +174,15 @@ void RenderSimple_ServiceComponent(BasicRadio* radio, SimpleViewController* cont
         ImGui::EndTable();
     }
 
-    auto* dab_plus_channel = radio->Get_DAB_Plus_Channel(subchannel_id);
+    auto* dab_plus_channel = radio.Get_DAB_Plus_Channel(subchannel_id);
     if (dab_plus_channel != NULL) {
-        RenderSimple_Basic_DAB_Plus_Channel(radio, controller, dab_plus_channel, subchannel_id);
+        RenderSimple_Basic_DAB_Plus_Channel(radio, controller, *dab_plus_channel, subchannel_id);
     }
 }
 
-void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController* controller, Basic_DAB_Plus_Channel* channel, subchannel_id_t subchannel_id) {
+void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController& controller, Basic_DAB_Plus_Channel& channel, subchannel_id_t subchannel_id) {
     // Channel controls
-    auto& controls = channel->GetControls();
+    auto& controls = channel.GetControls();
     if (ImGui::Button("Run All")) {
         controls.RunAll();
     }
@@ -204,10 +209,10 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController
     // Programme associated data
     // 1. Dynamic label
     // 2. MOT slideshow
-    auto& label = channel->GetDynamicLabel();
+    auto& label = channel.GetDynamicLabel();
     ImGui::Text("Dynamic label: %.*s", label.length(), label.c_str());
 
-    auto& slideshow_manager = channel->GetSlideshowManager();
+    auto& slideshow_manager = channel.GetSlideshowManager();
     auto& slideshows = slideshow_manager.GetSlideshows();
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize;
@@ -218,7 +223,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController
         int slideshow_id = 0;
 
         for (auto& slideshow: slideshows) {
-            auto* texture = controller->AddTexture(subchannel_id, slideshow.transport_id, slideshow.data, slideshow.nb_data_bytes);
+            auto* texture = controller.AddTexture(subchannel_id, slideshow.transport_id, slideshow.image_data);
             if (texture == NULL) {
                 continue;
             }
@@ -248,7 +253,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController
                 ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
             }
             if (ImGui::IsItemClicked()) {
-                controller->SetSelectedSlideshow({ subchannel_id, &slideshow });
+                controller.SetSelectedSlideshow({ subchannel_id, &slideshow });
             }
             ImGui::PopID();
         }
@@ -256,14 +261,14 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio* radio, SimpleViewController
     ImGui::EndChild();
 }
 
-void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController* controller) {
-    auto selection = controller->GetSelectedSlideshow();
+void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, SimpleViewController& controller) {
+    auto selection = controller.GetSelectedSlideshow();
     auto* slideshow = selection.slideshow;
     if (slideshow == NULL) {
         return;
     }
 
-    auto* texture = controller->GetTexture(selection.subchannel_id, slideshow->transport_id);
+    auto* texture = controller.GetTexture(selection.subchannel_id, slideshow->transport_id);
 
     bool is_open = true;
     if (ImGui::Begin("Slideshow Viewer", &is_open)) {
@@ -311,7 +316,7 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController
                 FIELD_MACRO("Category title", "%.*s", slideshow->category_title.length(), slideshow->category_title.c_str());
                 FIELD_MACRO("Click Through URL", "%.*s", slideshow->click_through_url.length(), slideshow->click_through_url.c_str());
                 FIELD_MACRO("Alt Location URL", "%.*s", slideshow->alt_location_url.length(), slideshow->alt_location_url.c_str());
-                FIELD_MACRO("Size", "%u Bytes", slideshow->nb_data_bytes);
+                FIELD_MACRO("Size", "%zu Bytes", slideshow->image_data.size());
 
                 if (texture != NULL) {
                     FIELD_MACRO("Resolution", "%u x %u", texture->GetWidth(), texture->GetHeight());
@@ -327,29 +332,29 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio* radio, SimpleViewController
     ImGui::End();
 
     if (!is_open) {
-        controller->SetSelectedSlideshow({0,NULL});
+        controller.SetSelectedSlideshow({0,NULL});
     }
 }
 
-void RenderSimple_LinkServices(BasicRadio* radio, SimpleViewController* controller, Service* service) {
-    auto* db = radio->GetDatabaseManager()->GetDatabase();
+void RenderSimple_LinkServices(BasicRadio& radio, SimpleViewController& controller, Service* service) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
 
-    auto* linked_services = service ? db->GetServiceLSNs(service->reference) : NULL;
+    auto* linked_services = service ? db.GetServiceLSNs(service->reference) : NULL;
     const size_t nb_linked_services = linked_services ? linked_services->size() : 0;
     auto window_label = fmt::format("Linked Services ({})###Linked Services", nb_linked_services);
 
     if (ImGui::Begin(window_label.c_str()) && linked_services) {
         const ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
-        for (auto& linked_service: *linked_services) {
-            RenderSimple_LinkService(radio, controller, linked_service);
+        for (auto* linked_service: *linked_services) {
+            RenderSimple_LinkService(radio, controller, *linked_service);
         }
     }
     ImGui::End();
 }
 
-void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controller, LinkService* link_service) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
-    auto label = fmt::format("###lsn_{}", link_service->id);
+void RenderSimple_LinkService(BasicRadio& radio, SimpleViewController& controller, LinkService& link_service) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    auto label = fmt::format("###lsn_{}", link_service.id);
 
     #define FIELD_MACRO(name, fmt, ...) {\
         ImGui::PushID(row_id++);\
@@ -372,15 +377,15 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableHeadersRow();
             int row_id = 0;
-            FIELD_MACRO("LSN", "%u", link_service->id);
-            FIELD_MACRO("Active", "%s", link_service->is_active_link ? "Yes" : "No");
-            FIELD_MACRO("Hard Link", "%s", link_service->is_hard_link ? "Yes": "No");
-            FIELD_MACRO("International", "%s", link_service->is_international ? "Yes" : "No");
+            FIELD_MACRO("LSN", "%u", link_service.id);
+            FIELD_MACRO("Active", "%s", link_service.is_active_link ? "Yes" : "No");
+            FIELD_MACRO("Hard Link", "%s", link_service.is_hard_link ? "Yes": "No");
+            FIELD_MACRO("International", "%s", link_service.is_international ? "Yes" : "No");
             ImGui::EndTable();
         }
 
         // FM Services
-        auto* fm_services = db->Get_LSN_FM_Services(link_service->id);
+        auto* fm_services = db.Get_LSN_FM_Services(link_service.id);
         if (fm_services) {
             const auto fm_label = fmt::format("FM Services ({})###FM Services", fm_services->size());
             if (ImGui::CollapsingHeader(fm_label.c_str(), ImGuiTreeNodeFlags_None)) {
@@ -411,8 +416,8 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
         }
 
         // DRM Services
-        auto* drm_services = db->Get_LSN_DRM_Services(link_service->id);
-        if (drm_services) {
+        auto* drm_services = db.Get_LSN_DRM_Services(link_service.id);
+        if (drm_services != NULL) {
             const auto drm_label = fmt::format("DRM Services ({})###DRM Services", drm_services->size());
             if (ImGui::CollapsingHeader(drm_label.c_str())) {
                 if (ImGui::BeginTable("DRM Table", 3, flags)) {
@@ -422,7 +427,7 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
                     ImGui::TableHeadersRow();
 
                     int row_id  = 0;
-                    for (auto& drm_service: *drm_services) {
+                    for (auto* drm_service: *drm_services) {
                         ImGui::PushID(row_id++);
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
@@ -447,9 +452,9 @@ void RenderSimple_LinkService(BasicRadio* radio, SimpleViewController* controlle
     #undef FIELD_MACRO
 }
 
-void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio) {
-    auto db = radio->GetDatabaseManager()->GetDatabase();
-    auto& subchannels = db->subchannels;
+void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio) {
+    auto& db = radio.GetDatabaseManager().GetDatabase();
+    auto& subchannels = db.subchannels;
 
     static bool decode_audio = true;
     static bool decode_data = true;
@@ -474,7 +479,7 @@ void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio* radio) {
     }
 
     for (auto& subchannel: subchannels) {
-        auto* channel = radio->Get_DAB_Plus_Channel(subchannel.id);
+        auto* channel = radio.Get_DAB_Plus_Channel(subchannel.id);
         if (channel == NULL) continue;
 
         auto& control = channel->GetControls();

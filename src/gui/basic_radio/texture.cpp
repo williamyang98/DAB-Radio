@@ -44,14 +44,13 @@ bool GLCheckErrors(const char *funcName, const char *file, int line) {
     return true; 
 }
 
-Texture::Texture(const uint8_t* data, const int N)
+Texture::Texture(tcb::span<const uint8_t> image_buffer)
     : m_RendererID(0),
-      m_LocalBuffer(NULL),
-      m_Width(0), m_Height(0), m_BPP(0)
+      m_Width(0), m_Height(0), m_BPP(0),
+      is_success(false)
 {
     GLCall(glGenTextures(1, &m_RendererID));
     GLCall(glBindTexture(GL_TEXTURE_2D, m_RendererID));
-
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
@@ -64,18 +63,20 @@ Texture::Texture(const uint8_t* data, const int N)
 
     // give image buffer to opengl
     // stbi_set_flip_vertically_on_load(1);
-    m_LocalBuffer = stbi_load_from_memory(data, N, &m_Width, &m_Height, &m_BPP, 4);
+    uint8_t* m_LocalBuffer = stbi_load_from_memory(
+        image_buffer.data(), (int)image_buffer.size(), 
+        &m_Width, &m_Height, &m_BPP, 4);
     if (m_LocalBuffer != NULL) {
         GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_LocalBuffer));
-        // once bound to opengl, free the local buffer
         stbi_image_free(m_LocalBuffer);
+        is_success = true;
     }
-
-    // TODO: how to handle a missing texture?
-    GLCall(glBindTexture(GL_TEXTURE_2D, 0));
 }
 
-Texture::~Texture()
-{
+Texture::~Texture() {
     GLCall(glDeleteTextures(1, &m_RendererID));
+}
+
+void* Texture::GetTextureID() const {
+    return reinterpret_cast<void*>((size_t)m_RendererID);
 }
