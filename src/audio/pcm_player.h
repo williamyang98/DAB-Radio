@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "utility/span.h"
 
 class PCM_Player 
 {
@@ -19,7 +20,7 @@ public:
         }
     };
 public:
-    virtual void ConsumeBuffer(const uint8_t* buf, const int N) = 0;
+    virtual void ConsumeBuffer(tcb::span<const uint8_t> buf) = 0;
     virtual bool SetParameters(const Parameters params) = 0;
     virtual Parameters GetParameters(void) = 0;
 };

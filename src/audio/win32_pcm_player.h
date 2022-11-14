@@ -1,8 +1,11 @@
 #pragma once
 
 #include "pcm_player.h"
+#include "utility/span.h"
 
+#include <vector>
 #include <thread>
+#include <memory>
 #include <mutex>
 #include <condition_variable>
 
@@ -15,12 +18,12 @@ private:
     Parameters params;
     bool is_running = true;
     // double buffering
-    uint8_t* block_buf_0;
-    uint8_t* block_buf_1;
+    std::vector<uint8_t> block_buf_0;
+    std::vector<uint8_t> block_buf_1;
     // Win32 wave data
-    Win32Params* wave_data;
+    std::unique_ptr<Win32Params> wave_data;
     // Separate thread for audio running
-    std::thread* audio_thread;
+    std::unique_ptr<std::thread> audio_thread;
 
     std::mutex mutex_cv_received_block;
     std::condition_variable cv_received_block;
@@ -35,8 +38,14 @@ private:
 public:
     Win32_PCM_Player();
     ~Win32_PCM_Player();
+    // We bind a callback through the win32 api, so we cannot move the location of this object
+    Win32_PCM_Player(Win32_PCM_Player&) = delete;
+    Win32_PCM_Player(Win32_PCM_Player&&) = delete;
+    Win32_PCM_Player& operator=(Win32_PCM_Player&) = delete;
+    Win32_PCM_Player& operator=(Win32_PCM_Player&&) = delete;
+
     // Block until buffer is consumed
-    virtual void ConsumeBuffer(const uint8_t* buf, const int N);
+    virtual void ConsumeBuffer(tcb::span<const uint8_t> buf);
     virtual bool SetParameters(const Parameters new_params);
     virtual Parameters GetParameters(void);
 private:

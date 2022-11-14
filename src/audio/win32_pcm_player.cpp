@@ -99,14 +99,14 @@ Win32_PCM_Player::Win32_PCM_Player() {
     params.sample_rate = 48000;
     params.total_channels = 2;
 
-    block_buf_0 = new uint8_t[params.block_size]{0};
-    block_buf_1 = new uint8_t[params.block_size]{0};
+    block_buf_0.resize(params.block_size, 0);
+    block_buf_1.resize(params.block_size, 0);
 
-    wave_data = new Win32Params(params.total_channels, params.sample_rate, params.bytes_per_sample);
-    wave_data->AssociateBuffers(block_buf_0, block_buf_1, params.block_size);
+    wave_data = std::make_unique<Win32Params>(params.total_channels, params.sample_rate, params.bytes_per_sample);
+    wave_data->AssociateBuffers(block_buf_0.data(), block_buf_1.data(), params.block_size);
 
     is_running = true;
-    audio_thread = new std::thread([this]() {
+    audio_thread = std::make_unique<std::thread>([this]() {
         RunnerThread();
     });
 
@@ -119,10 +119,6 @@ Win32_PCM_Player::Win32_PCM_Player() {
 Win32_PCM_Player::~Win32_PCM_Player() {
     is_running = false;
     audio_thread->join();
-    delete audio_thread;
-    delete [] block_buf_0;
-    delete [] block_buf_1;
-    delete wave_data;
 }
 
 bool Win32_PCM_Player::SetParameters(const Parameters new_params) {
@@ -144,10 +140,8 @@ void Win32_PCM_Player::Regenerate(const Parameters new_params) {
 
     // Reallocate input buffers
     if (params.block_size != new_params.block_size) {
-        delete [] block_buf_0;
-        delete [] block_buf_1;
-        block_buf_0 = new uint8_t[new_params.block_size]{0};
-        block_buf_1 = new uint8_t[new_params.block_size]{0};
+        block_buf_0.resize(new_params.block_size);
+        block_buf_1.resize(new_params.block_size);
         inactive_block_nb_bytes = 0;
     }
 
@@ -158,14 +152,13 @@ void Win32_PCM_Player::Regenerate(const Parameters new_params) {
         (params.total_channels != new_params.total_channels);
 
     if (is_changed) {
-        delete wave_data; 
-        wave_data = new Win32Params(
+        wave_data = std::make_unique<Win32Params>(
             new_params.total_channels, 
             new_params.sample_rate, 
             new_params.bytes_per_sample);
     }
 
-    wave_data->AssociateBuffers(block_buf_0, block_buf_1, new_params.block_size);
+    wave_data->AssociateBuffers(block_buf_0.data(), block_buf_1.data(), new_params.block_size);
 
     // Restart the audio player
     // prime the double buffer
@@ -175,7 +168,8 @@ void Win32_PCM_Player::Regenerate(const Parameters new_params) {
 }
 
 // Block until buffer is consumed
-void Win32_PCM_Player::ConsumeBuffer(const uint8_t* buf, const int N) {
+void Win32_PCM_Player::ConsumeBuffer(tcb::span<const uint8_t> buf) {
+    const int N = (int)buf.size();
     int curr_byte = 0;
     while (curr_byte < N) {
         bool is_block_full = false;
