@@ -45,7 +45,7 @@ public:
         frame_bits.resize(params.nb_frame_bits);
         radio = std::make_unique<BasicRadio>(params);
         gui_controller = std::make_unique<SimpleViewController>();
-        gui_controller->AttachRadio(radio.get());
+        gui_controller->AttachRadio(*(radio.get()));
 
 		using namespace std::placeholders;
 		radio->On_DAB_Plus_Channel().Attach(std::bind(&App::Attach_DAB_Plus_Audio_Player, this, _1, _2));
@@ -59,20 +59,20 @@ public:
         fp_in = NULL;
         radio_thread->join();
     }
-    auto* GetRadio() { return radio.get(); }
-    auto* GetViewController() { return gui_controller.get(); }
+    auto& GetRadio() { return *(radio.get()); }
+    auto& GetViewController() { return *(gui_controller.get()); }
 private:
     void RunnerThread() {
         while (true) {
             if (fp_in == NULL) return;
 
-            const int N = (int)frame_bits.size();
-            const int nb_read = (int)fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
+            const size_t N = frame_bits.size();
+            const size_t nb_read = fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
             if (nb_read != N) {
-                fprintf(stderr, "Failed to read soft-decision bits (%d/%d)\n", nb_read, N);
+                fprintf(stderr, "Failed to read soft-decision bits (%zu/%zu)\n", nb_read, N);
                 break;
             }
-            radio->Process(frame_bits.data(), N);
+            radio->Process(frame_bits);
         }
     }
 	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
@@ -81,7 +81,7 @@ private:
 			subchannel_id, 
 			std::move(std::make_unique<Win32_PCM_Player>())).first;
 		auto* pcm_player = res->second.get(); 
-		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, const uint8_t* data, const int N) {
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> data) {
 			if (!controls.GetIsPlayAudio()) {
 				return;
 			}
@@ -91,7 +91,7 @@ private:
 			pcm_params.total_channels = 2;
 			pcm_params.bytes_per_sample = 2;
 			pcm_player->SetParameters(pcm_params);
-			pcm_player->ConsumeBuffer(data, N);
+			pcm_player->ConsumeBuffer(data);
 		});
 	}
 };
@@ -195,11 +195,10 @@ int main(int argc, char** argv) {
     el::Configurations defaultConf;
     const char* logging_level = is_logging ? "true" : "false";
     defaultConf.setToDefault();
-    defaultConf.set(el::Level::Error,   el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Warning, el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Info,    el::ConfigurationType::Enabled, logging_level);
-    defaultConf.set(el::Level::Debug,   el::ConfigurationType::Enabled, logging_level);
+    defaultConf.setGlobally(el::ConfigurationType::Enabled, logging_level);
+    defaultConf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
     el::Loggers::reconfigureAllLoggers(defaultConf);
+    el::Helpers::setThreadName("main-thread");
 
     auto app = App(transmission_mode, fp_in);
     auto renderer = Renderer(app);

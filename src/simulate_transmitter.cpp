@@ -2,10 +2,11 @@
 // No information is encoded in this signal
 // It is only used to test if the OFDM demodulator is working correctly
 
+#include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <complex>
-#include <stdio.h>
+#include <vector>
 
 #ifdef _WIN32
 #include <io.h>
@@ -18,6 +19,7 @@
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
 #include "utility/getopt/getopt.h"
+#include "utility/span.h"
 
 // scrambler that is used for DVB transmissions
 class Scrambler 
@@ -38,11 +40,12 @@ public:
 };
 
 void ApplyFrequencyShift(
-    const std::complex<float>* x, std::complex<float>* y, const int N, 
+    tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
     const float frequency, const float Ts=1.0f/2.048e6)
 {
+    const size_t N = x.size();
     float dt = 0.0f;
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         auto pll = std::complex<float>(
             std::cos(dt),
             std::sin(dt));
@@ -93,26 +96,25 @@ int main(int argc, char** argv)
 
     const auto params = get_DAB_OFDM_params(transmission_mode);
 
-    auto prs_fft_ref = new std::complex<float>[params.nb_fft];
-    auto carrier_mapper = new int[params.nb_data_carriers];
+    auto prs_fft_ref = std::vector<std::complex<float>>(params.nb_fft);
+    auto carrier_mapper = std::vector<int>(params.nb_data_carriers);
     
-    get_DAB_PRS_reference(transmission_mode, prs_fft_ref, params.nb_fft);
-    get_DAB_mapper_ref(carrier_mapper, params.nb_data_carriers, params.nb_fft);
+    get_DAB_PRS_reference(transmission_mode, prs_fft_ref);
+    get_DAB_mapper_ref(carrier_mapper, params.nb_fft);
 
     // create our single ofdm frame
-    const int frame_size = 
+    const size_t frame_size = 
         params.nb_null_period +
         params.nb_symbol_period*params.nb_frame_symbols;
-    auto frame_out_buf = new std::complex<float>[frame_size];
-    auto frame_tx_buf = new std::complex<uint8_t>[frame_size];
+    auto frame_out_buf = std::vector<std::complex<float>>(frame_size);
+    auto frame_tx_buf = std::vector<std::complex<uint8_t>>(frame_size);
     
     // determine the number of bits that the ofdm frame contains
     // a single carrier contains 2 bits (there are four possible dqpsk phases)
     // the PRS (phase reference symbol) doesnt contain any information
-    const int nb_frame_bits = 
-        (params.nb_frame_symbols-1)*params.nb_data_carriers*2;
-    const int nb_frame_bytes = nb_frame_bits/8;
-    auto frame_bytes_buf = new uint8_t[nb_frame_bytes];
+    const size_t nb_frame_bits = (params.nb_frame_symbols-1)*params.nb_data_carriers*2;
+    const size_t nb_frame_bytes = nb_frame_bits/8;
+    auto frame_bytes_buf = std::vector<uint8_t>(nb_frame_bytes);
 
     uint16_t scrambler_code_word = 0b0000000010101001;
     auto scrambler = Scrambler();
@@ -123,21 +125,21 @@ int main(int argc, char** argv)
 
     // if we are only interested in printing the source data
     if (print_sample_message) {
-        fprintf(stderr, "Outputing %d bytes\n", nb_frame_bytes);
-        fwrite(frame_bytes_buf, sizeof(uint8_t), nb_frame_bytes, stdout);
+        fprintf(stderr, "Outputing %zu bytes\n", frame_bytes_buf.size());
+        fwrite(frame_bytes_buf.data(), sizeof(uint8_t), frame_bytes_buf.size(), stdout);
         return 0;
     }
 
     // perform OFDM modulation 
     auto ofdm_mod = OFDM_Modulator(params, prs_fft_ref);
-    auto res = ofdm_mod.ProcessBlock(frame_out_buf, frame_size, frame_bytes_buf, nb_frame_bytes);
+    auto res = ofdm_mod.ProcessBlock(frame_out_buf, frame_bytes_buf);
     if (!res) {
         fprintf(stderr, "Failed to create the OFDM frame\n");
         return 1;
     }
 
     const float frequency_shift = 330.0f;
-    ApplyFrequencyShift(frame_out_buf, frame_out_buf, frame_size, frequency_shift);
+    ApplyFrequencyShift(frame_out_buf, frame_out_buf, frequency_shift);
 
     for (int i = 0; i < frame_size; i++) {
         const float I = frame_out_buf[i].real();
@@ -149,11 +151,13 @@ int main(int argc, char** argv)
     }
 
     while (true) {
-        fwrite(frame_tx_buf, sizeof(std::complex<uint8_t>), frame_size, stdout);
+        const size_t N = frame_tx_buf.size();
+        const size_t nb_write = fwrite(frame_tx_buf.data(), sizeof(std::complex<uint8_t>), N, stdout);
+        if (nb_write != N) {
+            fprintf(stderr, "Failed to write out frame %zu/%zu\n", nb_write, N);
+            break;
+        }
     }
-
-    delete [] prs_fft_ref;
-    delete [] carrier_mapper;
 
     return 0;
 }

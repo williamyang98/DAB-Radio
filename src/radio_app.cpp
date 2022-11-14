@@ -38,10 +38,10 @@
 
 std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-	auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-	auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
+	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
+	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
+	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
 
 	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
 
@@ -51,11 +51,8 @@ std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 		cfg.toggle_flags.is_update_tii_sym_mag = true;
 	}
 
-	delete [] ofdm_prs_ref;
-	delete [] ofdm_mapper_ref;
-
-	return ofdm_demod;
-}	
+	return std::move(ofdm_demod);
+}
 
 class RadioInstance 
 {
@@ -69,7 +66,7 @@ public:
 	{
 		radio = std::move(_radio);
 		view_controller = std::move(_view_controller);
-		view_controller->AttachRadio(radio.get());
+		view_controller->AttachRadio(*(radio.get()));
 
 		using namespace std::placeholders;
 		radio->On_DAB_Plus_Channel().Attach(std::bind(&RadioInstance::Attach_DAB_Plus_Audio_Player, this, _1, _2));
@@ -79,8 +76,8 @@ public:
 	RadioInstance(RadioInstance &&) = delete;
 	RadioInstance &operator=(const RadioInstance &) = delete;
 	RadioInstance &operator=(RadioInstance &&) = delete;
-	auto* GetRadio() { return radio.get(); }
-	auto* GetViewController() { return view_controller.get(); }
+	auto& GetRadio() { return *(radio.get()); }
+	auto& GetViewController() { return *(view_controller.get()); }
 private:
 	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
 		auto& controls = channel.GetControls();
@@ -88,7 +85,7 @@ private:
 			subchannel_id, 
 			std::move(std::make_unique<Win32_PCM_Player>())).first;
 		auto* pcm_player = res->second.get(); 
-		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, const uint8_t* data, const int N) {
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> data) {
 			if (!controls.GetIsPlayAudio()) {
 				return;
 			}
@@ -98,7 +95,7 @@ private:
 			pcm_params.total_channels = 2;
 			pcm_params.bytes_per_sample = 2;
 			pcm_player->SetParameters(pcm_params);
-			pcm_player->ConsumeBuffer(data, N);
+			pcm_player->ConsumeBuffer(data);
 		});
 	}
 };
@@ -142,18 +139,18 @@ public:
 			const int N = device->GetTotalSamples();
 			OnTotalSamplesChanged(N);
 
-			device->OnData().Attach(std::bind(&App::OnData, this, _1, _2));
+			device->OnData().Attach(std::bind(&App::OnData, this, _1));
 			device->OnFrequencyChange().Attach(std::bind(&App::OnFrequencyChange, this, _1, _2));
 			device->SetCenterFrequency("9C", block_frequencies.at("9C"));
 		});
 
-		ofdm_demod->On_OFDM_Frame().Attach([this](const viterbi_bit_t* buf, const int nb_carriers, const int nb_symbols) {
+		ofdm_demod->On_OFDM_Frame().Attach([this](tcb::span<const viterbi_bit_t> buf) {
 			auto* inactive_buf = frame_double_buffer->AcquireInactiveBuffer();		
 			if (inactive_buf == NULL) {
 				return;
 			}
-			const int N = frame_double_buffer->GetLength();
-			for (int i = 0; i < N; i++) {
+			const size_t N = frame_double_buffer->GetLength();
+			for (size_t i = 0; i < N; i++) {
 				inactive_buf[i] = buf[i];
 			}
 			frame_double_buffer->ReleaseInactiveBuffer();
@@ -165,10 +162,10 @@ public:
 				if (active_buf == NULL) {
 					return;
 				}
-				const int N = frame_double_buffer->GetLength();
+				const size_t N = frame_double_buffer->GetLength();
 				auto instance = GetSelectedRadio();
 				if ((instance != NULL) && (demodulator_cooldown == 0)) {
-					instance->GetRadio()->Process(active_buf, N);
+					instance->GetRadio().Process({active_buf, N});
 				}
 
 				frame_double_buffer->ReleaseActiveBuffer();
@@ -212,8 +209,8 @@ private:
 				if (active_buf == NULL) {
 					return;
 				}
-				const int N = raw_double_buffer->GetLength();
-				ofdm_demod->Process(active_buf, N);
+				const size_t N = raw_double_buffer->GetLength();
+				ofdm_demod->Process({active_buf, N});
 				raw_double_buffer->ReleaseActiveBuffer();
 			}
 		});
@@ -227,7 +224,8 @@ private:
 		}
 		selected_radio = label;
 	}
-	void OnData(const std::complex<uint8_t>* data, const int N) {
+	void OnData(tcb::span<const std::complex<uint8_t>> data) {
+		const int N = (int)data.size();
 		if (demodulator_cooldown > 0) {
 			demodulator_cooldown--;
 			ofdm_demod->Reset();
@@ -297,11 +295,11 @@ public:
 				auto& double_buffer = app.GetInputBuffer();
 				auto* buf = double_buffer.AcquireInactiveBuffer();
 				if (buf != NULL) {
-					const int N = double_buffer.GetLength();
-					RenderSourceBuffer(buf, N);
+					const size_t N = double_buffer.GetLength();
+					RenderSourceBuffer({buf, N});
 				}
 			}
-			RenderOFDMDemodulator(&app.GetOFDMDemodulator());
+			RenderOFDMDemodulator(app.GetOFDMDemodulator());
 		}
 		ImGui::End();
 

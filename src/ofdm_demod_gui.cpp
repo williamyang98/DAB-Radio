@@ -30,10 +30,10 @@
 
 std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-	auto ofdm_prs_ref = new std::complex<float>[ofdm_params.nb_fft];
-	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref, ofdm_params.nb_fft);
-	auto ofdm_mapper_ref = new int[ofdm_params.nb_data_carriers];
-	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_data_carriers, ofdm_params.nb_fft);
+	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
+	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
+	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
+	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
 
 	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
 
@@ -43,10 +43,7 @@ std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 		cfg.toggle_flags.is_update_tii_sym_mag = true;
 	}
 
-	delete [] ofdm_prs_ref;
-	delete [] ofdm_mapper_ref;
-
-	return ofdm_demod;
+	return std::move(ofdm_demod);
 }
 
 class App 
@@ -81,7 +78,7 @@ public:
         demod = Init_OFDM_Demodulator(transmission_mode);
 
         using namespace std::placeholders;
-        demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1, _2, _3));
+        demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1));
 
         {
             auto& cfg = demod->GetConfig();
@@ -105,7 +102,7 @@ public:
             RunnerThread();
         });
     }
-    auto* GetDemod(void) { return demod.get(); }
+    auto& GetDemod(void) { return *(demod.get()); }
     const auto& GetRawBuffer(void) { return buf_rd_raw; }
     auto& GetIsWaitStep() { return is_wait_step; }
     auto& GetIsDumpFrame() { return is_always_dump_frame; }
@@ -134,19 +131,19 @@ private:
             }
             flag_step = false;
 
-            const int block_size = (int)buf_rd.size();
-            int nb_read = 0;
+            const size_t block_size = buf_rd.size();
+            size_t nb_read = 0;
             {
                 auto lock = std::scoped_lock(mutex_fp_in);
                 if (fp_in == NULL) {
                     is_running = false;
                     break;
                 }
-                nb_read = (int)fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
+                nb_read = fread(buf_rd.data(), sizeof(std::complex<uint8_t>), block_size, fp_in);
             }
 
             if (nb_read != block_size) {
-                fprintf(stderr, "Failed to read in data %d/%d\n", nb_read, block_size);
+                fprintf(stderr, "Failed to read in data %zu/%zu\n", nb_read, block_size);
                 break;
             }
 
@@ -157,28 +154,27 @@ private:
                 buf_rd_raw[i] = std::complex<float>(I, Q);
             }
 
-            demod->Process(buf_rd_raw.data(), block_size);
+            demod->Process(buf_rd_raw);
         }
     }
-    void OnOFDMFrame(const viterbi_bit_t* phases, const int nb_carriers, const int nb_symbols) {
+    void OnOFDMFrame(tcb::span<const viterbi_bit_t> phases) {
         if (!flag_dump_frame && !is_always_dump_frame) {
             return;
         }
         flag_dump_frame = false;
 
-        const int N = demod->Get_OFDM_Frame_Total_Bits();
-        int nb_write = 0;
-
+        const size_t N = phases.size();
+        size_t nb_write = 0;
         {
             auto lock = std::scoped_lock(mutex_fp_out);
             if (fp_out == NULL) {
                 return;
             }
-            nb_write = (int)fwrite(phases, sizeof(viterbi_bit_t), N, fp_out);
+            nb_write = fwrite(phases.data(), sizeof(viterbi_bit_t), N, fp_out);
         }
 
         if (nb_write != N) {
-            fprintf(stderr, "Failed to write ofdm frame %d/%d\n", nb_write, N);
+            fprintf(stderr, "Failed to write ofdm frame %zu/%zu\n", nb_write, N);
             Close();
         }
     }
@@ -214,7 +210,7 @@ public:
 
     virtual void Render() {
         auto& buf = app.GetRawBuffer();
-        RenderSourceBuffer(buf.data(), (int)buf.size());
+        RenderSourceBuffer(buf);
         RenderOFDMDemodulator(app.GetDemod());
         RenderAppControls();
     }

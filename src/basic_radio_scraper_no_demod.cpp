@@ -33,17 +33,17 @@ public:
         auto params = get_dab_parameters(transmission_mode);
         frame_bits.resize(params.nb_frame_bits);
         radio = std::make_unique<BasicRadio>(params);
-        scraper = std::make_unique<BasicScraper>(radio.get(), dir);
+        scraper = std::make_unique<BasicScraper>(*(radio.get()), dir);
     }
     void Run() {
         while (true) {
-            const int N = (int)frame_bits.size();
-            const int nb_read = (int)fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
+            const size_t N = frame_bits.size();
+            const size_t nb_read = fread(frame_bits.data(), sizeof(viterbi_bit_t), N, fp_in);
             if (nb_read != N) {
-                fprintf(stderr, "Failed to read soft-decision bits (%d/%d)\n", nb_read, N);
+                fprintf(stderr, "Failed to read soft-decision bits (%zu/%zu)\n", nb_read, N);
                 break;
             }
-            radio->Process(frame_bits.data(), N);
+            radio->Process(frame_bits);
         }
     }
 };
