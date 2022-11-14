@@ -123,7 +123,7 @@ private:
                 break;
             }
 
-            for (size_t i = 0; i < block_size; i++) {
+            for (int i = 0; i < block_size; i++) {
                 auto& v = rd_in_raw[i];
                 const float I = static_cast<float>(v.real()) - 127.5f;
                 const float Q = static_cast<float>(v.imag()) - 127.5f;
@@ -138,7 +138,7 @@ private:
         if (inactive_buf == NULL) return;
 
         const size_t nb_frame_bits = buf.size();
-        for (size_t i = 0; i < nb_frame_bits; i++) {
+        for (int i = 0; i < nb_frame_bits; i++) {
             inactive_buf[i] = buf[i];
         }
         frame_double_buffer->ReleaseInactiveBuffer();

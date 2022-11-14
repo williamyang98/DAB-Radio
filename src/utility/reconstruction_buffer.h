@@ -19,7 +19,7 @@ public:
         const size_t N = src.size();
         const size_t N_required = capacity-length;
         const size_t nb_read = (N_required >= N) ? N : N_required;
-        for (size_t i = 0; i < nb_read; i++) {
+        for (int i = 0; i < nb_read; i++) {
             buf[length++] = src[i];
         }
         return nb_read;

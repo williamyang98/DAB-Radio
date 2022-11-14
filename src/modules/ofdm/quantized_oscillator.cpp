@@ -12,7 +12,7 @@ QuantizedOscillator::QuantizedOscillator(
     const float TWO_PI = 2.0f * 3.14159265f;
     const float step = TWO_PI * static_cast<float>(Fresolution) * Ts;
     float dx = 0.0f;
-    for (size_t i = 0; i < table_size; i++) {
+    for (int i = 0; i < table_size; i++) {
         table[i] = std::complex<float>(
             static_cast<float>(std::cos(dx)), 
             static_cast<float>(std::sin(dx)));

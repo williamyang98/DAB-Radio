@@ -45,7 +45,7 @@ void ApplyFrequencyShift(
 {
     const size_t N = x.size();
     float dt = 0.0f;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         auto pll = std::complex<float>(
             std::cos(dt),
             std::sin(dt));

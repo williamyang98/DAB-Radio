@@ -34,7 +34,7 @@ public:
         T crc = initial_value;
         const size_t shift = (sizeof(T)-1)*8;
         const size_t N = x.size();
-        for (size_t i = 0; i < N; i++) {
+        for (int i = 0; i < N; i++) {
             crc = crc ^ ((T)(x[i]) << shift);
             uint8_t lut_idx = (crc >> shift) & 0xFF;
             crc = (crc << 8) ^ lut[lut_idx];

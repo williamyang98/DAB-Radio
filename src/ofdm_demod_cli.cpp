@@ -91,7 +91,7 @@ public:
                 break;
             }
 
-            for (size_t i = 0; i < block_size; i++) {
+            for (int i = 0; i < block_size; i++) {
                 auto& v = buf_rd[i];
                 const float I = static_cast<float>(v.real()) - 127.5f;
                 const float Q = static_cast<float>(v.imag()) - 127.5f;

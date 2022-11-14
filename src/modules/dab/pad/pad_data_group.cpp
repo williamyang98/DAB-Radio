@@ -22,7 +22,7 @@ size_t PAD_Data_Group::Consume(tcb::span<const uint8_t> data) {
     const size_t N = data.size();
     const size_t nb_remain = nb_required_bytes - nb_curr_bytes;
     const size_t nb_read = (nb_remain > N) ? N : nb_remain;
-    for (size_t i = 0; i < nb_read; i++) {
+    for (int i = 0; i < nb_read; i++) {
         buffer[nb_curr_bytes++] = data[i];
     }
     return nb_read;

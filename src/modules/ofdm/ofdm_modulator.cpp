@@ -20,7 +20,7 @@ OFDM_Modulator::OFDM_Modulator(
     {
         auto* buf = &prs_time_ref[params.nb_cyclic_prefix];
         kiss_fft(ifft_cfg, (kiss_fft_cpx*)prs_fft_ref.data(), (kiss_fft_cpx*)buf);
-        for (size_t i = 0; i < params.nb_cyclic_prefix; i++) {
+        for (int i = 0; i < params.nb_cyclic_prefix; i++) {
             prs_time_ref[i] = prs_time_ref[params.nb_fft+i];
         }
     }
@@ -54,17 +54,17 @@ bool OFDM_Modulator::ProcessBlock(
     }
 
     // null period
-    for (size_t i = 0; i < params.nb_null_period; i++) {
+    for (int i = 0; i < params.nb_null_period; i++) {
         frame_out_buf[i] = std::complex<float>(0,0);
     }
 
     // prs symbol
-    for (size_t i = 0; i < params.nb_symbol_period; i++) {
+    for (int i = 0; i < params.nb_symbol_period; i++) {
         frame_out_buf[i+params.nb_null_period] = prs_time_ref[i];
     }
 
     // seed the dqpsk fft buffers
-    for (size_t i = 0; i < params.nb_fft; i++) {
+    for (int i = 0; i < params.nb_fft; i++) {
         last_sym_fft[i] = prs_fft_ref[i];
     }
 
@@ -76,7 +76,7 @@ bool OFDM_Modulator::ProcessBlock(
         // account for the PRS (phase reference symbol)
         auto* data_symbols = &frame_out_buf[params.nb_null_period + params.nb_symbol_period];
 
-        for (size_t i = 0; i < nb_data_symbols; i++) {
+        for (int i = 0; i < nb_data_symbols; i++) {
             const auto* sym_data_in = &data_in_buf[i*nb_data_in];
             auto* sym_out = &data_symbols[i*params.nb_symbol_period];
             CreateDataSymbol(
@@ -103,7 +103,7 @@ void OFDM_Modulator::CreateDataSymbol(
     {
         // create fft for -F/2 <= f < 0
         size_t curr_carrier = params.nb_fft - params.nb_data_carriers/2;
-        for (size_t i = 0; i < nb_data_in/2; i++) {
+        for (int i = 0; i < nb_data_in/2; i++) {
             const uint8_t b = sym_data_in[i];
             curr_sym_fft[curr_carrier++] = PHASE_MAP[((b >> 0) & 0b11)];
             curr_sym_fft[curr_carrier++] = PHASE_MAP[((b >> 2) & 0b11)];
@@ -113,7 +113,7 @@ void OFDM_Modulator::CreateDataSymbol(
 
         // create fft for 0 < f <= F/2 
         curr_carrier = 1;
-        for (size_t i = 0; i < nb_data_in/2; i++) {
+        for (int i = 0; i < nb_data_in/2; i++) {
             const size_t j = nb_data_in/2 + i;
             const uint8_t b = sym_data_in[j];
             curr_sym_fft[curr_carrier++] = PHASE_MAP[((b >> 0) & 0b11)];
@@ -127,12 +127,12 @@ void OFDM_Modulator::CreateDataSymbol(
     // get the dqpsk
     // arg(z0*z1) = arg(z0) + arg(z1)
     {
-        for (size_t i = 0; i < params.nb_data_carriers/2; i++) {
+        for (int i = 0; i < params.nb_data_carriers/2; i++) {
             const size_t j = params.nb_fft - params.nb_data_carriers/2 + i;
             curr_sym_fft[j] = last_sym_fft[j] * curr_sym_fft[j];
         }
 
-        for (size_t i = 0; i < params.nb_data_carriers/2; i++) {
+        for (int i = 0; i < params.nb_data_carriers/2; i++) {
             const size_t j = 1+i;
             curr_sym_fft[j] = last_sym_fft[j] * curr_sym_fft[j];
         }
@@ -145,7 +145,7 @@ void OFDM_Modulator::CreateDataSymbol(
     }
 
     // create cyclic prefix
-    for (size_t i = 0; i < params.nb_cyclic_prefix; i++) {
+    for (int i = 0; i < params.nb_cyclic_prefix; i++) {
         sym_out[i] = sym_out[i+params.nb_fft];
     }
 

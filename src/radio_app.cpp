@@ -150,7 +150,7 @@ public:
 				return;
 			}
 			const size_t N = frame_double_buffer->GetLength();
-			for (size_t i = 0; i < N; i++) {
+			for (int i = 0; i < N; i++) {
 				inactive_buf[i] = buf[i];
 			}
 			frame_double_buffer->ReleaseInactiveBuffer();
