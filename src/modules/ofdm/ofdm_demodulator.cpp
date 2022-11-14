@@ -67,7 +67,7 @@ OFDM_Demod::OFDM_Demod(
     {
         const size_t N = params.nb_fft;
         correlation_prs_fft_reference.resize(N);
-        for (size_t i = 0; i < N; i++) {
+        for (int i = 0; i < N; i++) {
             correlation_prs_fft_reference[i] = std::conj(_prs_fft_ref[i]);
         }
     }
@@ -116,7 +116,7 @@ OFDM_Demod::OFDM_Demod(
             (size_t)(std::thread::hardware_concurrency()));
             
         const size_t nb_sym_per_thread = nb_all_syms/nb_threads;
-        for (size_t i = 0; i < nb_threads; i++) {
+        for (int i = 0; i < nb_threads; i++) {
             const size_t symbol_start = i*nb_sym_per_thread;
             const bool is_last_thread = (i == (nb_threads-1));
             const size_t symbol_end = is_last_thread ? nb_all_syms : (i+1)*nb_sym_per_thread;
@@ -259,7 +259,7 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
     // We do this so we can guarantee the full PRS is attained after fine time synchronisation using correlation
     const size_t L = null_power_dip_buffer.Length();
     const size_t start_index = null_power_dip_buffer.GetIndex();
-    for (size_t i = 0; i < L; i++) {
+    for (int i = 0; i < L; i++) {
         const size_t j = i+start_index;
         correlation_time_buffer[i] = null_power_dip_buffer[j];
     }
@@ -283,7 +283,7 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
 
     auto corr_time_buf = correlation_time_buffer.GetData();
     auto corr_prs_buf = tcb::span(&corr_time_buf[params.nb_null_period], params.nb_fft);
-    for (size_t i = 0; i < params.nb_fft; i++) {
+    for (int i = 0; i < params.nb_fft; i++) {
         correlation_fft_buffer[i] = corr_prs_buf[i];
     }
 
@@ -296,7 +296,7 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
 
     // Get IFFT to get our correlation result
     kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
-    for (size_t i = 0; i < params.nb_fft; i++) {
+    for (int i = 0; i < params.nb_fft; i++) {
         const auto& v = correlation_fft_buffer[i];
         const float A = 20.0f*std::log10(std::abs(v));
         correlation_impulse_response[i] = A;
@@ -306,8 +306,8 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
     // if the peak is at least X dB above the mean, then we use that as our PRS starting index
     float impulse_avg = 0.0f;
     float impulse_max_value = correlation_impulse_response[0];
-    size_t impulse_max_index = 0;
-    for (size_t i = 0; i < params.nb_fft; i++) {
+    int impulse_max_index = 0;
+    for (int i = 0; i < params.nb_fft; i++) {
         const float v = correlation_impulse_response[i];
         impulse_avg += v;
         if (v > impulse_max_value) {
@@ -333,13 +333,13 @@ size_t OFDM_Demod::FindPRSCorrelation(tcb::span<const std::complex<float>> buf) 
 
     // The PRS correlation lobe occurs just after the cyclic prefix
     // We actually want the index at the start of the cyclic prefix, so we adjust offset for that
-    const size_t offset = impulse_max_index - params.nb_cyclic_prefix;
-    const size_t prs_start_index = params.nb_null_period + offset;
-    const size_t prs_length = params.nb_symbol_period - offset;
+    const int offset = impulse_max_index - (int)params.nb_cyclic_prefix;
+    const int prs_start_index = (int)params.nb_null_period + offset;
+    const int prs_length = (int)params.nb_symbol_period - offset;
 
-    inactive_buffer.SetLength(prs_length);
-    for (size_t i = 0; i < prs_length; i++) {
-        const size_t j = prs_start_index+i;
+    inactive_buffer.SetLength((size_t)prs_length);
+    for (int i = 0; i < prs_length; i++) {
+        const int j = prs_start_index+i;
         inactive_buffer[i] = correlation_time_buffer[j];
     }
 
@@ -359,7 +359,7 @@ size_t OFDM_Demod::FillBuffer(tcb::span<const std::complex<float>> buf) {
     const size_t M = (size_t)inactive_buffer.Capacity();
     auto null_sym = tcb::span(&block[M-params.nb_null_period], params.nb_symbol_period);
     correlation_time_buffer.SetLength(params.nb_null_period);
-    for (size_t i = 0; i < params.nb_null_period; i++) {
+    for (int i = 0; i < params.nb_null_period; i++) {
         correlation_time_buffer[i] = null_sym[i];
     }
 
@@ -407,12 +407,11 @@ void OFDM_Demod::CoordinatorThread() {
 }
 
 void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data) {
-    const size_t symbol_start = thread_data.GetSymbolStart();
-    const size_t symbol_end = thread_data.GetSymbolEnd();
-    const size_t total_symbols = symbol_end-symbol_start;
-    const size_t symbol_end_no_null = std::min(symbol_end, params.nb_frame_symbols);
-    const size_t total_symbols_no_null = symbol_end_no_null-symbol_start;
-    const size_t symbol_end_dqpsk = std::min(symbol_end, params.nb_frame_symbols-1);
+    const int symbol_start = (int)thread_data.GetSymbolStart();
+    const int symbol_end = (int)thread_data.GetSymbolEnd();
+    const int total_symbols = symbol_end-symbol_start;
+    const int symbol_end_no_null = std::min(symbol_end, (int)params.nb_frame_symbols);
+    const int symbol_end_dqpsk = std::min(symbol_end, (int)params.nb_frame_symbols-1);
 
     thread_data.WaitStart();
     if (thread_data.IsStopped()) {
@@ -434,7 +433,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     // Clause 3.13.1 - Fraction frequency offset estimation
     // get phase error using cyclic prefix (ignore null symbol)
     float total_phase_error = 0.0f;
-    for (size_t i = symbol_start; i < symbol_end_no_null; i++) {
+    for (int i = symbol_start; i < symbol_end_no_null; i++) {
         auto sym_buf = tcb::span(
             &pipeline_time_buffer[i*params.nb_symbol_period],
             params.nb_symbol_period);
@@ -445,7 +444,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
 
     // Clause 3.14.2 - FFT
     // calculate fft (include null symbol)
-    for (size_t i = symbol_start; i < symbol_end; i++) {
+    for (int i = symbol_start; i < symbol_end; i++) {
         auto* sym_buf = &pipeline_time_buffer[i*params.nb_symbol_period];
         // Clause 3.14.1 - Cyclic prefix removal
         auto* data_buf = &sym_buf[params.nb_cyclic_prefix];
@@ -459,10 +458,10 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     thread_data.SignalFFT();
     thread_data.StartDQPSK();
 
-    const auto calculate_dqpsk = [this](size_t start, size_t end) {
+    const auto calculate_dqpsk = [this](int start, int end) {
         // Clause 3.15 - Differential demodulator
         // perform our differential qpsk decoding
-        for (size_t i = start; i < end; i++) {
+        for (int i = start; i < end; i++) {
             auto* fft_buf_0     = &pipeline_fft_buffer[ i   *params.nb_fft];
             auto* fft_buf_1     = &pipeline_fft_buffer[(i+1)*params.nb_fft];
             auto* dqpsk_vec_buf = &pipeline_dqpsk_vec_buffer[i*params.nb_data_carriers];
@@ -475,7 +474,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
         }
 
         // Map phase to viterbi bit
-        for (size_t i = start; i < end; i++) {
+        for (int i = start; i < end; i++) {
             const size_t nb_viterbi_bits = params.nb_data_carriers*2;
             auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*params.nb_data_carriers];
             auto* viterbi_bit_buf = &pipeline_out_bits[i*nb_viterbi_bits];
@@ -530,7 +529,7 @@ float OFDM_Demod::ApplyPLL(
 
     int dt = (int)(dt0);
     dt = ((dt % M) + M) % M;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         y[i] = x[i] * PLL_TABLE[dt];
         dt = (dt + step + M) % M;
     }
@@ -557,7 +556,7 @@ float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>>
     const size_t N = params.nb_cyclic_prefix;
     const size_t M = params.nb_fft;
     auto error_vec = std::complex<float>(0,0);
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         error_vec += std::conj(sym[i]) * sym[M+i];
     }
     return cargf(error_vec);
@@ -600,7 +599,7 @@ void OFDM_Demod::CalculateViterbiBits(
     // Referring to clause 14.5 - QPSK symbol mapper 
     // Deinterleave the subcarriers using carrier mapper
     // For an OFDM symbol with 2K bits, the nth symbol uses bits i and i+K
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         const size_t j = carrier_mapper[i];
         const float phase = phase_buf[j];
         bit_buf[i]   = convert_to_viterbi_bit(std::cos(phase));
@@ -624,7 +623,7 @@ void OFDM_Demod::CalculateMagnitude(
 {
     const size_t N = params.nb_fft;
     const size_t M = N/2;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         const size_t j = (i+M) % N;
         const float x = 20.0f*std::log10(std::abs(fft_buf[j]));
         mag_buf[i] = x;
@@ -634,7 +633,7 @@ void OFDM_Demod::CalculateMagnitude(
 float OFDM_Demod::CalculateL1Average(tcb::span<const std::complex<float>> block) {
     const size_t N = block.size();
     float l1_avg = 0.0f;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         auto& v = block[i];
         l1_avg += std::abs(v.real()) + std::abs(v.imag());
     }
@@ -651,7 +650,7 @@ void OFDM_Demod::UpdateSignalAverage(tcb::span<const std::complex<float>> block)
 
     for (size_t i = 0; i < M; i+=L) {
         auto* buf = &block[i];
-        const float l1_avg = CalculateL1Average({buf, (size_t)K});
+        const float l1_avg = CalculateL1Average({buf, K});
         signal_l1_average = 
             (beta)*signal_l1_average +
             (1.0f-beta)*l1_avg;
