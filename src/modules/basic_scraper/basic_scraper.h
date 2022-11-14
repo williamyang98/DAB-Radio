@@ -6,6 +6,8 @@
 #include <vector>
 #include <filesystem>
 #include <memory>
+
+#include "utility/span.h"
 namespace fs = std::filesystem;
 
 // Scraping output directory structure
@@ -32,7 +34,11 @@ public:
         total_bytes_written = 0;
     }
     ~BasicAudioScraper();
-    void OnAudioData(BasicAudioParams params, const uint8_t* data, const int N);
+    BasicAudioScraper(BasicAudioScraper&) = delete;
+    BasicAudioScraper(BasicAudioScraper&&) = delete;
+    BasicAudioScraper& operator=(BasicAudioScraper&) = delete;
+    BasicAudioScraper& operator=(BasicAudioScraper&&) = delete;
+    void OnAudioData(BasicAudioParams params, tcb::span<const uint8_t> data);
 private:
     FILE* CreateWavFile(BasicAudioParams params);
     void UpdateWavHeader(FILE* fp, const int nb_data_bytes);
@@ -45,7 +51,7 @@ private:
     const fs::path dir;
 public:
     BasicSlideshowScraper(const fs::path& _dir): dir(_dir) {}
-    void OnSlideshow(mot_transport_id_t id, Basic_Slideshow* slideshow);
+    void OnSlideshow(Basic_Slideshow& slideshow);
 };
 
 class BasicMOTScraper
@@ -54,7 +60,7 @@ private:
     const fs::path dir;
 public:
     BasicMOTScraper(const fs::path& _dir): dir(_dir) {}
-    void OnMOTEntity(MOT_Entity* mot);
+    void OnMOTEntity(MOT_Entity& mot);
 };
 
 class Basic_DAB_Plus_Scraper
@@ -66,16 +72,20 @@ private:
     BasicMOTScraper mot_scraper;
 public:
     Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_Plus_Channel& channel);
+    Basic_DAB_Plus_Scraper(Basic_DAB_Plus_Scraper&) = delete;
+    Basic_DAB_Plus_Scraper(Basic_DAB_Plus_Scraper&&) = delete;
+    Basic_DAB_Plus_Scraper& operator=(Basic_DAB_Plus_Scraper&) = delete;
+    Basic_DAB_Plus_Scraper& operator=(Basic_DAB_Plus_Scraper&&) = delete;
 };
 
 class BasicScraper 
 {
 private:
-    BasicRadio* radio;
-    const char* root_directory;
+    BasicRadio& radio;
+    std::string root_directory;
     std::vector<std::unique_ptr<Basic_DAB_Plus_Scraper>> scrapers;
 public:
-    BasicScraper(BasicRadio* _radio, const char* _root_directory);
+    BasicScraper(BasicRadio& _radio, const char* _root_directory);
 private:
     void Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_Channel& channel);
 };

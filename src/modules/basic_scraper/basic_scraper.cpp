@@ -1,5 +1,6 @@
 #include "basic_scraper.h"
 #include "modules/basic_radio/basic_radio.h"
+#include "modules/basic_radio/basic_slideshow.h"
 #include "modules/dab/mot/MOT_processor.h"
 
 #include <string.h>
@@ -23,11 +24,11 @@ std::string GetCurrentTime(void) {
         tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-BasicScraper::BasicScraper(BasicRadio* _radio, const char* _root_directory) 
+BasicScraper::BasicScraper(BasicRadio& _radio, const char* _root_directory) 
 : radio(_radio), root_directory(_root_directory) 
 {
     using namespace std::placeholders;
-    radio->On_DAB_Plus_Channel().Attach(
+    radio.On_DAB_Plus_Channel().Attach(
         std::bind(&BasicScraper::Connect_DAB_Plus_Channel, this, _1, _2));
 }
 
@@ -37,11 +38,11 @@ void BasicScraper::Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_C
     controls.SetIsDecodeData(true);
     controls.SetIsPlayAudio(false);
 
-    auto* db_manager = radio->GetDatabaseManager(); 
+    auto& db_manager = radio.GetDatabaseManager(); 
 
-    auto lock = std::scoped_lock(db_manager->GetDatabaseMutex());
-    auto* db = db_manager->GetDatabase();
-    auto* component = db->GetServiceComponent_Subchannel(id);
+    auto lock = std::scoped_lock(db_manager.GetDatabaseMutex());
+    auto& db = db_manager.GetDatabase();
+    auto* component = db.GetServiceComponent_Subchannel(id);
     if (component == NULL) {
         return;
     }
@@ -67,10 +68,10 @@ Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_P
     LOG_MESSAGE("[DAB+] Opened directory {}", dir.string());
     using namespace std::placeholders;
     channel.OnAudioData().Attach(
-        std::bind(&BasicAudioScraper::OnAudioData, &audio_scraper, _1, _2, _3));
+        std::bind(&BasicAudioScraper::OnAudioData, &audio_scraper, _1, _2));
 
     channel.OnSlideshow().Attach(
-        std::bind(&BasicSlideshowScraper::OnSlideshow, &slideshow_scraper, _1, _2));
+        std::bind(&BasicSlideshowScraper::OnSlideshow, &slideshow_scraper, _1));
 
     channel.OnMOTEntity().Attach(
         std::bind(&BasicMOTScraper::OnMOTEntity, &mot_scraper, _1));
@@ -84,7 +85,7 @@ BasicAudioScraper::~BasicAudioScraper() {
     }
 }
 
-void BasicAudioScraper::OnAudioData(BasicAudioParams params, const uint8_t* data, const int N) {
+void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uint8_t> data) {
     if (old_params != params) {
         if (fp_wav != NULL) {
             CloseWavFile(fp_wav, total_bytes_written);
@@ -101,11 +102,12 @@ void BasicAudioScraper::OnAudioData(BasicAudioParams params, const uint8_t* data
         return;
     }
 
-    const int nb_written = (int)fwrite(data, sizeof(uint8_t), N, fp_wav);
+    const size_t N = data.size(); 
+    const size_t nb_written = fwrite(data.data(), sizeof(uint8_t), N, fp_wav);
     if (nb_written != N) {
         LOG_ERROR("[audio] Failed to write bytes {}/{}", nb_written, N);
     }
-    total_bytes_written += nb_written;
+    total_bytes_written += (int)nb_written;
     UpdateWavHeader(fp_wav, total_bytes_written);
 }
 
@@ -188,9 +190,10 @@ void BasicAudioScraper::CloseWavFile(FILE* fp, const int nb_data_bytes) {
     fclose(fp);
 }
 
-void BasicSlideshowScraper::OnSlideshow(mot_transport_id_t id, Basic_Slideshow* slideshow) {
+void BasicSlideshowScraper::OnSlideshow(Basic_Slideshow& slideshow) {
     fs::create_directories(dir);
-    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), id, slideshow->name);
+    const auto id = slideshow.transport_id;
+    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), id, slideshow.name);
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
@@ -199,28 +202,29 @@ void BasicSlideshowScraper::OnSlideshow(mot_transport_id_t id, Basic_Slideshow* 
         return;
     }
 
-    const int nb_written = (int)fwrite(slideshow->data, sizeof(uint8_t), slideshow->nb_data_bytes, fp);
-    if (nb_written != slideshow->nb_data_bytes) {
-        LOG_ERROR("[slideshow] Failed to write bytes {}/{}", nb_written, slideshow->nb_data_bytes);
+    const auto image_buffer = slideshow.image_data;
+    const size_t nb_written = fwrite(image_buffer.data(), sizeof(uint8_t), image_buffer.size(), fp);
+    if (nb_written != image_buffer.size()) {
+        LOG_ERROR("[slideshow] Failed to write bytes {}/{}", nb_written, image_buffer.size());
     }
     fclose(fp);
 
     LOG_MESSAGE("[slideshow] Wrote file {}", filepath_str);
 }
 
-void BasicMOTScraper::OnMOTEntity(MOT_Entity* mot) {
-    auto& content_name_str = mot->header.content_name;
+void BasicMOTScraper::OnMOTEntity(MOT_Entity& mot) {
+    auto& content_name_str = mot.header.content_name;
     std::string content_name;
     if (content_name_str.exists) {
-        content_name = std::string(content_name_str.name, content_name_str.nb_bytes);
+        content_name = std::string(content_name_str.name);
     } else {
-        auto& header = mot->header;
+        auto& header = mot.header;
         content_name = fmt::format("content_type_{}_{}.bin",
             header.content_type, header.content_sub_type);
     }
 
     fs::create_directories(dir);
-    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), mot->transport_id, content_name);
+    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), mot.transport_id, content_name);
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
@@ -228,10 +232,12 @@ void BasicMOTScraper::OnMOTEntity(MOT_Entity* mot) {
         LOG_ERROR("[MOT] Failed to open file {}", filepath_str);
         return;
     }
+    
+    auto body_buf = mot.body_buf;
 
-    const int nb_written = (int)fwrite(mot->body_buf, sizeof(uint8_t), mot->nb_body_bytes, fp);
-    if (nb_written != mot->nb_body_bytes) {
-        LOG_ERROR("[MOT] Failed to write bytes {}/{}", nb_written, mot->nb_body_bytes);
+    const size_t nb_written = fwrite(body_buf.data(), sizeof(uint8_t), body_buf.size(), fp);
+    if (nb_written != body_buf.size()) {
+        LOG_ERROR("[MOT] Failed to write bytes {}/{}", nb_written, body_buf.size());
     }
     fclose(fp);
 
