@@ -45,6 +45,11 @@ private:
 public:
 	Device(rtlsdr_dev_t* _device, const DeviceDescriptor& _descriptor, const int block_multiple=1);
 	~Device();
+	// we are holding a pointer to rtlsdr_dev_t, so we cant move/copy this class
+	Device(Device&) = delete;
+	Device(Device&&) = delete;
+	Device& operator=(Device&) = delete;
+	Device& operator=(Device&&) = delete;
 public:
 	const auto& GetDescriptor() { return descriptor; }
 	const int GetTotalSamples(void) { return total_samples; }

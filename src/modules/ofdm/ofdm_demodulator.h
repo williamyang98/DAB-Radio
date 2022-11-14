@@ -89,6 +89,12 @@ public:
         tcb::span<const std::complex<float>> _prs_fft_ref, 
         tcb::span<const int> _carrier_mapper);
     ~OFDM_Demod();
+    // threads use lambdas which take in the this pointer
+    // therefore we disable move/copy semantics to preservce its memory location
+    OFDM_Demod(OFDM_Demod&) = delete;
+    OFDM_Demod(OFDM_Demod&&) = delete;
+    OFDM_Demod& operator=(OFDM_Demod&) = delete;
+    OFDM_Demod& operator=(OFDM_Demod&&) = delete;
     void Process(tcb::span<const std::complex<float>> block);
     void Reset();
 public:
