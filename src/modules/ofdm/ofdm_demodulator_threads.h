@@ -10,8 +10,8 @@
 class OFDM_Demod_Pipeline_Thread 
 {
 private:
-    const int symbol_start;
-    const int symbol_end;
+    const size_t symbol_start;
+    const size_t symbol_end;
     float average_phase_error;
 
     bool is_start;
@@ -32,11 +32,16 @@ private:
 
     bool is_terminated;
 public:
-    OFDM_Demod_Pipeline_Thread(const int _start, const int _end);
+    OFDM_Demod_Pipeline_Thread(const size_t _start, const size_t _end);
     ~OFDM_Demod_Pipeline_Thread();
-    inline int GetSymbolStart(void) const { return symbol_start; }
-    inline int GetSymbolEnd(void) const { return symbol_end; }
-    inline float& GetAveragePhaseError(void) { return average_phase_error; }
+    // This thread contains mutexes which we do not intend to copy/move
+    OFDM_Demod_Pipeline_Thread(OFDM_Demod_Pipeline_Thread&) = delete;
+    OFDM_Demod_Pipeline_Thread(OFDM_Demod_Pipeline_Thread&&) = delete;
+    OFDM_Demod_Pipeline_Thread& operator=(OFDM_Demod_Pipeline_Thread&) = delete;
+    OFDM_Demod_Pipeline_Thread& operator=(OFDM_Demod_Pipeline_Thread&&) = delete;
+    size_t GetSymbolStart() const { return symbol_start; }
+    size_t GetSymbolEnd() const { return symbol_end; }
+    inline float& GetAveragePhaseError() { return average_phase_error; }
     void Stop();
     bool IsStopped() const { return is_terminated; }
     // reader thread
@@ -66,6 +71,11 @@ private:
 public:
     OFDM_Demod_Coordinator_Thread();
     ~OFDM_Demod_Coordinator_Thread();
+    // This thread contains mutexes which we do not intend to copy/move
+    OFDM_Demod_Coordinator_Thread(OFDM_Demod_Coordinator_Thread&) = delete;
+    OFDM_Demod_Coordinator_Thread(OFDM_Demod_Coordinator_Thread&&) = delete;
+    OFDM_Demod_Coordinator_Thread& operator=(OFDM_Demod_Coordinator_Thread&) = delete;
+    OFDM_Demod_Coordinator_Thread& operator=(OFDM_Demod_Coordinator_Thread&&) = delete;
     void Stop();
     bool IsStopped() const { return is_terminated; }
     // reader thread

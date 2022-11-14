@@ -136,10 +136,8 @@ static const PRS_Table_Entry* PRS_PARAMS_MODE_TABLE[4] = {
     PRS_PARAMS_MODE_IV, 
 };
 
-void get_DAB_PRS_reference(const int transmission_mode,
-    std::complex<float>* buf,
-    const int nb_fft)
-{
+void get_DAB_PRS_reference(const int transmission_mode, tcb::span<std::complex<float>> buf) {
+    const size_t nb_fft = buf.size();
     if (transmission_mode <= 0 || transmission_mode > 4) {
         throw std::runtime_error(fmt::format("Invalid transmission mode {}", transmission_mode));
         return;

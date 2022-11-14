@@ -1,35 +1,35 @@
 #pragma once
 
+#include <vector>
+#include "utility/span.h"
+
 template <typename T>
 class CircularBuffer
 {
 private:
-    T* buf;
-    const int capacity;
-    int length;
-    int index;
+    std::vector<T> buf;
+    size_t capacity;
+    size_t length;
+    size_t index;
 public:
-    CircularBuffer(const int _N)
-    : capacity(_N) {
+    CircularBuffer(const size_t _N=0)
+    : capacity(_N), buf(_N) {
         length = 0;
         index = 0;
-        buf = new T[capacity];
-    }
-    ~CircularBuffer() {
-        delete [] buf;
     }
     // Read the data from a source buffer and append it to this buffer
     // We can forcefully read all the data
-    inline int ConsumeBuffer(const T* src, const int N, const bool read_all=false) {
-        int nb_read;
+    size_t ConsumeBuffer(tcb::span<const T> src, const bool read_all=false) {
+        const size_t N = src.size();
+        size_t nb_read;
         if (read_all) {
             nb_read = N;
         } else {
-            const int N_remain = capacity-length;
+            const size_t N_remain = capacity-length;
             nb_read = (N > N_remain) ? N_remain : N;
         }
 
-        for (int i = 0; i < nb_read; i++) {
+        for (size_t i = 0; i < nb_read; i++) {
             buf[index++] = src[i];
             index = index % capacity;
         }
@@ -40,17 +40,21 @@ public:
         return nb_read;
     }
     // index the circular buffer with wrap-around
-    inline T& At(int i) { 
-        return buf[i % capacity]; 
-    }
-    inline void Reset() {
+    T& operator[](size_t i) { return buf[i % capacity]; }
+    void Reset() {
         length = 0;
         index = 0;
     }
-    inline void SetLength(int N) { length = N; }
-    inline int Length() const { return length; }
-    inline int Capacity() const { return capacity; }
-    inline int GetIndex() const { return index; }
-    inline bool IsEmpty() const { return length == 0; }
-    inline bool IsFull() const { return length == capacity; }
+    void Resize(const size_t _capacity) {
+        capacity = _capacity;
+        length = (length > capacity) ? capacity : length;
+        index = (index % capacity);
+        buf.resize(capacity);
+    }
+    void SetLength(size_t N) { length = N; }
+    size_t Length() const { return length; }
+    size_t Capacity() const { return capacity; }
+    size_t GetIndex() const { return index; }
+    bool IsEmpty() const { return length == 0; }
+    bool IsFull() const { return length == capacity; }
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <mutex>
 #include <condition_variable>
 
@@ -7,9 +8,9 @@ template <typename T>
 class DoubleBuffer 
 {
 private:
-    T* active_buffer;
-    T* inactive_buffer;
-    int length; 
+    std::vector<T> active_buffer;
+    std::vector<T> inactive_buffer;
+    size_t length; 
 
     bool is_start_buffer;
     std::mutex mutex_start_buffer;
@@ -21,10 +22,10 @@ private:
 
     bool is_send_terminate;
 public:
-    DoubleBuffer(const int _length)
-    : length(_length) {
-        active_buffer = new T[length];
-        inactive_buffer = new T[length];
+    DoubleBuffer(const size_t _length)
+    : length(_length),
+      active_buffer(_length), inactive_buffer(_length)
+    {
         is_start_buffer = false;
         is_end_buffer = false;
         is_send_terminate = false;
@@ -32,10 +33,12 @@ public:
     }
     ~DoubleBuffer() {
         Close();
-        delete [] active_buffer;
-        delete [] inactive_buffer;
     }
-    int GetLength(void) const { 
+    DoubleBuffer(DoubleBuffer&) = delete;
+    DoubleBuffer(DoubleBuffer&&) = delete;
+    DoubleBuffer& operator=(DoubleBuffer&) = delete;
+    DoubleBuffer& operator=(DoubleBuffer&&) = delete;
+    size_t GetLength(void) const { 
         return length; 
     }
     void Close(void) {
@@ -47,13 +50,11 @@ public:
         if (is_send_terminate) {
             return NULL;
         }
-        return inactive_buffer;
+        return inactive_buffer.data();
     }
     void ReleaseInactiveBuffer(void) {
         WaitEndBuffer();
-        auto* tmp = inactive_buffer;
-        inactive_buffer = active_buffer;
-        active_buffer = tmp; 
+        std::swap(inactive_buffer, active_buffer);
         SignalStartBuffer();
     }
     T* AcquireActiveBuffer(void) {
@@ -61,7 +62,7 @@ public:
         if (is_send_terminate) {
             return NULL;
         }
-        return active_buffer;
+        return active_buffer.data();
     }
     void ReleaseActiveBuffer(void) {
         SignalEndBuffer();

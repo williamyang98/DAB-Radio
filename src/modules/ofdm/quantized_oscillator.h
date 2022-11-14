@@ -1,23 +1,23 @@
 #pragma once
 
 #include <complex>
+#include <vector>
 
 // Precompute the local oscillator so that we dont have to compute cos(x) + 1j*sin(x) 
 class QuantizedOscillator 
 {
 private:
-    std::complex<float>* table;
-    const int Fsample;
-    const int Fresolution;
-    const int table_size;
+    std::vector<std::complex<float>> table;
+    const size_t Fsample;
+    const size_t Fresolution;
+    const size_t table_size;
 public:
-    QuantizedOscillator(const int _Fres=1, const int _Fsample=2048000);
-    ~QuantizedOscillator();
-    inline int GetFrequencyResolution() const { 
+    QuantizedOscillator(const size_t _Fres=1, const size_t _Fsample=2048000);
+    size_t GetFrequencyResolution() const { 
         return Fresolution; 
     }
-    inline const auto& At(const int index) {
+    const auto& operator[](const size_t index) {
         return table[index];
     }
-    inline int GetTableSize() const { return table_size; }
+    size_t GetTableSize() const { return table_size; }
 };

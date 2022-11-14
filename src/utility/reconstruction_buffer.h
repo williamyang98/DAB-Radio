@@ -1,36 +1,40 @@
 #pragma once
 
+#include <vector> 
+#include "utility/span.h"
+
 // reconstruct a block of size M from blocks of size N
 template <typename T>
 class ReconstructionBuffer 
 {
 private:
-    T* buf;
-    const int capacity;
-    int length;
+    std::vector<T> buf;
+    size_t capacity;
+    size_t length;
 public:
-    ReconstructionBuffer(const int _N)
-    : capacity(_N), length(0) {
-        buf = new T[capacity];
-    }
-    ~ReconstructionBuffer() {
-        delete [] buf;
-    }
+    ReconstructionBuffer(const size_t _N=0)
+    : capacity(_N), length(0), buf(_N) {}
     // Read the data from a source buffer and append it to this buffer
-    int ConsumeBuffer(const T* src, const int N) {
-        const int N_required = capacity-length;
-        const int nb_read = (N_required >= N) ? N : N_required;
-        for (int i = 0; i < nb_read; i++) {
+    size_t ConsumeBuffer(tcb::span<const T> src) {
+        const size_t N = src.size();
+        const size_t N_required = capacity-length;
+        const size_t nb_read = (N_required >= N) ? N : N_required;
+        for (size_t i = 0; i < nb_read; i++) {
             buf[length++] = src[i];
         }
         return nb_read;
     }
-    inline T& At(int i) { return buf[i]; }
-    inline T* GetData() const { return buf; }
-    inline void Reset() { length = 0; };
-    inline void SetLength(int N) { length = N; }
-    inline int Length() const { return length; }
-    inline int Capacity() const { return capacity; }
-    inline bool IsEmpty() const { return length == 0; }
-    inline bool IsFull() const { return length == capacity; }
+    void Resize(const size_t _capacity) {
+        capacity = _capacity;
+        length = (length > capacity) ? capacity : length;
+        buf.resize(capacity);
+    }
+    T& operator[](size_t i) { return buf[i]; }
+    tcb::span<T> GetData() { return buf; }
+    void Reset() { length = 0; };
+    void SetLength(size_t N) { length = N; }
+    size_t Length() const { return length; }
+    size_t Capacity() const { return capacity; }
+    bool IsEmpty() const { return length == 0; }
+    bool IsFull() const { return length == capacity; }
 };

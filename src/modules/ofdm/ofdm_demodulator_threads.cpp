@@ -1,7 +1,8 @@
 #include "ofdm_demodulator_threads.h"
+#include <stdint.h>
 
 // Pipeline thread
-OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const int _start, const int _end) 
+OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const size_t _start, const size_t _end) 
 : symbol_start(_start), symbol_end(_end)
 {
     is_start = false;
@@ -12,7 +13,7 @@ OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const int _start, const i
 }
 
 OFDM_Demod_Pipeline_Thread::~OFDM_Demod_Pipeline_Thread() {
-    Start();
+    Stop();
 }
 
 void OFDM_Demod_Pipeline_Thread::Stop() {
@@ -78,7 +79,7 @@ OFDM_Demod_Coordinator_Thread::OFDM_Demod_Coordinator_Thread() {
 }
 
 OFDM_Demod_Coordinator_Thread::~OFDM_Demod_Coordinator_Thread() {
-    Start();
+    Stop();
 }
 
 void OFDM_Demod_Coordinator_Thread::Stop() {
