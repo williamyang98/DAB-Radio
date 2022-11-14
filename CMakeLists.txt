@@ -172,6 +172,12 @@ target_include_directories(convert_viterbi PUBLIC ${SRC_DIR})
 set_target_properties(convert_viterbi PROPERTIES CXX_STANDARD 17)
 target_link_libraries(convert_viterbi PRIVATE getopt)
 
+add_executable(apply_frequency_shift 
+    ${SRC_DIR}/apply_frequency_shift.cpp)
+target_include_directories(apply_frequency_shift PUBLIC ${SRC_DIR})
+set_target_properties(apply_frequency_shift PROPERTIES CXX_STANDARD 17)
+target_link_libraries(apply_frequency_shift PRIVATE getopt)
+
 add_executable(radio_app 
     ${SRC_DIR}/radio_app.cpp 
     ${SRC_DIR}/modules/device/device_selector.cpp
@@ -215,6 +221,7 @@ target_compile_options(basic_radio_scraper_no_demod PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(convert_viterbi      PRIVATE "/MP")
+target_compile_options(apply_frequency_shift PRIVATE "/MP")
 target_compile_options(radio_app            PRIVATE "/MP")
 
 endif()

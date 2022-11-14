@@ -51,6 +51,8 @@ void ApplyFrequencyShift(
             std::sin(dt));
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * frequency * Ts;
+        // prevent precision errors when we have a large frequency
+        dt = std::fmod(dt, 2.0f*(float)M_PI);
     }
 }
 
@@ -58,6 +60,7 @@ void usage() {
     fprintf(stderr, 
         "simulate_transmitter, produces OFDM data as raw IQ values\n\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-f frequency shift in Hz (default: 0)\n"
         "\t[-P (output the binary data used as placeholder)\n"
         "\t[-h (show usage)]\n"
     );
@@ -72,17 +75,17 @@ int main(int argc, char** argv)
 #endif
 
     int transmission_mode = 1;
+    float frequency_shift = 0;
     bool print_sample_message = false;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "M:Ph")) != -1) {
+    while ((opt = getopt(argc, argv, "M:f:Ph")) != -1) {
         switch (opt) {
         case 'M':
             transmission_mode = (int)(atof(optarg));
-            if (transmission_mode <= 0 || transmission_mode > 4) {
-                fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
-                return 1;
-            }
+            break;
+        case 'f':
+            frequency_shift = (float)(atof(optarg));
             break;
         case 'P':
             print_sample_message = true; 
@@ -92,6 +95,17 @@ int main(int argc, char** argv)
             usage();
             return 0;
         }
+    }
+
+    if (transmission_mode <= 0 || transmission_mode > 4) {
+        fprintf(stderr, "Transmission modes: I,II,III,IV are supported not (%d)\n", transmission_mode);
+        return 1;
+    }
+
+    const float max_frequency_shift = 100e3f;
+    if ((frequency_shift < -max_frequency_shift) || (frequency_shift > max_frequency_shift)) {
+        fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", frequency_shift, max_frequency_shift);
+        return 1;
     }
 
     const auto params = get_DAB_OFDM_params(transmission_mode);
@@ -138,7 +152,6 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const float frequency_shift = 330.0f;
     ApplyFrequencyShift(frame_out_buf, frame_out_buf, frequency_shift);
 
     for (int i = 0; i < frame_size; i++) {
