@@ -14,9 +14,12 @@ void ViterbiDecoder::Reset() {
 }
 
 ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
-    const viterbi_bit_t* encoded_bits, const int nb_encoded_bits, 
-    const uint8_t* puncture_code, const int nb_puncture_bits) 
+    tcb::span<const viterbi_bit_t> encoded_bits,
+    tcb::span<const uint8_t> puncture_code) 
 {
+    const int nb_encoded_bits = (int)encoded_bits.size();
+    const int nb_puncture_bits = (int)puncture_code.size();
+
     COMPUTETYPE depunctured_bits[CODE_RATE];
     DecodeResult res;
     res.nb_decoded_bits = 0;
@@ -51,8 +54,9 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
     return res;
 }
 
-void ViterbiDecoder::GetTraceback(uint8_t* out_bytes, const int nb_decoded_bits) {
-    chainback_viterbi(vitdec, out_bytes, nb_decoded_bits, 0);
+void ViterbiDecoder::GetTraceback(tcb::span<uint8_t> out_bytes) {
+    const int nb_decoded_bits = (int)(out_bytes.size() * 8);
+    chainback_viterbi(vitdec, out_bytes.data(), nb_decoded_bits, 0);
 }
 
 int16_t ViterbiDecoder::GetPathError(const int state) {

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <unordered_map>
+#include "utility/span.h"
 
 // Source: http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html#ch44
 // A copy of the HTML page is also stored in docs/
@@ -29,11 +30,11 @@ public:
     CRC_Calculator(const T _G): G(_G) {
         lut = CRC_Calculator<T>::GenerateTable(G);
     }
-    T Process(const uint8_t* x, const int N) {
+    T Process(tcb::span<const uint8_t> x) {
         T crc = initial_value;
-        const int shift = (sizeof(T)-1)*8;
-
-        for (int i = 0; i < N; i++) {
+        const size_t shift = (sizeof(T)-1)*8;
+        const size_t N = x.size();
+        for (size_t i = 0; i < N; i++) {
             crc = crc ^ ((T)(x[i]) << shift);
             uint8_t lut_idx = (crc >> shift) & 0xFF;
             crc = (crc << 8) ^ lut[lut_idx];

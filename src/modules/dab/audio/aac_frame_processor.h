@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
+#include <memory>
+#include <vector>
 #include "utility/observable.h"
+#include "utility/span.h"
 
 class Reed_Solomon_Decoder;
 
@@ -23,14 +26,14 @@ public:
 private:
     enum State { WAIT_FRAME_START, COLLECT_FRAMES };
 private:
-    Reed_Solomon_Decoder* rs_decoder = NULL;
-    uint8_t* rs_encoded_buf = NULL;
-    int* rs_error_positions = NULL;
+    std::unique_ptr<Reed_Solomon_Decoder> rs_decoder;
+    std::vector<uint8_t> rs_encoded_buf;
+    std::vector<int> rs_error_positions;
+    std::vector<uint8_t> super_frame_buf;
     // superframe acquisition state
     State state;
     const int TOTAL_DAB_FRAMES = 5;
     int curr_dab_frame = 0;
-    uint8_t* super_frame_buf;
     int prev_nb_dab_frame_bytes = 0;
     bool is_synced_superframe = false;
     int nb_desync_count = 0;
@@ -44,20 +47,20 @@ private:
     Observable<const int, const int, const uint16_t, const uint16_t> obs_au_crc_error;
     // superframe_header
     Observable<SuperFrameHeader> obs_superframe_header;
-    // au_index, total_aus, au_buffer, nb_au_bytes
-    Observable<const int, const int , uint8_t*, const int> obs_access_unit;
+    // au_index, total_aus, au_buffer
+    Observable<const int, const int , tcb::span<uint8_t>> obs_access_unit;
 public:
     AAC_Frame_Processor();
     ~AAC_Frame_Processor();
     // A audio super frame consists of 5 DAB logical frames
-    void Process(const uint8_t* buf, const int N);
+    void Process(tcb::span<const uint8_t> buf);
     auto& OnFirecodeError(void) { return obs_firecode_error; }
     auto& OnRSError(void) { return obs_rs_error; }
     auto& OnSuperFrameHeader(void) { return obs_superframe_header; }
     auto& OnAccessUnit(void) { return obs_access_unit; }
 private:
-    bool CalculateFirecode(const uint8_t* buf, const int N);
-    void AccumulateFrame(const uint8_t* buf, const int N);
+    bool CalculateFirecode(tcb::span<const uint8_t> buf);
+    void AccumulateFrame(tcb::span<const uint8_t> buf);
     void ProcessSuperFrame(const int nb_dab_frame_bytes);
 private:
     bool ReedSolomonDecode(const int nb_dab_frame_bytes);

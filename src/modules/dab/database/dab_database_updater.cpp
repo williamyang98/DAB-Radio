@@ -85,8 +85,8 @@ UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t
     FORM_FIELD_MACRO(extended_country_code, ENSEMBLE_FLAG_ECC);
 }
 
-UpdateResult EnsembleUpdater::SetLabel(const uint8_t* buf, const int N) {
-    FORM_FIELD_STRING_MACRO(label, ENSEMBLE_FLAG_LABEL, buf, N);
+UpdateResult EnsembleUpdater::SetLabel(tcb::span<const uint8_t> buf) {
+    FORM_FIELD_STRING_MACRO(label, ENSEMBLE_FLAG_LABEL, buf.data(), (int)buf.size());
 }
 
 UpdateResult EnsembleUpdater::SetNumberServices(const uint8_t nb_services) {
@@ -129,8 +129,8 @@ UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t 
     FORM_FIELD_MACRO(extended_country_code, SERVICE_FLAG_ECC);
 }
 
-UpdateResult ServiceUpdater::SetLabel(const uint8_t* buf, const int N) {
-    FORM_FIELD_STRING_MACRO(label, SERVICE_FLAG_LABEL, buf, N);
+UpdateResult ServiceUpdater::SetLabel(tcb::span<const uint8_t> buf) {
+    FORM_FIELD_STRING_MACRO(label, SERVICE_FLAG_LABEL, buf.data(), (int)buf.size());
 }
 
 UpdateResult ServiceUpdater::SetProgrammeType(const programme_id_t programme_type) {
@@ -160,10 +160,8 @@ const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID      = 0b00000100;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01011000;
 
-UpdateResult ServiceComponentUpdater::SetLabel(const uint8_t* buf, const int N) {
-    FORM_FIELD_STRING_MACRO(
-        label, SERVICE_COMPONENT_FLAG_LABEL,
-        buf, N);
+UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
+    FORM_FIELD_STRING_MACRO(label, SERVICE_COMPONENT_FLAG_LABEL, buf.data(), (int)buf.size());
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {

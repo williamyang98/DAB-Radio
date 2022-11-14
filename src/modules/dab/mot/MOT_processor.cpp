@@ -30,7 +30,8 @@ MOT_Processor::MOT_Processor(const int max_transport_objects)
 
 }
 
-void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, const uint8_t* buf, const int N) {
+void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf) {
+    const int N = (int)buf.size();
     const int MIN_SEGMENT_HEADER_BYTES = 2;
     if (N < MIN_SEGMENT_HEADER_BYTES) {
         LOG_ERROR("Insufficient length for segment header {}<{}", N, MIN_SEGMENT_HEADER_BYTES);
@@ -97,32 +98,29 @@ bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
         return false;
     }
 
-    const auto* header_buf = header_assembler.GetData();
-    const auto* body_buf = body_assembler.GetData();
-    const int N_header = header_assembler.GetLength();
-    const int N_body = body_assembler.GetLength();
+    const auto header_buf = header_assembler.GetData();
+    const auto body_buf = body_assembler.GetData();
 
     MOT_Entity entity;
     entity.transport_id = transport_id;
     entity.body_buf = body_buf;
-    entity.nb_body_bytes = N_body;
 
     // TODO: Sometimes we get the header first, meaning we can extra useful length information
     //       Signal this information to a listener
-    const bool is_success = ProcessHeader(&entity.header, header_buf, N_header);
+    const bool is_success = ProcessHeader(entity.header, header_buf);
     if (!is_success) {
         return false;
     }
     
-    if (entity.header.header_size != N_header) {
+    if (entity.header.header_size != (int)header_buf.size()) {
         LOG_ERROR("Mismatching header length fields {}!={}",
-            entity.header.header_size, N_header);
+            entity.header.header_size, header_buf.size());
         return false;
     }
 
-    if (entity.header.body_size != N_body) {
+    if (entity.header.body_size != (int)body_buf.size()) {
         LOG_ERROR("Mismatching body length fields {}!={}",
-            entity.header.body_size, N_body);
+            entity.header.body_size, body_buf.size());
         return false;
     }
 
@@ -133,12 +131,13 @@ bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
     return true;
 }
 
-bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf, const int N) {
+bool MOT_Processor::ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 5.3.1: Single object transmission (MOT header mode) 
     // Figure 14: Repeated transmission of header information
     // The header consists of the header core and header extension
 
+    const int N = (int)buf.size();
     int curr_byte = 0;
     const uint8_t* data = &buf[curr_byte];
     int nb_remain = N-curr_byte;
@@ -165,10 +164,10 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
     const uint16_t content_sub_type = ((data[5] & 0b00000001) << 8) |
                                       ((data[6] & 0b11111111) >> 0);
     
-    entity->body_size = body_size;
-    entity->header_size = header_size;
-    entity->content_type = content_type;
-    entity->content_sub_type = content_sub_type;
+    entity.body_size = body_size;
+    entity.header_size = header_size;
+    entity.content_type = content_type;
+    entity.content_sub_type = content_sub_type;
 
     // DOC: ETSI TS 101 756
     // Clause 6: Registered tables in ETSI EN 301 234 (MOT) 
@@ -250,16 +249,17 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity* entity, const uint8_t* buf,
         curr_byte += nb_data_bytes;
         nb_remain = N-curr_byte;
 
-        ProcessHeaderExtensionParameter(entity, param_id, data, nb_data_bytes);
+        ProcessHeaderExtensionParameter(entity, param_id, {data, (size_t)nb_data_bytes});
     }
 
     return true;
 }
 
 bool MOT_Processor::ProcessHeaderExtensionParameter(
-    MOT_Header_Entity* entity, const uint8_t id, 
-    const uint8_t* buf, const int N) 
+    MOT_Header_Entity& entity, const uint8_t id, 
+    tcb::span<const uint8_t> buf) 
 {
+    const int N = (int)buf.size();
     // DOC: ETSI EN 301 234
     // Clause 6.3: List of all MOT parameters in the MOT header extension 
     // Table 2: Coding of extension parameter 
@@ -268,9 +268,8 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     if ((id >= 0b100101) && (id <= 0b111111)) {
         MOT_Header_Extension_Parameter param;
         param.type = id;
-        param.data = buf;
-        param.nb_data_bytes = N;
-        entity->user_app_params.push_back(param);
+        param.data = {buf.data(), (size_t)N};
+        entity.user_app_params.push_back(param);
         return true;
     }
 
@@ -286,9 +285,10 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     }
 
     switch (id) {
-    case 0b001100: return ProcessHeaderExtensionParameter_ContentName(entity, buf, N);
-    case 0b000100: return ProcessHeaderExtensionParameter_ExpireTime(entity, buf, N);
-    case 0b000101: return ProcessHeaderExtensionParameter_TriggerTime(entity, buf, N);
+    case 0b001100: return ProcessHeaderExtensionParameter_ContentName(entity, buf);
+    case 0b000100: return ProcessHeaderExtensionParameter_ExpireTime(entity, buf);
+    case 0b000101: return ProcessHeaderExtensionParameter_TriggerTime(entity, buf);
+    // TODO: Implement this
     UNIMPLEMENTED_CASE(0b000001, "permit_outdated_versions");
     UNIMPLEMENTED_CASE(0b000111, "retransmission_distance");
     UNIMPLEMENTED_CASE(0b001001, "expiration");
@@ -309,9 +309,10 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     #undef UNIMPLEMENTED_CASE
 }
 
-bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entity* entity, const uint8_t* buf, const int N) {
+bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 6.2.2.1.1: Content name
+    const int N = (int)buf.size();
     if (N < 2) {
         LOG_ERROR("[header-ext] type=content_name Insufficient length for content name header and data {}<{}",
             N, 2);
@@ -325,33 +326,33 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entit
     const auto* name_str = reinterpret_cast<const char*>(name);
     const int nb_name_bytes = N-1;
 
-    entity->content_name.exists = true;
-    entity->content_name.charset = charset;
-    entity->content_name.name = name_str;
-    entity->content_name.nb_bytes = nb_name_bytes;
+    entity.content_name.exists = true;
+    entity.content_name.charset = charset;
+    entity.content_name.name = {name_str, (size_t)nb_name_bytes};
 
     LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}",
-        charset, rfa0, nb_name_bytes, std::string_view(name_str, nb_name_bytes));
+        charset, rfa0, nb_name_bytes, entity.content_name.name);
     return true;
 }
 
-bool MOT_Processor::ProcessHeaderExtensionParameter_ExpireTime(MOT_Header_Entity* entity, const uint8_t* buf, const int N) {
+bool MOT_Processor::ProcessHeaderExtensionParameter_ExpireTime(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
     // NOTE: The expire time field is defined by the following doc
     // DOC: ETSI TS 101 499
     // Clause 6.2.1: General
     // Table 3: MOT Parameters
     // For some reason it is not defined by the expected document
     // DOC: ETSI EN 301 234 
-    return ProcessHeaderExtensionParameter_UTCTime(&(entity->expire_time), buf, N);
+    return ProcessHeaderExtensionParameter_UTCTime(entity.expire_time, buf);
 }
 
-bool MOT_Processor::ProcessHeaderExtensionParameter_TriggerTime(MOT_Header_Entity* entity, const uint8_t* buf, const int N) {
-    return ProcessHeaderExtensionParameter_UTCTime(&(entity->trigger_time), buf, N);
+bool MOT_Processor::ProcessHeaderExtensionParameter_TriggerTime(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
+    return ProcessHeaderExtensionParameter_UTCTime(entity.trigger_time, buf);
 }
 
-bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity, const uint8_t* buf, const int N) {
+bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 6.2.4.1: Coding of time parameters 
+    const int N = (int)buf.size();
     if (N < 4) {
         LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and data {}<{}", 
             N, 4);
@@ -362,14 +363,14 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
 
     // The entire field is zeroed and trigger time means "now"
     if (!validity_flag) {
-        entity->exists = true;
-        entity->year = 0;
-        entity->month = 0;
-        entity->day = 0;
-        entity->hours = 0;
-        entity->minutes = 0;
-        entity->seconds = 0;
-        entity->milliseconds = 0;
+        entity.exists = true;
+        entity.year = 0;
+        entity.month = 0;
+        entity.day = 0;
+        entity.hours = 0;
+        entity.minutes = 0;
+        entity.seconds = 0;
+        entity.milliseconds = 0;
         LOG_MESSAGE("[header-ext] type=utc_time valid={} datetime=NOW", validity_flag);
         return true;            
     }
@@ -398,16 +399,16 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time* entity
     }
 
     int year, month, day;
-    mjd_to_ymd(static_cast<long>(MJD_date), &year, &month, &day);
+    mjd_to_ymd(static_cast<long>(MJD_date), year, month, day);
 
-    entity->exists = true;
-    entity->year = year;
-    entity->month = month;
-    entity->day = day;
-    entity->hours = hours;
-    entity->minutes = minutes;
-    entity->seconds = seconds;
-    entity->milliseconds = milliseconds;
+    entity.exists = true;
+    entity.year = year;
+    entity.month = month;
+    entity.day = day;
+    entity.hours = hours;
+    entity.minutes = minutes;
+    entity.seconds = seconds;
+    entity.milliseconds = milliseconds;
 
     LOG_MESSAGE("[header-ext] type=utc_time valid={} utc={} date={:02}/{:02}/{:04} time={:02}:{:02}:{:02}.{:03}",
         validity_flag, UTC_flag, day, month, year, hours, minutes, seconds, milliseconds);

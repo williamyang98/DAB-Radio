@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "utility/span.h"
 
 // Decodes the XPAD field sent over MSC (main service component)
 class MSC_XPAD_Processor 
@@ -31,9 +32,9 @@ public:
             int nb_end_address_bytes = 0;
         } user_access_field;
 
-        const uint8_t* data_field = NULL;
-        int nb_data_field_bytes = 0;
+
+        tcb::span<const uint8_t> data_field;
     };
 public:
-    ProcessResult Process(const uint8_t* buf, const int N);
+    ProcessResult Process(tcb::span<const uint8_t> buf);
 };

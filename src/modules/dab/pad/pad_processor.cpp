@@ -2,6 +2,7 @@
 #include "pad_dynamic_label.h"
 #include "pad_data_length_indicator.h"
 #include "pad_MOT_processor.h"
+#include "mot/MOT_processor.h"
 
 #include "easylogging++.h"
 #include "fmt/core.h"
@@ -19,36 +20,53 @@ constexpr int MAX_CI_LENGTH = 4;
 const uint8_t CONTENT_INDICATOR_LENGTH_TABLE[8] = {4, 6, 8, 12, 16, 24, 32, 48};
 
 PAD_Processor::PAD_Processor() {
-    xpad_unreverse_buf = new uint8_t[MAX_XPAD_BYTES];
+    xpad_unreverse_buf.resize(MAX_XPAD_BYTES);
 
     // we need to persist the contents indicator list between frames
     // this is because the encoder can choose to exclude them in intermediate packets
-    ci_list = new PAD_Content_Indicator[MAX_CI_LENGTH];
-    ci_list_length = 0;
+    ci_list.resize(MAX_CI_LENGTH);
+    ci_list.resize(0);
 
     // we need to associate consecutive data length indicators and MOT packets
     previous_mot_length = 0;
 
-    dynamic_label = new PAD_Dynamic_Label();
-    data_length_indicator = new PAD_Data_Length_Indicator();
-    pad_mot_processor = new PAD_MOT_Processor();
+    dynamic_label = std::make_unique<PAD_Dynamic_Label>();
+    data_length_indicator = std::make_unique<PAD_Data_Length_Indicator>();
+    pad_mot_processor = std::make_unique<PAD_MOT_Processor>();
 }
 
-PAD_Processor::~PAD_Processor() {
-    delete [] xpad_unreverse_buf;
-    delete [] ci_list;
-    delete dynamic_label;
-    delete data_length_indicator;
-    delete pad_mot_processor;
+PAD_Processor::~PAD_Processor() = default;
+
+Observable<std::string_view, const uint8_t>& PAD_Processor::OnLabelUpdate() {
+    return dynamic_label->OnLabelChange();
 }
 
-void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, const int nb_xpad_bytes) {
+Observable<uint8_t>& PAD_Processor::OnLabelCommand() {
+    return dynamic_label->OnCommand();
+}
+
+Observable<MOT_Entity>& PAD_Processor::OnMOTUpdate() {
+    return pad_mot_processor->Get_MOT_Processor().OnEntityComplete();
+}
+
+void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8_t> xpad_reversed) {
     // If we have no XPAD, reset the CI list
     // NOTE: Some broadcasters violate this part of the standard and assume the CI list will be preserved
     //       Hence we choose to be lenient and don't reset the CI list
-    if (xpad_reversed == NULL) {
+    const size_t nb_xpad_bytes = xpad_reversed.size();
+    if (xpad_reversed.empty()) {
         // LOG_MESSAGE("Resetting XPAD on NULL");
         // ci_list_length = 0;
+        return;
+    }
+
+    if (nb_xpad_bytes > MAX_XPAD_BYTES) {
+        LOG_ERROR("XPAD larger than allowable max {}>{}", nb_xpad_bytes, MAX_XPAD_BYTES);
+        return;
+    }
+
+    if (fpad.size() != 2) {
+        LOG_ERROR("FPAD must be 2 bytes got {} bytes", fpad.size());
         return;
     }
 
@@ -69,10 +87,10 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
     const uint8_t xpad_L_type    = (fpad_byte_L0 & 0b00001111) >> 0;
     const uint8_t xpad_L_data    = fpad_byte_L1;
 
-    if ((xpad_indicator == 0b00) || (xpad_reversed == NULL) || (nb_xpad_bytes == 0)) {
-        if ((xpad_indicator != 0b00) || (xpad_reversed != NULL) || (nb_xpad_bytes != 0)) {
+    if ((xpad_indicator == 0b00) || (xpad_reversed.empty()) || (nb_xpad_bytes == 0)) {
+        if ((xpad_indicator != 0b00) || !xpad_reversed.empty() || (nb_xpad_bytes != 0)) {
             LOG_ERROR("Inconsistent NULL xpad information indicator={} xpad_null={} xpad_bytes={}",
-                xpad_indicator, (xpad_reversed == NULL), nb_xpad_bytes);
+                xpad_indicator, xpad_reversed.empty(), nb_xpad_bytes);
             return;
         }
     }
@@ -98,6 +116,8 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
         xpad_unreverse_buf[i] = xpad_reversed[nb_xpad_bytes-1-i];
     }
 
+    auto xpad_data = tcb::span(xpad_unreverse_buf.data(), nb_xpad_bytes);
+
     switch (xpad_indicator) {
     // No xpad field
     case 0b00:
@@ -110,10 +130,10 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
         LOG_ERROR("Reserved for future use XPAD indicator {}", xpad_indicator);
         break;
     case 0b01:
-        Process_Short_XPAD(xpad_unreverse_buf, nb_xpad_bytes, fpad_CI_flag);
+        Process_Short_XPAD(xpad_data, fpad_CI_flag);
         break;
     case 0b10:
-        Process_Variable_XPAD(xpad_unreverse_buf, nb_xpad_bytes, fpad_CI_flag);
+        Process_Variable_XPAD(xpad_data, fpad_CI_flag);
         break;
     default:
         LOG_ERROR("Unknown xpad indicator {}", xpad_indicator);
@@ -122,7 +142,7 @@ void PAD_Processor::Process(const uint8_t* fpad, const uint8_t* xpad_reversed, c
 
 }
 
-void PAD_Processor::Process_Short_XPAD(const uint8_t* xpad, const int N, const bool has_indicator_list) {
+void PAD_Processor::Process_Short_XPAD(tcb::span<const uint8_t> xpad, const bool has_indicator_list) {
     // DOC: ETSI EN 300 401
     // Clause 7.4.2.1 - Short XPAD
     // Figure 30: An X-PAD data group extending over three consecutive X-PAD fields 
@@ -132,6 +152,7 @@ void PAD_Processor::Process_Short_XPAD(const uint8_t* xpad, const int N, const b
     const int DATA_BYTES_WITH_CI = 3;
     const int DATA_BYTES_WITHOUT_CI = 4;
 
+    const int N = (int)xpad.size();
     int curr_byte = 0;
     if (has_indicator_list) {
         if (N < 1)  {
@@ -146,35 +167,36 @@ void PAD_Processor::Process_Short_XPAD(const uint8_t* xpad, const int N, const b
         const uint8_t app_type = (CI & 0b00011111) >> 0;
 
         const auto indicator = PAD_Content_Indicator{ DATA_BYTES_WITH_CI, app_type };
-        ci_list_length = 1;
+        ci_list.resize(1);
         ci_list[0] = indicator;
     }
 
-    if (ci_list_length == 0) {
+    if (ci_list.empty()) {
         LOG_ERROR("[short-xpad] CI has not been given yet");
         return;
     }
 
-    if (ci_list_length != 1) {
-        LOG_ERROR("[short-xpad] CI list length is unexpected for short xpad {} != 1", ci_list_length);
-        ci_list_length = 0;
+    if (ci_list.size() != 1) {
+        LOG_ERROR("[short-xpad] CI list length is unexpected for short xpad {} != 1", ci_list.size());
+        ci_list.resize(0);
         return;
     }
 
     const int nb_remain = N-curr_byte;
     auto* data_field = &xpad[curr_byte];
-    ProcessDataField(data_field, nb_remain);
+    ProcessDataField({data_field, (size_t)nb_remain});
     // Proceding data fields don't include the content indicator
     ci_list[0].length = DATA_BYTES_WITHOUT_CI;
 }
 
-void PAD_Processor::Process_Variable_XPAD(const uint8_t* xpad, const int N, const bool has_indicator_list) {
+void PAD_Processor::Process_Variable_XPAD(tcb::span<const uint8_t> xpad, const bool has_indicator_list) {
     // DOC: ETSI EN 300 401
     // Clause 7.4.2: Structure of X-PAD 
     // Figure 31: Three X-PAD data groups carried in one X-PAD field
+    const int N = (int)xpad.size();
     int curr_byte = 0;
     if (has_indicator_list) {
-        ci_list_length = 0;
+        ci_list.resize(0);
         for (int i = 0; i < MAX_CI_LENGTH; i++) {
             const uint8_t CI = xpad[curr_byte++];
 
@@ -194,7 +216,7 @@ void PAD_Processor::Process_Variable_XPAD(const uint8_t* xpad, const int N, cons
 
             const uint8_t length = CONTENT_INDICATOR_LENGTH_TABLE[length_index];
             const auto indicator = PAD_Content_Indicator{ length, app_type };
-            ci_list[ci_list_length++] = indicator;
+            ci_list.push_back(indicator);
         }
     } else {
         LOG_ERROR("[var-xpad] No CI list L={}", N);
@@ -202,23 +224,24 @@ void PAD_Processor::Process_Variable_XPAD(const uint8_t* xpad, const int N, cons
 
     const int nb_remain = N-curr_byte;
     auto* data_field = &xpad[curr_byte];
-    ProcessDataField(data_field, nb_remain);
+    ProcessDataField({data_field, (size_t)nb_remain});
 }
 
-void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
+void PAD_Processor::ProcessDataField(tcb::span<const uint8_t> data_field) {
+    const int N = (int)data_field.size();
     int curr_byte = 0;
-    for (int i = 0; i < ci_list_length; i++) {
+    for (int i = 0; i < ci_list.size(); i++) {
         auto& content = ci_list[i];
 
         const int nb_remain = N-curr_byte;
         if (content.length > nb_remain) {
-            LOG_ERROR("Insufficent length for data field {}/{} i={}/{}", content.length, nb_remain, i, ci_list_length);
+            LOG_ERROR("Insufficent length for data field {}/{} i={}/{}", content.length, nb_remain, i, ci_list.size());
             return;
         }
 
         // LOG_MESSAGE("CI={}/{} ci_app={} ci_len={} N={}", 
         //     i, ci_list_length, content.app_type, content.length, N);
-        auto* data_subfield = &data_field[curr_byte];
+        auto data_subfield = tcb::span(&data_field[curr_byte], (size_t)content.length);
 
         // DOC: ETSI EN 300 401 
         // Clause 7.4.5.1: MSC data groups in X-PAD 
@@ -251,7 +274,7 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
             break;
         // 1: Data group length indicator for MSC XPAD data group
         case 1: 
-            data_length_indicator->ProcessXPAD(data_subfield, content.length);
+            data_length_indicator->ProcessXPAD(data_subfield);
             if (data_length_indicator->GetIsLengthAvailable()) {
                 previous_mot_length = data_length_indicator->GetLength();
                 data_length_indicator->ResetLength();
@@ -261,10 +284,10 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
         // 3: Dynamic label segment continuation
         case 2:
             content.app_type = 3;
-            dynamic_label->ProcessXPAD(true, data_subfield, content.length);
+            dynamic_label->ProcessXPAD(true, data_subfield);
             break;
         case 3:
-            dynamic_label->ProcessXPAD(false, data_subfield, content.length);
+            dynamic_label->ProcessXPAD(false, data_subfield);
             break;
         // DOC: ETSI EN 301 234
         // 12: MOT start
@@ -274,22 +297,22 @@ void PAD_Processor::ProcessDataField(const uint8_t* data_field, const int N) {
         case 12:
             content.app_type = 13;
             pad_mot_processor->SetGroupLength(current_mot_length);
-            pad_mot_processor->ProcessXPAD(true, false, data_subfield, content.length);
+            pad_mot_processor->ProcessXPAD(true, false, data_subfield);
             break;
         case 13:
-            pad_mot_processor->ProcessXPAD(false, false, data_subfield, content.length);
+            pad_mot_processor->ProcessXPAD(false, false, data_subfield);
             break;
         case 14:
             content.app_type = 15;
             pad_mot_processor->SetGroupLength(current_mot_length);
-            pad_mot_processor->ProcessXPAD(true, true, data_subfield, content.length);
+            pad_mot_processor->ProcessXPAD(true, true, data_subfield);
             break;
         case 15:
-            pad_mot_processor->ProcessXPAD(false, true, data_subfield, content.length);
+            pad_mot_processor->ProcessXPAD(false, true, data_subfield);
             break;
         default:
             LOG_ERROR("Unsupported app_type={} length={} i={}/{}", 
-                content.app_type, content.length, i, ci_list_length);
+                content.app_type, content.length, i, ci_list.size());
             break;
         }
 

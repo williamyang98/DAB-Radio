@@ -7,18 +7,11 @@
 #define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(__VA_ARGS__)
 
 PAD_Dynamic_Label_Assembler::PAD_Dynamic_Label_Assembler() {
-    unordered_buf = new uint8_t[MAX_MESSAGE_BYTES];
-    ordered_buf = new uint8_t[MAX_MESSAGE_BYTES];
-    segments = new Segment[MAX_SEGMENTS];
+    unordered_buf.resize(MAX_MESSAGE_BYTES);
+    ordered_buf.resize(MAX_MESSAGE_BYTES);
+    segments.resize(MAX_SEGMENTS);
     Reset();
 }
-
-PAD_Dynamic_Label_Assembler::~PAD_Dynamic_Label_Assembler() {
-    delete [] unordered_buf;
-    delete [] ordered_buf;
-    delete [] segments;
-}
-
 
 void PAD_Dynamic_Label_Assembler::Reset(void) {
     charset = 0;
@@ -30,12 +23,13 @@ void PAD_Dynamic_Label_Assembler::Reset(void) {
     }
 }
 
-bool PAD_Dynamic_Label_Assembler::UpdateSegment(const uint8_t* data, const int length, const int seg_num) {
+bool PAD_Dynamic_Label_Assembler::UpdateSegment(tcb::span<const uint8_t> data, const int seg_num) {
     if ((seg_num < 0) || (seg_num >= MAX_SEGMENTS)) {
         LOG_ERROR("Segment index {} falls out of bounds [{},{}]", seg_num, 0, MAX_SEGMENT_BYTES-1);
         return false;
     }
 
+    const size_t length = data.size();
     if ((length <= 0) || (length > MAX_SEGMENT_BYTES)) {
         LOG_ERROR("Segment length {} falls out of bounds [{},{}]", length, 1, MAX_SEGMENT_BYTES);
         return false;
@@ -62,7 +56,7 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(const uint8_t* data, const int l
         LOG_ERROR("Segment {} contents mismatch", seg_num);
     }
 
-    segment.length = length;
+    segment.length = (int)length;
     is_changed = is_changed || length_mismatch || content_mismatch;
 
     if (is_changed && CombineSegments()) {
@@ -73,7 +67,7 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(const uint8_t* data, const int l
     return false;
 }
 
-void PAD_Dynamic_Label_Assembler::SetTotalSegments(const int total_segments) {
+void PAD_Dynamic_Label_Assembler::SetTotalSegments(const size_t total_segments) {
     if (nb_required_segments != total_segments) {
         is_changed = true;
     }

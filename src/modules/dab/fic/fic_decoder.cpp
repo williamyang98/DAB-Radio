@@ -45,35 +45,30 @@ FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_grou
         //     145    | 001 100 101 |    101 001 1    |       83     |
         //     133    | 001 011 011 |    110 110 1    |      109     |
         const uint8_t POLYS[4] = { 109, 79, 83, 109 };
-        vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
+        vitdec = std::make_unique<ViterbiDecoder>(POLYS, nb_encoded_bits);
     }
 
-    scrambler = new AdditiveScrambler();
+    scrambler = std::make_unique<AdditiveScrambler>();
     scrambler->SetSyncword(0xFFFF);
 
-    decoded_bytes = new uint8_t[nb_decoded_bytes];
+    decoded_bytes.resize(nb_decoded_bytes);
 }
 
-FIC_Decoder::~FIC_Decoder() {
-    delete vitdec;
-    delete scrambler;
-
-    delete [] decoded_bytes;
-}
+FIC_Decoder::~FIC_Decoder() = default;
 
 // Helper macro to run viterbi decoder with parameters
-#define VITDEC_RUN(L, PI, PI_len)\
+#define VITDEC_RUN(L, PI)\
 {\
     res = vitdec->Update(\
-        &encoded_bits[curr_encoded_bit], L,\
-        PI, PI_len);\
+        {&encoded_bits[curr_encoded_bit], (size_t)L},\
+        PI);\
     curr_encoded_bit += res.nb_encoded_bits;\
     curr_puncture_bit += res.nb_puncture_bits;\
     curr_decoded_bit += res.nb_decoded_bits;\
 }
 
 // Each group contains 3 fibs (fast information blocks) in mode I
-void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int cif_index) {
+void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, const int cif_index) {
     // viterbi decoding
     int curr_encoded_bit = 0;
     int curr_puncture_bit = 0;
@@ -99,12 +94,12 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
 
     ViterbiDecoder::DecodeResult res;
     vitdec->Reset();
-    VITDEC_RUN(128*21, PI_16, 32);
-    VITDEC_RUN(128*3,  PI_15, 32);
-    VITDEC_RUN(24,     PI_X,  24);
+    VITDEC_RUN(128*21, PI_16);
+    VITDEC_RUN(128*3,  PI_15);
+    VITDEC_RUN(24,     PI_X);
 
     const auto error = vitdec->GetPathError();
-    vitdec->GetTraceback(decoded_bytes, nb_decoded_bits);
+    vitdec->GetTraceback(decoded_bytes);
 
     LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
     LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_decoded_bits);
@@ -128,13 +123,13 @@ void FIC_Decoder::DecodeFIBGroup(const viterbi_bit_t* encoded_bits, const int ci
         crc16_rx |= static_cast<uint16_t>(fib_buf[nb_data_bytes]) << 8;
         crc16_rx |= fib_buf[nb_data_bytes+1];
 
-        const uint16_t crc16_pred = CRC16_CALC->Process(fib_buf, nb_data_bytes);
+        const uint16_t crc16_pred = CRC16_CALC->Process({fib_buf, (size_t)nb_data_bytes});
         const bool is_valid = crc16_rx == crc16_pred;
         LOG_MESSAGE("[crc16] fib={}/{} is_match={} pred={:04X} got={:04X}", 
             i, nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
         
         if (is_valid) {
-            obs_on_fib.Notify(fib_buf, nb_fib_bytes);
+            obs_on_fib.Notify({fib_buf, (size_t)nb_fib_bytes});
         }
     }
 }

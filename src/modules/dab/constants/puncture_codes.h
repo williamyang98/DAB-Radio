@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <assert.h>
+#include "utility/span.h"
 
 // DOC: ETSI EN 300 401
 // Clause 11.1.2 - Puncturing procedure
@@ -35,7 +36,7 @@ const uint8_t PI_TABLE[24][32] = {
 };
 
 // Puncture codes are indexed starting from 1
-static const uint8_t* GetPunctureCode(const int x) {
+static tcb::span<const uint8_t> GetPunctureCode(const int x) {
     assert((x >= 1) && (x <= 24));
     return PI_TABLE[x-1];
 }

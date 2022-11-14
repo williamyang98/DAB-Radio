@@ -6,20 +6,23 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "aac-data-decoder") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "aac-data-decoder") << fmt::format(__VA_ARGS__)
 
-bool AAC_Data_Decoder::ProcessAccessUnit(const uint8_t* data, const int N) {
-    const bool is_success = ProcessDataElement(data, N);
+constexpr int TOTAL_FPAD_BYTES = 2;
+
+bool AAC_Data_Decoder::ProcessAccessUnit(tcb::span<const uint8_t> data) {
+    const bool is_success = ProcessDataElement(data);
     if (!is_success) {
         // DOC: ETSI TS 102 563
         // Clause 5.4.3 PAD extraction
         // If we didn't detect any data stream element then
         // Pad decoder gets: FPAD={0,0}, XPAD=NULL
-        uint8_t fpad[2] = {0, 0};
-        ProcessPAD(fpad, NULL, 0);
+        uint8_t fpad[TOTAL_FPAD_BYTES] = {0, 0};
+        ProcessPAD(fpad, {});
     }
     return is_success;
 }
 
-bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
+bool AAC_Data_Decoder::ProcessDataElement(tcb::span<const uint8_t> data) {
+    const int N = (int)data.size();
     if (N < 2) {
         LOG_ERROR("Data element size too small {}<2", N);
         return false;
@@ -70,15 +73,16 @@ bool AAC_Data_Decoder::ProcessDataElement(const uint8_t* data, const int N) {
     // DOC: ETSI TS 102 563
     // Clause 5.4.1: PAD insertion 
     // FPAD is placed at the end of the data stream element
-    const int nb_fpad_bytes = 2;
-    const int nb_xpad_bytes = length-nb_fpad_bytes;
+    const int nb_xpad_bytes = length-TOTAL_FPAD_BYTES;
     auto* xpad_data = &pad_data[0];
     auto* fpad_data = &pad_data[nb_xpad_bytes];
     
-    ProcessPAD(fpad_data, xpad_data, nb_xpad_bytes);
+    ProcessPAD(
+        {fpad_data, (size_t)TOTAL_FPAD_BYTES}, 
+        {xpad_data, (size_t)nb_xpad_bytes});
     return true;
 }
 
-void AAC_Data_Decoder::ProcessPAD(const uint8_t* fpad, const uint8_t* xpad, const int N) {
-    pad_processor.Process(fpad, xpad, N);
+void AAC_Data_Decoder::ProcessPAD(tcb::span<const uint8_t> fpad, tcb::span<const uint8_t> xpad) {
+    pad_processor.Process(fpad, xpad);
 }

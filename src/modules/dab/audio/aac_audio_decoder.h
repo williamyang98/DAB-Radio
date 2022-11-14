@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdint.h>
+#include <vector>
+#include "utility/span.h"
 
 struct NeAACDecFrameInfo;
 
@@ -36,14 +38,14 @@ private:
     const struct Params params;
     // constants
     // libfaad objects
-    uint8_t* mp4_bitfile_config;
+    std::vector<uint8_t> mp4_bitfile_config;
     int nb_mp4_bitfile_config_bytes = 0;
     void* decoder_handle;
     struct NeAACDecFrameInfo* decoder_frame_info;
 public:
     AAC_Audio_Decoder(const struct Params _params);
     ~AAC_Audio_Decoder();
-    Result DecodeFrame(uint8_t* data, const int N);
+    Result DecodeFrame(tcb::span<uint8_t> data);
     Params GetParams() { return params; }
 private:
     void GenerateBitfileConfig();

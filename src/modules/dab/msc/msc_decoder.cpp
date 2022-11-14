@@ -22,10 +22,10 @@ MSC_Decoder::MSC_Decoder(const Subchannel _subchannel)
   nb_encoded_bits(subchannel.length*NB_CU_BITS),
   nb_encoded_bytes(subchannel.length*NB_CU_BYTES)
 {
-    encoded_bits_buf = new viterbi_bit_t[nb_encoded_bits];
-    decoded_bytes_buf = new uint8_t[nb_encoded_bytes];
+    encoded_bits_buf.resize(nb_encoded_bits);
+    decoded_bytes_buf.resize(nb_encoded_bytes);
 
-    deinterleaver = new CIF_Deinterleaver(nb_encoded_bytes);
+    deinterleaver = std::make_unique<CIF_Deinterleaver>(nb_encoded_bytes);
 
     {
         // DOC: ETSI EN 300 401
@@ -37,54 +37,52 @@ MSC_Decoder::MSC_Decoder(const Subchannel _subchannel)
         //     145    | 001 100 101 |    101 001 1    |       83     |
         //     133    | 001 011 011 |    110 110 1    |      109     |
         const uint8_t POLYS[4] = { 109, 79, 83, 109 };
-        vitdec = new ViterbiDecoder(POLYS, nb_encoded_bits);
+        vitdec = std::make_unique<ViterbiDecoder>(POLYS, nb_encoded_bits);
     }
 
-    scrambler = new AdditiveScrambler();
+    scrambler = std::make_unique<AdditiveScrambler>();
     scrambler->SetSyncword(0xFFFF);
 }
 
-MSC_Decoder::~MSC_Decoder() {
-    delete [] encoded_bits_buf;
-    delete [] decoded_bytes_buf;
-    delete deinterleaver;
-    delete vitdec;
-    delete scrambler;
-}
+MSC_Decoder::~MSC_Decoder() = default;
 
-int MSC_Decoder::DecodeCIF(const viterbi_bit_t* buf, const int N) {
+tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
+    const int N = (int)buf.size();
     const int start_bit = subchannel.start_address*NB_CU_BITS;
     const int end_bit = start_bit + nb_encoded_bits;
     if (end_bit > N) {
         LOG_ERROR("Subchannel bits {}:{} overflows MSC channel with {} bits", 
             start_bit, end_bit, N);
-        return 0;
+        return {};
     }
 
-    const auto* subchannel_buf = &buf[start_bit];
+    const int total_bits = end_bit-start_bit;
+    auto subchannel_buf = tcb::span(&buf[start_bit], (size_t)total_bits);
     deinterleaver->Consume(subchannel_buf);
 
     // Deinterleaver doesn't have enough frames
     if (!deinterleaver->Deinterleave(encoded_bits_buf)) {
-        return 0;
+        return {};
     }
 
     // viterbi decoding
+    int nb_decoded_bytes = 0;
     if (!subchannel.is_uep) {
         LOG_MESSAGE("Decoding EEP");
-        return DecodeEEP();
+        nb_decoded_bytes = DecodeEEP();
     } else {
         LOG_MESSAGE("Decoding UEP");
-        return DecodeUEP();
+        nb_decoded_bytes = DecodeUEP();
     }
+    return { decoded_bytes_buf.data(), (size_t)nb_decoded_bytes };
 }
 
 // Helper macro to run viterbi decoder with parameters
-#define VITDEC_RUN(L, PI, PI_len)\
+#define VITDEC_RUN(L, PI)\
 {\
     res = vitdec->Update(\
-        &encoded_bits_buf[curr_encoded_bit], L,\
-        PI, PI_len);\
+        {&encoded_bits_buf[curr_encoded_bit], (size_t)L},\
+        PI);\
     curr_encoded_bit += res.nb_encoded_bits;\
     curr_puncture_bit += res.nb_puncture_bits;\
     curr_decoded_bit += res.nb_decoded_bits;\
@@ -106,9 +104,9 @@ int MSC_Decoder::DecodeEEP() {
     for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
         const int Lx = descriptor.Lx[i].GetLx(n);
         const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
-        VITDEC_RUN(128*Lx, puncture_code, 32);
+        VITDEC_RUN(128*Lx, puncture_code);
     }
-    VITDEC_RUN(24, PI_X, 24);
+    VITDEC_RUN(24, PI_X);
 
     const auto error = vitdec->GetPathError();
 
@@ -120,7 +118,7 @@ int MSC_Decoder::DecodeEEP() {
     const int nb_tail_bits = 24/4;
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
-    vitdec->GetTraceback(decoded_bytes_buf, nb_decoded_bits);
+    vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
 
     // descrambler
     scrambler->Reset();
@@ -148,9 +146,9 @@ int MSC_Decoder::DecodeUEP() {
     for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
         const int Lx = descriptor.Lx[i];
         const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
-        VITDEC_RUN(128*Lx, puncture_code, 32);
+        VITDEC_RUN(128*Lx, puncture_code);
     }
-    VITDEC_RUN(24, PI_X, 24);
+    VITDEC_RUN(24, PI_X);
 
     const auto error = vitdec->GetPathError();
 
@@ -163,7 +161,7 @@ int MSC_Decoder::DecodeUEP() {
     const int nb_tail_bits = 24/4;
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
-    vitdec->GetTraceback(decoded_bytes_buf, nb_decoded_bits);
+    vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
 
     // descrambler
     scrambler->Reset();

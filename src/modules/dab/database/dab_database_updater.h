@@ -6,6 +6,7 @@
 
 #include <map>
 #include <vector>
+#include "utility/span.h"
 
 // The topology of the updater classes is as follows
 // Parent:  Stores the database (which stores its entities)
@@ -86,7 +87,7 @@ public:
     UpdateResult SetReference(const ensemble_id_t reference);
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
-    UpdateResult SetLabel(const uint8_t* buf, const int N);
+    UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetNumberServices(const uint8_t nb_services);
     UpdateResult SetReconfigurationCount(const uint16_t reconfiguration_count);
     UpdateResult SetLocalTimeOffset(const int local_time_offset);
@@ -104,7 +105,7 @@ public:
     ServiceUpdater(Service* _data): data(_data) {}
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
-    UpdateResult SetLabel(const uint8_t* buf, const int N);
+    UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetProgrammeType(const programme_id_t programme_type);
     UpdateResult SetLanguage(const language_id_t language);
     UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
@@ -119,7 +120,7 @@ private:
     uint8_t dirty_field = 0x00;
 public:
     ServiceComponentUpdater(ServiceComponent* _data): data(_data) {}
-    UpdateResult SetLabel(const uint8_t* buf, const int N);
+    UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetTransportMode(const TransportMode transport_mode);
     UpdateResult SetAudioServiceType(const AudioServiceType audio_service_type);
     UpdateResult SetDataServiceType(const DataServiceType data_service_type);

@@ -8,15 +8,15 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "pad-MOT") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "pad-MOT") << fmt::format(__VA_ARGS__)
 
-constexpr int TOTAL_CRC_BYTES = 2;
-constexpr int TOTAL_SEGMENT_HEADER_BYTES = 2;
-constexpr int MIN_REQUIRED_BYTES = TOTAL_CRC_BYTES + TOTAL_SEGMENT_HEADER_BYTES;
+constexpr size_t TOTAL_CRC_BYTES = 2;
+constexpr size_t TOTAL_SEGMENT_HEADER_BYTES = 2;
+constexpr size_t MIN_REQUIRED_BYTES = TOTAL_CRC_BYTES + TOTAL_SEGMENT_HEADER_BYTES;
 
 PAD_MOT_Processor::PAD_MOT_Processor() {
     data_group.Reset();
     state = State::WAIT_LENGTH;
 
-    msc_xpad_processor = new MSC_XPAD_Processor();
+    msc_xpad_processor = std::make_unique<MSC_XPAD_Processor>();
 
     // DOC: ETSI EN 301 234
     // Clause 5: Structural description
@@ -26,25 +26,23 @@ PAD_MOT_Processor::PAD_MOT_Processor() {
     // 2. MSC data stream mode service component
     // 3. PAD via AAC data_stream_element()
     // 4. PAD via MPEG-II
-    mot_processor = new MOT_Processor();
+    mot_processor = std::make_unique<MOT_Processor>();
 }
 
-PAD_MOT_Processor::~PAD_MOT_Processor() {
-    delete msc_xpad_processor;
-    delete mot_processor;
-}
+PAD_MOT_Processor::~PAD_MOT_Processor() = default;
 
 void PAD_MOT_Processor::ProcessXPAD(
     const bool is_start, const bool is_conditional_access,
-    const uint8_t* buf, const int N) 
+    tcb::span<const uint8_t> buf) 
 {
-    int curr_byte = 0;
+    const size_t N = buf.size();
+    size_t curr_byte = 0;
     bool curr_is_start = is_start;
     while (curr_byte < N) {
-        const int nb_remain = N-curr_byte;
-        const int nb_read = Consume(
+        const size_t nb_remain = N-curr_byte;
+        const size_t nb_read = Consume(
             curr_is_start, is_conditional_access, 
-            &buf[curr_byte], nb_remain);
+            {&buf[curr_byte], nb_remain});
         curr_byte += nb_read;
         curr_is_start = false;
     }
@@ -74,10 +72,11 @@ void PAD_MOT_Processor::SetGroupLength(const uint16_t length) {
     state = State::WAIT_START;
 }
 
-int PAD_MOT_Processor::Consume(
+size_t PAD_MOT_Processor::Consume(
     const bool is_start, const bool is_conditional_access,
-    const uint8_t* buf, const int N) 
+    tcb::span<const uint8_t> buf) 
 {
+    const size_t N = buf.size();
     // Wait until we get the corresponding data group length indicator
     // NOTE: We can get null padding bytes which triggers this erroneously
     if (state == State::WAIT_LENGTH) {
@@ -95,7 +94,7 @@ int PAD_MOT_Processor::Consume(
         state = State::READ_DATA;
     }
 
-    const int nb_read = data_group.Consume(buf, N);
+    const size_t nb_read = data_group.Consume({buf.data(), N});
     // TODO: This takes quite a long time for some broadcasters
     //       Signal this data group information to a listener
     LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
@@ -111,9 +110,9 @@ int PAD_MOT_Processor::Consume(
 
 
 void PAD_MOT_Processor::Interpret(void) {
-    const auto* buf = data_group.GetData();
-    const int N = data_group.GetRequiredBytes();
-    const auto res = msc_xpad_processor->Process(buf, N);
+    const auto buf = data_group.GetData();
+    const size_t N = data_group.GetRequiredBytes();
+    const auto res = msc_xpad_processor->Process({buf.data(), N});
     if (!res.is_success) {
         return;
     }
@@ -140,5 +139,5 @@ void PAD_MOT_Processor::Interpret(void) {
     header.is_last_segment = res.segment_field.is_last_segment;
     header.segment_number = res.segment_field.segment_number;
     header.transport_id = res.user_access_field.transport_id;
-    mot_processor->Process_Segment(header, res.data_field, res.nb_data_field_bytes);
+    mot_processor->Process_Segment(header, res.data_field);
 }

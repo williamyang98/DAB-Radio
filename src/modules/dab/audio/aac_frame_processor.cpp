@@ -100,27 +100,23 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     // The Phil Karn reed solmon decoder works with the 2^8 Galois field
     // Therefore we need to use the RS(255,245) decoder
     // As according to the spec we should insert 135 padding symbols (bytes)
-    rs_decoder = new Reed_Solomon_Decoder(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
-    rs_encoded_buf = new uint8_t[NB_RS_MESSAGE_BYTES]{0};
+    rs_decoder = std::make_unique<Reed_Solomon_Decoder>(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
+    rs_encoded_buf.resize(NB_RS_MESSAGE_BYTES, 0);
     // Reed solomon code can correct up to floor(t/2) symbols that were wrong
     // where t = the number of parity symbols
-    rs_error_positions = new int[NB_RS_PARITY_BYTES]{0};
+    rs_error_positions.resize(NB_RS_PARITY_BYTES, 0);
 
     state = State::WAIT_FRAME_START;
     curr_dab_frame = 0;
-    super_frame_buf = new uint8_t[MAX_SUPER_FRAME_SIZE];
+    super_frame_buf.resize(MAX_SUPER_FRAME_SIZE);
     is_synced_superframe = false;
     nb_desync_count = 0;
 }
 
-AAC_Frame_Processor::~AAC_Frame_Processor() {
-    delete super_frame_buf;
-    delete rs_decoder;
-    delete [] rs_encoded_buf;
-    delete [] rs_error_positions;
-}
+AAC_Frame_Processor::~AAC_Frame_Processor() = default;
 
-void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
+void AAC_Frame_Processor::Process(tcb::span<const uint8_t> buf) {
+    const int N = (int)buf.size();
     if (N == 0) { 
         LOG_ERROR("Received an empty buffer");
         return;
@@ -147,13 +143,13 @@ void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
     }
 
     if (state == State::WAIT_FRAME_START) {
-        if (!CalculateFirecode(buf, N)) {
+        if (!CalculateFirecode(buf)) {
             return;
         }
         state = State::COLLECT_FRAMES;
     }
 
-    AccumulateFrame(buf, N);
+    AccumulateFrame(buf);
     curr_dab_frame++;
 
     if (curr_dab_frame == TOTAL_DAB_FRAMES) {
@@ -163,11 +159,11 @@ void AAC_Frame_Processor::Process(const uint8_t* buf, const int N) {
     }
 }
 
-bool AAC_Frame_Processor::CalculateFirecode(const uint8_t* buf, const int N) {
+bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
     auto* crc_data = &buf[2];
     const int nb_crc_bytes = 9;
     const uint16_t crc_rx = (buf[0] << 8) | buf[1];
-    const uint16_t crc_pred = FIRECODE_CRC_CALC->Process(crc_data, nb_crc_bytes);
+    const uint16_t crc_pred = FIRECODE_CRC_CALC->Process({crc_data, (size_t)nb_crc_bytes});
     const bool is_valid = (crc_rx == crc_pred);
     LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}",
         is_valid, crc_rx, crc_pred);
@@ -179,7 +175,8 @@ bool AAC_Frame_Processor::CalculateFirecode(const uint8_t* buf, const int N) {
     return is_valid;
 }
 
-void AAC_Frame_Processor::AccumulateFrame(const uint8_t* buf, const int N) {
+void AAC_Frame_Processor::AccumulateFrame(tcb::span<const uint8_t> buf) {
+    const int N = (int)buf.size();
     auto* dst_buf = &super_frame_buf[curr_dab_frame*N];
     for (int i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
@@ -195,7 +192,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         return;
     }
 
-    if (!CalculateFirecode(super_frame_buf, N)) {
+    if (!CalculateFirecode(super_frame_buf)) {
         nb_desync_count++;
         return;
     }
@@ -208,7 +205,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     // DOC: ETSI TS 102 563
     // Clause 5.2: Audio super framing syntax 
     // Table 2: Syntax of he_aac_super_frame_header() 
-    auto* buf = super_frame_buf;
+    auto& buf = super_frame_buf;
     int curr_byte = 0;
     const uint16_t firecode = (buf[0] << 8) | (buf[1]);
     const uint8_t descriptor = buf[2];
@@ -286,7 +283,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
         const uint8_t* crc_buf = &au_buf[nb_data_bytes];
         const uint16_t crc_rx = (crc_buf[0] << 8) | crc_buf[1];
-        const uint16_t crc_pred = ACCESS_UNIT_CRC_CALC->Process(au_buf, nb_data_bytes);
+        const uint16_t crc_pred = ACCESS_UNIT_CRC_CALC->Process({au_buf, (size_t)nb_data_bytes});
         const bool is_crc_valid = (crc_pred == crc_rx);
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 
@@ -295,7 +292,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
             continue;
         }
 
-        obs_access_unit.Notify(i, num_aus, au_buf, nb_data_bytes);
+        obs_access_unit.Notify(i, num_aus, {au_buf, (size_t)nb_data_bytes});
     }
 }
 
@@ -315,7 +312,7 @@ bool AAC_Frame_Processor::ReedSolomonDecode(const int nb_dab_frame_bytes) {
             rs_encoded_buf[j] = super_frame_buf[i + j*N];
         }
         const int error_count = rs_decoder->Decode(
-            rs_encoded_buf, rs_error_positions, 0);
+            rs_encoded_buf.data(), rs_error_positions.data(), 0);
 
         LOG_MESSAGE("[reed-solomon] index={}/{} error_count={}", i, N, error_count);
         // rs decoder returns -1 to indicate too many errors

@@ -13,14 +13,10 @@ CIF_Deinterleaver::CIF_Deinterleaver(const int _nb_bytes)
 : nb_bytes(_nb_bytes) 
 {
     const int nb_bits = nb_bytes*8;
-    bits_buffer = new viterbi_bit_t[nb_bits*TOTAL_CIF_DEINTERLEAVE];
+    bits_buffer.resize(nb_bits*TOTAL_CIF_DEINTERLEAVE);
 }
 
-CIF_Deinterleaver::~CIF_Deinterleaver() {
-    delete [] bits_buffer;
-}
-
-void CIF_Deinterleaver::Consume(const viterbi_bit_t* bits_buf) {
+void CIF_Deinterleaver::Consume(tcb::span<const viterbi_bit_t> bits_buf) {
     const int nb_bits = nb_bytes*8;
 
     // Append data into circular buffer
@@ -36,7 +32,7 @@ void CIF_Deinterleaver::Consume(const viterbi_bit_t* bits_buf) {
     } 
 }
 
-bool CIF_Deinterleaver::Deinterleave(viterbi_bit_t* out_bits_buf) {
+bool CIF_Deinterleaver::Deinterleave(tcb::span<viterbi_bit_t> out_bits_buf) {
     const int nb_bits = nb_bytes*8;
 
     // insufficient frames to deinterleave

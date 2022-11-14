@@ -11,11 +11,11 @@ private:
     bool is_length_available;
 public:
     PAD_Data_Length_Indicator();
-    void ProcessXPAD(const uint8_t* buf, const int N);
+    void ProcessXPAD(tcb::span<const uint8_t> buf);
     uint16_t GetLength(void) const { return length; }
     bool GetIsLengthAvailable(void) const { return is_length_available; }
     void ResetLength(void);
 private:
-    int Consume(const uint8_t* buf, const int N);
+    size_t Consume(tcb::span<const uint8_t> buf);
     void Interpret(void);
 };

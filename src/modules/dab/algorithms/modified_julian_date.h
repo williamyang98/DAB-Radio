@@ -5,7 +5,7 @@
 // - assumes Gregorian calendar
 // - year is (4-digit calendar year), month is (1-12), day is (1-31)
 // - adapted (tvb) from Fliegel/van Flandern ACM 11/#10 p 657 Oct 1968
-static void mjd_to_ymd(long mjd, int *year, int *month, int *day)
+static void mjd_to_ymd(long mjd, int &year, int &month, int &day)
 {
     long J, C, Y, M;
 
@@ -15,9 +15,9 @@ static void mjd_to_ymd(long mjd, int *year, int *month, int *day)
     Y = 4000 * (J + 1) / 1461001;
     J = J - 1461 * Y / 4 + 31;
     M = 80 * J / 2447;
-    *day = (int) (J - 2447 * M / 80);
+    day = (int) (J - 2447 * M / 80);
     J = M / 11;
-    *month = (int) (M + 2 - (12 * J));
-    *year = (int) (100 * (C - 49) + Y + J);
+    month = (int) (M + 2 - (12 * J));
+    year = (int) (100 * (C - 49) + Y + J);
     return;
 }

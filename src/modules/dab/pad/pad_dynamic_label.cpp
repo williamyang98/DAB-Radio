@@ -10,9 +10,9 @@
 
 #undef min
 
-constexpr int TOTAL_CRC16_BYTES = 2;
-constexpr int TOTAL_HEADER_BYTES = 2;
-constexpr int MIN_DATA_GROUP_BYTES = TOTAL_CRC16_BYTES + TOTAL_HEADER_BYTES;
+constexpr size_t TOTAL_CRC16_BYTES = 2;
+constexpr size_t TOTAL_HEADER_BYTES = 2;
+constexpr size_t MIN_DATA_GROUP_BYTES = TOTAL_CRC16_BYTES + TOTAL_HEADER_BYTES;
 
 // DOC: ETSI EN 300 401
 // Clause 7.4.5.2 - Dynamic label 
@@ -22,25 +22,26 @@ PAD_Dynamic_Label::PAD_Dynamic_Label() {
     data_group.SetRequiredBytes(MIN_DATA_GROUP_BYTES);
     state = State::WAIT_START;
     group_type = GroupType::LABEL_SEGMENT;
-    assembler = new PAD_Dynamic_Label_Assembler();
+    assembler = std::make_unique<PAD_Dynamic_Label_Assembler>();
     previous_toggle_flag = 0;
 }
 
-PAD_Dynamic_Label::~PAD_Dynamic_Label() {
-    delete assembler;
-}
+PAD_Dynamic_Label::~PAD_Dynamic_Label() = default;
 
-void PAD_Dynamic_Label::ProcessXPAD(const bool is_start, const uint8_t* buf, const int N) {
-    int curr_byte = 0;
+void PAD_Dynamic_Label::ProcessXPAD(const bool is_start, tcb::span<const uint8_t> buf) {
+    const size_t N = buf.size();
+    size_t curr_byte = 0;
     bool curr_is_start = is_start;
     while (curr_byte < N) {
-        const int nb_read = ConsumeBuffer(curr_is_start, &buf[curr_byte], N-curr_byte);
+        const size_t nb_remain = N-curr_byte;
+        const size_t nb_read = ConsumeBuffer(curr_is_start, {&buf[curr_byte], nb_remain});
         curr_byte += nb_read;
         curr_is_start = false;
     }
 }
 
-int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, const int N) {
+size_t PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, tcb::span<const uint8_t> buf) {
+    const size_t N = buf.size();
     if ((state == State::WAIT_START) && !is_start) {
         return N;
     }
@@ -54,15 +55,15 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
         state = State::READ_LENGTH;
     }
 
-    int nb_read_bytes = 0;
+    size_t nb_read_bytes = 0;
 
     // Don't read past the header field since we need to calculate the length from it
     if (state == State::READ_LENGTH) {
-        const int nb_remain_header_bytes = TOTAL_HEADER_BYTES-data_group.GetCurrentBytes();
+        const size_t nb_remain_header_bytes = TOTAL_HEADER_BYTES-data_group.GetCurrentBytes();
         if (nb_remain_header_bytes > 0) {
-            const int nb_remain = N-nb_read_bytes;
-            const int M = std::min(nb_remain_header_bytes, nb_remain);
-            nb_read_bytes += data_group.Consume(&buf[nb_read_bytes], M);
+            const size_t nb_remain = N-nb_read_bytes;
+            const size_t M = std::min(nb_remain_header_bytes, nb_remain);
+            nb_read_bytes += data_group.Consume({&buf[nb_read_bytes], M});
         }
 
         if (data_group.GetCurrentBytes() >= TOTAL_HEADER_BYTES) {
@@ -76,7 +77,8 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
     }
 
     // Assemble the data group
-    nb_read_bytes += data_group.Consume(&buf[nb_read_bytes], N-nb_read_bytes);
+    const size_t nb_remain = N-nb_read_bytes;
+    nb_read_bytes += data_group.Consume({&buf[nb_read_bytes], nb_remain});
     LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
 
     if (!data_group.IsComplete()) {
@@ -111,7 +113,7 @@ int PAD_Dynamic_Label::ConsumeBuffer(const bool is_start, const uint8_t* buf, co
 }
 
 void PAD_Dynamic_Label::ReadGroupHeader(void) {
-    const uint8_t* buf = data_group.GetData();
+    const auto buf = data_group.GetData();
 
     const uint8_t toggle_flag     = (buf[0] & 0b10000000) >> 7;
     const uint8_t first_last_flag = (buf[0] & 0b01100000) >> 5;
@@ -138,8 +140,8 @@ void PAD_Dynamic_Label::ReadGroupHeader(void) {
 }
 
 void PAD_Dynamic_Label::InterpretLabelSegment(void) {
-    const uint8_t* buf = data_group.GetData();
-    const int N = data_group.GetRequiredBytes();
+    const auto buf = data_group.GetData();
+    const size_t N = data_group.GetRequiredBytes();
 
     const uint8_t toggle_flag     = (buf[0] & 0b10000000) >> 7;
     const uint8_t first_last_flag = (buf[0] & 0b01100000) >> 5;
@@ -166,21 +168,24 @@ void PAD_Dynamic_Label::InterpretLabelSegment(void) {
     } 
 
     const auto* data = &buf[TOTAL_HEADER_BYTES];
-    const int nb_data_bytes = N-TOTAL_HEADER_BYTES-TOTAL_CRC16_BYTES;
-    const bool is_changed = assembler->UpdateSegment(data, nb_data_bytes, seg_num);
+    const size_t nb_data_bytes = N-TOTAL_HEADER_BYTES-TOTAL_CRC16_BYTES;
+    const bool is_changed = assembler->UpdateSegment({data, nb_data_bytes}, seg_num);
     if (!is_changed) {
         return;
     }
 
-    const auto* label = assembler->GetData();
-    const auto* label_str = reinterpret_cast<const char*>(label);
-    const int nb_label_bytes = assembler->GetSize();
-    LOG_MESSAGE("label[{}]={}", nb_label_bytes, std::string_view(label_str, nb_label_bytes));
-    obs_on_label_change.Notify(label, nb_label_bytes, assembler->GetCharSet());
+    const auto label = assembler->GetData();
+    const size_t nb_label_bytes = assembler->GetSize();
+    const auto label_str = std::string_view(
+        reinterpret_cast<const char*>(label.data()), 
+        nb_label_bytes);
+
+    LOG_MESSAGE("label[{}]={}", nb_label_bytes, label_str);
+    obs_on_label_change.Notify(label_str, assembler->GetCharSet());
 }
 
 void PAD_Dynamic_Label::InterpretCommand(void) {
-    const uint8_t* buf = data_group.GetData();
+    const auto buf = data_group.GetData();
 
     const uint8_t command = (buf[0] & 0b00001111) >> 0;
     const uint8_t field2  = (buf[1] & 0b11110000) >> 4;
@@ -192,7 +197,7 @@ void PAD_Dynamic_Label::InterpretCommand(void) {
     // Clear display command
     case 0b0000:
         LOG_MESSAGE("command=clear_display");
-        obs_on_command.Notify(Command::CLEAR);
+        obs_on_command.Notify((uint8_t)Command::CLEAR);
         break;
     // TODO: Dynamic label plus command, see ETSI TS 102 980
     case 0b1000:

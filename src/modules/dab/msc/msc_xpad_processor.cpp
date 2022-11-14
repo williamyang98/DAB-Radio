@@ -23,7 +23,9 @@ static const auto Generate_CRC_Calc() {
 
 static auto CRC16_CALC = Generate_CRC_Calc();
 
-MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf, const int N) {
+MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(tcb::span<const uint8_t> buf) {
+    const int N = (int)buf.size();
+
     // DOC: ETSI EN 300 401
     // Clause 5.3.3 - Packet mode - Data group level
     // Figure 12 - Structure of MSC data group
@@ -135,7 +137,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
         }
         
         // Part 2.2.2: (required) End user address field
-        const int nb_end_user_address_bytes = static_cast<int>(length_indicator)-TOTAL_TRANSPORT_ID_BYTES;
+        const int nb_end_user_address_bytes = (int)(length_indicator)-TOTAL_TRANSPORT_ID_BYTES;
         if (nb_remain < nb_end_user_address_bytes) {
             LOG_ERROR("Insufficient length for end user address field by indicated length {}<{}",
                 nb_remain, nb_end_user_address_bytes);
@@ -163,7 +165,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
     // Part 3.1: (optional) CRC16 on entire buffer
     if (crc_flag) {
         const uint16_t crc16_rx = (buf[N-2] << 8) | buf[N-1];
-        const uint16_t crc16_calc = CRC16_CALC->Process(buf, N-TOTAL_CRC16_BYTES);
+        const uint16_t crc16_calc = CRC16_CALC->Process({buf.data(), (size_t)(N-TOTAL_CRC16_BYTES)});
         const bool is_valid = (crc16_rx == crc16_calc);
         if (!is_valid) {
             LOG_ERROR("CRC mismatch {:04X}!={:04X}", crc16_rx, crc16_calc);
@@ -171,8 +173,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
         }
     }
 
-    res.data_field = data_field;
-    res.nb_data_field_bytes = nb_data_bytes;
+    res.data_field = {data_field, (size_t)nb_data_bytes};
     res.is_success = true;
 
     LOG_MESSAGE("type={} cont={:>2} rep={} "
@@ -185,7 +186,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(const uint8_t* buf
                  res.has_segment_field, res.segment_field.is_last_segment, res.segment_field.segment_number,
                  res.user_access_field.has_transport_id, res.user_access_field.transport_id,
                  res.has_user_access_field, res.user_access_field.nb_end_address_bytes, 
-                 crc_flag, res.nb_data_field_bytes);
+                 crc_flag, res.data_field.size());
 
     return res;
 }

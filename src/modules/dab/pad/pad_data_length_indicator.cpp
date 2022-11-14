@@ -6,7 +6,7 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "pad-data-length") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "pad-data-length") << fmt::format(__VA_ARGS__)
 
-constexpr int TOTAL_DATA_GROUP_BYTES = 4;
+constexpr size_t TOTAL_DATA_GROUP_BYTES = 4;
 
 PAD_Data_Length_Indicator::PAD_Data_Length_Indicator() {
     data_group.Reset();
@@ -23,17 +23,18 @@ void PAD_Data_Length_Indicator::ResetLength(void) {
     data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
 }
 
-void PAD_Data_Length_Indicator::ProcessXPAD(const uint8_t* buf, const int N) {
-    int curr_byte = 0;
+void PAD_Data_Length_Indicator::ProcessXPAD(tcb::span<const uint8_t> buf) {
+    const size_t N = buf.size();
+    size_t curr_byte = 0;
     while (curr_byte < N) {
-        const int nb_remain = N-curr_byte;
-        const int nb_read = Consume(&buf[curr_byte], nb_remain);
+        const size_t nb_remain = N-curr_byte;
+        const size_t nb_read = Consume({&buf[curr_byte], nb_remain});
         curr_byte += nb_read;
     }
 }
 
-int PAD_Data_Length_Indicator::Consume(const uint8_t* buf, const int N) {
-    const int nb_read = data_group.Consume(buf, N);
+size_t PAD_Data_Length_Indicator::Consume(tcb::span<const uint8_t> buf) {
+    const size_t nb_read = data_group.Consume(buf);
     LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
 
     if (!data_group.IsComplete()) {
@@ -57,8 +58,8 @@ void PAD_Data_Length_Indicator::Interpret(void) {
     // DOC: ETSI EN 300 401
     // Clause 7.4.5.1.1: X-PAD data group for data group length indicator 
     // Figure 34: Structure of the X-PAD data group for the data group length indicator 
-    auto* buf = data_group.GetData();
-    const int N = data_group.GetRequiredBytes();
+    auto buf = data_group.GetData();
+    const size_t N = data_group.GetRequiredBytes();
 
     const uint8_t rfa      =  (buf[0] & 0b11000000) >> 6;
     const uint16_t _length = ((buf[0] & 0b00111111) << 8) |

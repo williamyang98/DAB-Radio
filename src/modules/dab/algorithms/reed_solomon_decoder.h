@@ -26,11 +26,13 @@ public:
             symbol_size, galois_field_polynomial,
             fcr, primer, nb_roots, pad);
     }
-
     ~Reed_Solomon_Decoder() {
         free_rs_char(rs);
     }
-
+    Reed_Solomon_Decoder(Reed_Solomon_Decoder&) = delete;
+    Reed_Solomon_Decoder(Reed_Solomon_Decoder&&) = delete;
+    Reed_Solomon_Decoder& operator=(Reed_Solomon_Decoder&) = delete;
+    Reed_Solomon_Decoder& operator=(Reed_Solomon_Decoder&&) = delete;
     int Decode(uint8_t* data, int* eras_pos, int no_eras) {
         return decode_rs_char(rs, data, eras_pos, no_eras);
     }

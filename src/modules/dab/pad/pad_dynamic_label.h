@@ -1,8 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <memory>
+#include <string_view>
 #include "pad_data_group.h"
 #include "utility/observable.h"
+#include "utility/span.h"
 
 class PAD_Dynamic_Label_Assembler;
 
@@ -15,7 +18,7 @@ class PAD_Dynamic_Label_Assembler;
 class PAD_Dynamic_Label 
 {
 public:
-    enum Command {
+    enum Command: uint8_t {
         CLEAR
     };
 private:
@@ -25,19 +28,19 @@ private:
     PAD_Data_Group data_group;
     State state;
     GroupType group_type;
-    PAD_Dynamic_Label_Assembler* assembler;
+    std::unique_ptr<PAD_Dynamic_Label_Assembler> assembler;
     uint8_t previous_toggle_flag;
-    // label_buffer, nb_label_bytes, charset
-    Observable<const uint8_t*, const int, const uint8_t> obs_on_label_change;
-    Observable<Command> obs_on_command;
+    // label_buffer, charset
+    Observable<std::string_view, const uint8_t> obs_on_label_change;
+    Observable<uint8_t> obs_on_command;
 public:
     PAD_Dynamic_Label();
     ~PAD_Dynamic_Label();
-    void ProcessXPAD(const bool is_start, const uint8_t* buf, const int N);
+    void ProcessXPAD(const bool is_start, tcb::span<const uint8_t> buf);
     auto& OnLabelChange(void) { return obs_on_label_change; }
     auto& OnCommand(void) { return obs_on_command; }
 private:
-    int ConsumeBuffer(const bool is_start, const uint8_t* buf, const int N);
+    size_t ConsumeBuffer(const bool is_start, tcb::span<const uint8_t> buf);
     void ReadGroupHeader(void);
     void InterpretLabelSegment(void);
     void InterpretCommand(void);

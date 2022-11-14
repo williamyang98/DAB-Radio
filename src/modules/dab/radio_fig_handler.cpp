@@ -416,20 +416,16 @@ void Radio_FIG_Handler::OnDateTime_1(
 {
     if (!misc_info) return;
 
-    struct {
-        int year;
-        int month;
-        int day;
-    } time;
-    mjd_to_ymd(static_cast<long>(modified_julian_date), &time.year, &time.month, &time.day);
+    int year, month, day;
+    mjd_to_ymd(static_cast<long>(modified_julian_date), year, month, day);
 
     LOG_MESSAGE("Datetime: {:02}/{:02}/{:04} {:02}:{:02}:{:02}.{:03}",
-        time.day, time.month, time.year,
+        day, month, year,
         hours, minutes, seconds, milliseconds);
 
-    misc_info->datetime.day = time.day;
-    misc_info->datetime.month = time.month;
-    misc_info->datetime.year = time.year;
+    misc_info->datetime.day = day;
+    misc_info->datetime.month = month;
+    misc_info->datetime.year = year;
     misc_info->datetime.hours = hours;
     misc_info->datetime.minutes = minutes;
     // Seconds and milliseconds only provided with long form
@@ -592,13 +588,13 @@ void Radio_FIG_Handler::OnOtherEnsemble_1_Service(
 void Radio_FIG_Handler::OnEnsemble_3_Label(
     const uint8_t country_id, const uint16_t ensemble_reference,
     const uint16_t abbreviation_field,
-    const uint8_t* buf, const int N)
+    tcb::span<const uint8_t> buf)
 {
     if (!updater) return;
 
     auto e_u = updater->GetEnsembleUpdater(); 
     e_u->SetCountryID(country_id);
-    e_u->SetLabel(buf, N);
+    e_u->SetLabel(buf);
 
     // TODO: for label handler store the abbreviation field somewhere
 }
@@ -608,14 +604,14 @@ void Radio_FIG_Handler::OnEnsemble_3_Label(
 void Radio_FIG_Handler::OnService_2_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
     const uint16_t abbreviation_field,
-    const uint8_t* buf, const int N)
+    tcb::span<const uint8_t> buf)
 {
     if (!updater) return;
 
     auto s_u = updater->GetServiceUpdater(service_reference);
     s_u->SetCountryID(country_id);
     s_u->SetExtendedCountryCode(extended_country_code);
-    s_u->SetLabel(buf, N);
+    s_u->SetLabel(buf);
 }
 
 // fig 1/4 - Non-primary service component label
@@ -623,7 +619,7 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
     const uint8_t service_component_id,
     const uint16_t abbreviation_field,
-    const uint8_t* buf, const int N)
+    tcb::span<const uint8_t> buf)
 {
     if (!updater) return;
 
@@ -632,5 +628,5 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
     s_u->SetExtendedCountryCode(extended_country_code);
 
     auto sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
-    sc_u->SetLabel(buf, N);
+    sc_u->SetLabel(buf);
 }

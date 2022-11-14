@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fic/fig_handler_interface.h"
+#include "utility/span.h"
 
 class DAB_Database_Updater;
 struct DAB_Misc_Info;
@@ -146,17 +147,17 @@ public:
     virtual void OnEnsemble_3_Label(
         const uint8_t country_id, const uint16_t ensemble_reference,
         const uint16_t abbreviation_field,
-        const uint8_t* buf, const int N);
+        tcb::span<const uint8_t> buf);
     // fig 1/1 - Short form service identifier label
     // fig 1/5 - Long form service identifier label
     virtual void OnService_2_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
         const uint16_t abbreviation_field,
-        const uint8_t* buf, const int N);
+        tcb::span<const uint8_t> buf);
     // fig 1/4 - Non-primary service component label
     virtual void OnServiceComponent_6_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
         const uint8_t service_component_id,
         const uint16_t abbreviation_field,
-        const uint8_t* buf, const int N);
+        tcb::span<const uint8_t> buf);
 };

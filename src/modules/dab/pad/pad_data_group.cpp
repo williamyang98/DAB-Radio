@@ -18,27 +18,28 @@ static const auto Generate_CRC_Calc() {
 
 static auto CRC16_CALC = Generate_CRC_Calc();
 
-int PAD_Data_Group::Consume(const uint8_t* data, const int N) {
-    const int nb_remain = nb_required_bytes - nb_curr_bytes;
-    const int nb_read = (nb_remain > N) ? N : nb_remain;
-    for (int i = 0; i < nb_read; i++) {
+size_t PAD_Data_Group::Consume(tcb::span<const uint8_t> data) {
+    const size_t N = data.size();
+    const size_t nb_remain = nb_required_bytes - nb_curr_bytes;
+    const size_t nb_read = (nb_remain > N) ? N : nb_remain;
+    for (size_t i = 0; i < nb_read; i++) {
         buffer[nb_curr_bytes++] = data[i];
     }
     return nb_read;
 }
 
 bool PAD_Data_Group::CheckCRC(void) {
-    const int MIN_CRC_BYTES = 2;
+    const size_t MIN_CRC_BYTES = 2;
     if (nb_required_bytes < MIN_CRC_BYTES) {
         return false;
     }
 
     const auto* buf = buffer.data();
-    const int N = nb_required_bytes;
-    const int nb_data_bytes = N-MIN_CRC_BYTES;
+    const size_t N = nb_required_bytes;
+    const size_t nb_data_bytes = N-MIN_CRC_BYTES;
 
     const uint16_t crc16_rx = (buf[N-2] << 8) | buf[N-1];
-    const uint16_t crc16_calc = CRC16_CALC->Process(buf, nb_data_bytes);
+    const uint16_t crc16_calc = CRC16_CALC->Process({buf, nb_data_bytes});
 
     const bool is_match = (crc16_rx == crc16_calc);
     return is_match;

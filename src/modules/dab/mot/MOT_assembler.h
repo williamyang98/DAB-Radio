@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include "utility/span.h"
 
 // Assembles MOT entity from segments
 class MOT_Assembler 
@@ -27,9 +28,8 @@ public:
     void Reset(void);
     void SetTotalSegments(const int N);
     bool AddSegment(const int index, const uint8_t* buf, const int N);
-    uint8_t* GetData(void) { return ordered_buffer.data(); }
-    int GetLength(void) const { return static_cast<int>(ordered_buffer.size()); }
-    bool CheckComplete(void);
+    tcb::span<uint8_t> GetData() { return ordered_buffer; }
+    bool CheckComplete();
 private:
-    void ReconstructOrderedBuffer(void);
+    void ReconstructOrderedBuffer();
 };

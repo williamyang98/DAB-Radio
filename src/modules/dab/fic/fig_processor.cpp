@@ -17,7 +17,7 @@ struct ServiceIdentifier {
     uint32_t service_reference = 0;
     uint8_t ecc = 0;
     // 2 byte form
-    void ProcessShortForm(const uint8_t* b) {
+    void ProcessShortForm(tcb::span<const uint8_t> b) {
         country_id        =       (b[0] & 0b11110000) >> 4;
         service_reference =
             (static_cast<uint16_t>(b[0] & 0b00001111) << 8) |
@@ -25,7 +25,7 @@ struct ServiceIdentifier {
         ecc = 0;
     }
     // 4 byte form
-    void ProcessLongForm(const uint8_t* b) {
+    void ProcessLongForm(tcb::span<const uint8_t> b) {
         ecc =                     (b[0] & 0b11111111) >> 0;
         country_id =              (b[1] & 0b11110000) >> 4;
         service_reference =
@@ -39,7 +39,7 @@ struct EnsembleIdentifier {
     uint8_t country_id = 0;
     uint16_t ensemble_reference = 0;
 
-    void ProcessBuffer(const uint8_t* buf) {
+    void ProcessBuffer(tcb::span<const uint8_t> buf) {
         country_id =              (buf[0] & 0b11110000) >> 4;
         ensemble_reference = 
             (static_cast<uint16_t>(buf[0] & 0b00001111) << 8) |
@@ -56,7 +56,7 @@ struct EnsembleIdentifier {
 // Clause 5.2: Fast Information Channel (FIC) 
 // Clause 5.2.1: Fast Information Block (FIB) 
 // A FIB (fast information block) contains many FIGs (fast information groups)
-void FIG_Processor::ProcessFIB(const uint8_t* buf) {
+void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
     // Dont do anything if we don't have an associated handler
     if (handler == NULL) {
         return;
@@ -86,26 +86,18 @@ void FIG_Processor::ProcessFIB(const uint8_t* buf) {
             return;
         }
 
-        const uint8_t* fig_buf = &buf[curr_byte+1];
+        const auto fig_buf = tcb::span(&buf[curr_byte+1], (size_t)fig_data_length_bytes);
         curr_byte += fig_length_bytes;
 
         switch (fig_type) {
         // MCI and part of SI
-        case 0:
-            ProcessFIG_Type_0(fig_buf, fig_data_length_bytes);
-            break;
+        case 0: ProcessFIG_Type_0(fig_buf); break;
         // Labels etc. part of SI
-        case 1:
-            ProcessFIG_Type_1(fig_buf, fig_data_length_bytes);
-            break;
+        case 1: ProcessFIG_Type_1(fig_buf); break;
         // Labels etc. part of SI
-        case 2:
-            ProcessFIG_Type_2(fig_buf, fig_data_length_bytes);
-            break;
+        case 2: ProcessFIG_Type_2(fig_buf); break;
         // Conditional access
-        case 6:
-            ProcessFIG_Type_6(fig_buf, fig_data_length_bytes);
-            break;
+        case 6: ProcessFIG_Type_6(fig_buf); break;
         // Ending byte of the FIG packet
         // If data occupying all 30 bytes, no delimiter present
         // If data occupying less than 30 bytes, delimiter present and any 0x00 padding afterwards
@@ -123,7 +115,8 @@ void FIG_Processor::ProcessFIB(const uint8_t* buf) {
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N) {
+void FIG_Processor::ProcessFIG_Type_0(tcb::span<const uint8_t> buf) {
+    const size_t N = buf.size();
     const uint8_t descriptor = buf[0];
 
     FIG_Header_Type_0 header;
@@ -134,25 +127,25 @@ void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N) {
     const uint8_t extension = (descriptor & 0b00011111) >> 0;
 
     const uint8_t* field_buf = &buf[1];
-    const uint8_t nb_field_bytes = N-1;
+    const size_t nb_field_bytes = N-1;
 
     switch (extension) {
-    case 0 : ProcessFIG_Type_0_Ext_0 (header, field_buf, nb_field_bytes); break;
-    case 1 : ProcessFIG_Type_0_Ext_1 (header, field_buf, nb_field_bytes); break;
-    case 2 : ProcessFIG_Type_0_Ext_2 (header, field_buf, nb_field_bytes); break;
-    case 3 : ProcessFIG_Type_0_Ext_3 (header, field_buf, nb_field_bytes); break;
-    case 4 : ProcessFIG_Type_0_Ext_4 (header, field_buf, nb_field_bytes); break;
-    case 5 : ProcessFIG_Type_0_Ext_5 (header, field_buf, nb_field_bytes); break;
-    case 6 : ProcessFIG_Type_0_Ext_6 (header, field_buf, nb_field_bytes); break;
-    case 7 : ProcessFIG_Type_0_Ext_7 (header, field_buf, nb_field_bytes); break;
-    case 8 : ProcessFIG_Type_0_Ext_8 (header, field_buf, nb_field_bytes); break;
-    case 9 : ProcessFIG_Type_0_Ext_9 (header, field_buf, nb_field_bytes); break;
-    case 10: ProcessFIG_Type_0_Ext_10(header, field_buf, nb_field_bytes); break;
-    case 13: ProcessFIG_Type_0_Ext_13(header, field_buf, nb_field_bytes); break;
-    case 14: ProcessFIG_Type_0_Ext_14(header, field_buf, nb_field_bytes); break;
-    case 17: ProcessFIG_Type_0_Ext_17(header, field_buf, nb_field_bytes); break;
-    case 21: ProcessFIG_Type_0_Ext_21(header, field_buf, nb_field_bytes); break;
-    case 24: ProcessFIG_Type_0_Ext_24(header, field_buf, nb_field_bytes); break;
+    case 0 : ProcessFIG_Type_0_Ext_0 (header, {field_buf, nb_field_bytes}); break;
+    case 1 : ProcessFIG_Type_0_Ext_1 (header, {field_buf, nb_field_bytes}); break;
+    case 2 : ProcessFIG_Type_0_Ext_2 (header, {field_buf, nb_field_bytes}); break;
+    case 3 : ProcessFIG_Type_0_Ext_3 (header, {field_buf, nb_field_bytes}); break;
+    case 4 : ProcessFIG_Type_0_Ext_4 (header, {field_buf, nb_field_bytes}); break;
+    case 5 : ProcessFIG_Type_0_Ext_5 (header, {field_buf, nb_field_bytes}); break;
+    case 6 : ProcessFIG_Type_0_Ext_6 (header, {field_buf, nb_field_bytes}); break;
+    case 7 : ProcessFIG_Type_0_Ext_7 (header, {field_buf, nb_field_bytes}); break;
+    case 8 : ProcessFIG_Type_0_Ext_8 (header, {field_buf, nb_field_bytes}); break;
+    case 9 : ProcessFIG_Type_0_Ext_9 (header, {field_buf, nb_field_bytes}); break;
+    case 10: ProcessFIG_Type_0_Ext_10(header, {field_buf, nb_field_bytes}); break;
+    case 13: ProcessFIG_Type_0_Ext_13(header, {field_buf, nb_field_bytes}); break;
+    case 14: ProcessFIG_Type_0_Ext_14(header, {field_buf, nb_field_bytes}); break;
+    case 17: ProcessFIG_Type_0_Ext_17(header, {field_buf, nb_field_bytes}); break;
+    case 21: ProcessFIG_Type_0_Ext_21(header, {field_buf, nb_field_bytes}); break;
+    case 24: ProcessFIG_Type_0_Ext_24(header, {field_buf, nb_field_bytes}); break;
     default:
         LOG_MESSAGE("fig 0/{} Unsupported", 
             extension);
@@ -160,7 +153,8 @@ void FIG_Processor::ProcessFIG_Type_0(const uint8_t* buf, const uint8_t N) {
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N) {
+void FIG_Processor::ProcessFIG_Type_1(tcb::span<const uint8_t> buf) {
+    const size_t N = buf.size();
     const uint8_t descriptor = buf[0];
 
     FIG_Header_Type_1 header;
@@ -169,21 +163,22 @@ void FIG_Processor::ProcessFIG_Type_1(const uint8_t* buf, const uint8_t N) {
     const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
     const uint8_t* field_buf = &buf[1];
-    const uint8_t nb_field_bytes = N-1;
+    const size_t nb_field_bytes = N-1;
 
     switch (extension) {
-    case 0: ProcessFIG_Type_1_Ext_0(header, field_buf, nb_field_bytes); break;
-    case 1: ProcessFIG_Type_1_Ext_1(header, field_buf, nb_field_bytes); break;
-    case 4: ProcessFIG_Type_1_Ext_4(header, field_buf, nb_field_bytes); break;
-    case 5: ProcessFIG_Type_1_Ext_5(header, field_buf, nb_field_bytes); break;
+    case 0: ProcessFIG_Type_1_Ext_0(header, {field_buf, nb_field_bytes}); break;
+    case 1: ProcessFIG_Type_1_Ext_1(header, {field_buf, nb_field_bytes}); break;
+    case 4: ProcessFIG_Type_1_Ext_4(header, {field_buf, nb_field_bytes}); break;
+    case 5: ProcessFIG_Type_1_Ext_5(header, {field_buf, nb_field_bytes}); break;
     default:
         LOG_MESSAGE("fig 1/{} L={} Unsupported", extension, nb_field_bytes);
         break;
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N)
+void FIG_Processor::ProcessFIG_Type_2(tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const uint8_t descriptor = buf[0];
 
     FIG_Header_Type_2 header;
@@ -198,8 +193,9 @@ void FIG_Processor::ProcessFIG_Type_2(const uint8_t* buf, const uint8_t N)
     LOG_MESSAGE("fig 2/{} L={} Unsupported", extension, nb_field_bytes);
 }
 
-void FIG_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N)
+void FIG_Processor::ProcessFIG_Type_6(tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const uint8_t descriptor = buf[0];
 
     const uint8_t rfu               = (descriptor & 0b10000000) >> 7;
@@ -215,8 +211,9 @@ void FIG_Processor::ProcessFIG_Type_6(const uint8_t* buf, const uint8_t N)
 // Ensemble information
 void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_field_bytes = 4;
     if (N != nb_field_bytes) {
         LOG_ERROR("fig 0/0 Length doesn't match expectations ({}/{})",
@@ -224,8 +221,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
         return;
     }
 
+    const int nb_eid_bytes = 2;
     EnsembleIdentifier eid;
-    eid.ProcessBuffer(buf);
+    eid.ProcessBuffer({buf.data(), (size_t)nb_eid_bytes});
     
     const uint8_t change_flags = (buf[2] & 0b11000000) >> 6;
     const uint8_t alarm_flag =   (buf[2] & 0b00100000) >> 5;
@@ -256,8 +254,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
 // Subchannel for stream mode MSC
 void FIG_Processor::ProcessFIG_Type_0_Ext_1(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N) 
+    tcb::span<const uint8_t> buf) 
 {
+    const int N = (int)buf.size();
     int curr_byte = 0;
     int curr_subchannel = 0;
     while (curr_byte < N) {
@@ -322,8 +321,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
 // Service and service components information in stream mode
 void FIG_Processor::ProcessFIG_Type_0_Ext_2(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
     const int nb_header_bytes = nb_service_id_bytes+1;
@@ -342,9 +342,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
 
         ServiceIdentifier sid;
         if (!header.pd) {
-            sid.ProcessShortForm(service_buf);
+            sid.ProcessShortForm({service_buf, (size_t)nb_service_id_bytes});
         } else {
-            sid.ProcessLongForm(service_buf);
+            sid.ProcessLongForm({service_buf, (size_t)nb_service_id_bytes});
         }
 
         const uint8_t descriptor = service_buf[nb_service_id_bytes];
@@ -450,8 +450,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
 // Service components information in packet mode
 void FIG_Processor::ProcessFIG_Type_0_Ext_3(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_header_bytes = 5;
     const int nb_CAOrg_field_bytes = 2;
 
@@ -512,8 +513,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
 // Service components information in stream mode with conditional access
 void FIG_Processor::ProcessFIG_Type_0_Ext_4(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_component_bytes = 3;
     if ((N % nb_component_bytes) != 0) {
         LOG_ERROR("fig 0/4 Field must be a multiple of {} bytes", 
@@ -542,8 +544,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_4(
 // Service component language 
 void FIG_Processor::ProcessFIG_Type_0_Ext_5(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     int curr_byte = 0;
     while (curr_byte < N) {
         const int nb_remain_bytes = N-curr_byte;
@@ -593,8 +596,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
 // Service linking information
 void FIG_Processor::ProcessFIG_Type_0_Ext_6(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_header_bytes = 2;
 
     int curr_byte = 0;
@@ -675,7 +679,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                 case 0b00: // DAB service id - 16bit
                     {
                         ServiceIdentifier sid;
-                        sid.ProcessShortForm(entry_buf);
+                        sid.ProcessShortForm({entry_buf, (size_t)2});
                         LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
@@ -753,7 +757,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                 case 0b00: // DAB service id - 16bit with ecc provided separately
                     {
                         ServiceIdentifier sid;
-                        sid.ProcessShortForm(&entry_buf[1]);
+                        sid.ProcessShortForm({&entry_buf[1], (size_t)2});
                         sid.ecc = ecc;
                         LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
@@ -831,7 +835,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                 case 0b00: // DAB service id - 32bit 
                     {
                         ServiceIdentifier sid;
-                        sid.ProcessLongForm(entry_buf);
+                        sid.ProcessLongForm({entry_buf, (size_t)4});
                         LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} country_id={} service_ref={} ecc={}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
@@ -903,8 +907,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 // Configuration information
 void FIG_Processor::ProcessFIG_Type_0_Ext_7(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_data_bytes = 2;
     if (N != nb_data_bytes) {
         LOG_ERROR("fig 0/7 Length doesn't match expectations ({}/{})",
@@ -927,8 +932,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_7(
 // Service component global definition 
 void FIG_Processor::ProcessFIG_Type_0_Ext_8(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
     const int nb_header_bytes = nb_service_id_bytes+1;
@@ -948,9 +954,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
 
         ServiceIdentifier sid;
         if (!header.pd) {
-            sid.ProcessShortForm(service_buf);
+            sid.ProcessShortForm({service_buf, (size_t)nb_service_id_bytes});
         } else {
-            sid.ProcessLongForm(service_buf);
+            sid.ProcessLongForm({service_buf, (size_t)nb_service_id_bytes});
         }
 
         const uint8_t descriptor = service_buf[nb_service_id_bytes];
@@ -1014,8 +1020,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
 // Country, LTO and International Table
 void FIG_Processor::ProcessFIG_Type_0_Ext_9(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_header_bytes = 3;
     if (nb_header_bytes > N) {
         LOG_ERROR("fig 0/9 Insufficient length for header ({}/{})",
@@ -1096,7 +1103,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
         for (int i = 0; i < nb_services; i++) {
             auto* b = &service_ids_buf[i*nb_service_id_bytes];
             ServiceIdentifier sid;
-            sid.ProcessShortForm(b);
+            sid.ProcessShortForm({b, (size_t)2});
             sid.ecc = service_ecc;
             LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={} inter_table_id={} Rfa2={} ECC={} i={}-{}/{} service_country_id={} service_ref={} service_ecc={}",
                 ext_flag, Rfa1, ensemble_lto, ensemble_ecc, inter_table_id,
@@ -1117,8 +1124,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
 // Date and time
 void FIG_Processor::ProcessFIG_Type_0_Ext_10(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_min_bytes = 4;
     if (nb_min_bytes > N) {
         LOG_ERROR("fig 0/10 Insufficient length for minimum configuration ({}/{})",
@@ -1172,8 +1180,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
 // User application information
 void FIG_Processor::ProcessFIG_Type_0_Ext_13(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
     const int nb_header_bytes = nb_service_id_bytes+1;
@@ -1192,9 +1201,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 
         ServiceIdentifier sid;
         if (!header.pd) {
-            sid.ProcessShortForm(entity_buf);
+            sid.ProcessShortForm({entity_buf, (size_t)nb_service_id_bytes});
         } else {
-            sid.ProcessLongForm(entity_buf);
+            sid.ProcessLongForm({entity_buf, (size_t)nb_service_id_bytes});
         }
 
         const uint8_t descriptor = entity_buf[nb_service_id_bytes];
@@ -1255,8 +1264,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 // Subchannel for packet mode MSC FEC type
 void FIG_Processor::ProcessFIG_Type_0_Ext_14(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
 
     for (int i = 0; i < N; i++) {
         const uint8_t v = buf[i];
@@ -1274,8 +1284,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_14(
 // Programme type
 void FIG_Processor::ProcessFIG_Type_0_Ext_17(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_min_bytes = 4;
 
     // NOTE: Referring to the welle.io code
@@ -1297,7 +1308,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         }
 
         ServiceIdentifier sid;
-        sid.ProcessShortForm(b);
+        sid.ProcessShortForm({b, (size_t)2});
 
         // NOTE: Fields according to ETSI EN 300 401
         // const uint8_t SD =    (b[2] & 0b10000000) >> 7;
@@ -1367,8 +1378,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
 // Frequency information
 void FIG_Processor::ProcessFIG_Type_0_Ext_21(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_block_header_bytes = 2;
 
     // We have a list of blocks
@@ -1581,8 +1593,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 // OE Services for service following?
 void FIG_Processor::ProcessFIG_Type_0_Ext_24(
     const FIG_Header_Type_0 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_sid_bytes = header.pd ? 4 : 2;
     const int nb_header_bytes = nb_sid_bytes + 1;
 
@@ -1599,9 +1612,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
 
         ServiceIdentifier sid;
         if (!header.pd) {
-            sid.ProcessShortForm(b);
+            sid.ProcessShortForm({b, (size_t)nb_sid_bytes});
         } else {
-            sid.ProcessLongForm(b);
+            sid.ProcessLongForm({b, (size_t)nb_sid_bytes});
         }
 
         const uint8_t descriptor = b[nb_sid_bytes];
@@ -1623,7 +1636,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
         for (int i = 0; i < nb_EIds; i++) {
             auto* eid_buf = &eids_buf[i*nb_EId_bytes];
             EnsembleIdentifier eid;
-            eid.ProcessBuffer(eid_buf);
+            eid.ProcessBuffer({eid_buf, (size_t)nb_EId_bytes});
 
             LOG_MESSAGE("fig 0/24 country_id={} service_ref={} ecc={} Rfa={} CAId={} i={}/{} ensemble_country_id={} ensemble_reference={}",
                 sid.country_id, sid.service_reference, sid.ecc,
@@ -1641,9 +1654,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
 // Ensemble label
 void FIG_Processor::ProcessFIG_Type_1_Ext_0(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
-
+    const int N = (int)buf.size();
     const int nb_eid_bytes = 2;
     const int nb_char_bytes = 16;
     const int nb_flag_bytes = 2;
@@ -1656,7 +1669,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
     }
 
     EnsembleIdentifier eid;
-    eid.ProcessBuffer(buf);
+    eid.ProcessBuffer({buf.data(), (size_t)nb_eid_bytes});
 
     auto* char_buf = &buf[nb_eid_bytes];
     // flag field is used for determining which characters can be removed
@@ -1674,14 +1687,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
     
     handler->OnEnsemble_3_Label(
         eid.country_id, eid.ensemble_reference,
-        flag_field, char_buf, nb_char_bytes);
+        flag_field, {char_buf, (size_t)nb_char_bytes});
 }
 
 // Short form service identifier label
 void FIG_Processor::ProcessFIG_Type_1_Ext_1(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_sid_bytes = 2;
     const int nb_char_bytes = 16;
     const int nb_flag_bytes = 2;
@@ -1710,14 +1724,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
 
     handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, char_buf, nb_char_bytes);
+        flag_field, {char_buf, (size_t)nb_char_bytes});
 }
 
 // Service component label (non primary)
 void FIG_Processor::ProcessFIG_Type_1_Ext_4(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_header_bytes = 1;
     const int nb_char_bytes = 16;
     const int nb_flag_bytes = 2;
@@ -1744,9 +1759,9 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
 
     ServiceIdentifier sid;
     if (!pd) {
-        sid.ProcessShortForm(&buf[nb_header_bytes]);
+        sid.ProcessShortForm({&buf[nb_header_bytes], (size_t)nb_sid_bytes});
     } else {
-        sid.ProcessLongForm(&buf[nb_header_bytes]);
+        sid.ProcessLongForm({&buf[nb_header_bytes], (size_t)nb_sid_bytes});
     }
 
     // iterated backwards
@@ -1767,14 +1782,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
     handler->OnServiceComponent_6_Label(
         sid.country_id, sid.service_reference, sid.ecc,
         SCIdS, 
-        flag_field, char_buf, nb_char_bytes);
+        flag_field, {char_buf, (size_t)nb_char_bytes});
 }
 
 // Long form service identifier label
 void FIG_Processor::ProcessFIG_Type_1_Ext_5(
     const FIG_Header_Type_1 header, 
-    const uint8_t* buf, const uint8_t N)
+    tcb::span<const uint8_t> buf)
 {
+    const int N = (int)buf.size();
     const int nb_sid_bytes = 4;
     const int nb_char_bytes = 16;
     const int nb_flag_bytes = 2;
@@ -1803,5 +1819,5 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(
     
     handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, char_buf, nb_char_bytes);
+        flag_field, {char_buf, (size_t)nb_char_bytes});
 }

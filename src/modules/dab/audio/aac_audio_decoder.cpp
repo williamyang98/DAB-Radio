@@ -16,7 +16,7 @@ public:
     int curr_byte = 0;
     int curr_bit = 0;
 public:
-    void Push(uint8_t* buf, const uint32_t data, const int nb_bits) {
+    void Push(tcb::span<uint8_t> buf, const uint32_t data, const int nb_bits) {
         int nb_bits_remain = nb_bits;
 
         while (nb_bits_remain > 0) {
@@ -246,7 +246,7 @@ AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
 : params(_params)
 {
     // TODO: Add bounds check when we construct the mp4 bitfield
-    mp4_bitfile_config = new uint8_t[32];
+    mp4_bitfile_config.resize(32);
     nb_mp4_bitfile_config_bytes = 0;
     GenerateBitfileConfig();
 
@@ -261,7 +261,7 @@ AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
     unsigned long out_sample_rate = 0;
     unsigned char out_total_channels = 0;
     NeAACDecInit2(
-        decoder_handle, mp4_bitfile_config, nb_mp4_bitfile_config_bytes,
+        decoder_handle, mp4_bitfile_config.data(), nb_mp4_bitfile_config_bytes,
         &out_sample_rate, &out_total_channels);
 
     // TODO: manage the errors that libfaad spits out
@@ -269,18 +269,18 @@ AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
 
 AAC_Audio_Decoder::~AAC_Audio_Decoder() {
     NeAACDecClose(decoder_handle);
-    delete [] mp4_bitfile_config;
     delete decoder_frame_info;
 }
 
-AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(uint8_t* data, const int N) {
+AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(tcb::span<uint8_t> data) {
+    const int N = (int)data.size();
     AAC_Audio_Decoder::Result res;
     res.audio_buf = NULL;
     res.nb_audio_buf_bytes = 0;
     res.is_error = false;
     res.error_code = -1;
 
-    auto audio_data = (uint8_t*)NeAACDecDecode(decoder_handle, decoder_frame_info, data, N);
+    auto audio_data = (uint8_t*)NeAACDecDecode(decoder_handle, decoder_frame_info, data.data(), N);
     LOG_MESSAGE("aac_decoder_error={}", decoder_frame_info->error);
 
 	// abort, if no output at all

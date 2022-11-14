@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
+#include "utility/span.h"
 #include "viterbi_config.h"
 
 // Phil Karn's implementation
@@ -22,10 +22,14 @@ public:
     // _input_bits = minimum number of bits in the resulting decoded message
     ViterbiDecoder(const uint8_t _poly[4], const int _input_bits);
     ~ViterbiDecoder();
+    ViterbiDecoder(ViterbiDecoder&) = delete;
+    ViterbiDecoder(ViterbiDecoder&&) = delete;
+    ViterbiDecoder& operator=(ViterbiDecoder&) = delete;
+    ViterbiDecoder& operator=(ViterbiDecoder&&) = delete;
     void Reset();
     DecodeResult Update(
-        const viterbi_bit_t* encoded_bits, const int nb_encoded_bits, 
-        const uint8_t* puncture_code, const int nb_puncture_bits);
-    void GetTraceback(uint8_t* out_bytes, const int nb_decoded_bits);
+        tcb::span<const viterbi_bit_t> encoded_bits,
+        tcb::span<const uint8_t> puncture_code);
+    void GetTraceback(tcb::span<uint8_t> out_bytes);
     int16_t GetPathError(const int state=0);
 };
