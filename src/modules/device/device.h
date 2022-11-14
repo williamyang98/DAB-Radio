@@ -11,6 +11,7 @@
 #include <mutex>
 
 #include "utility/observable.h"
+#include "utility/span.h"
 
 extern "C" {
 #include <rtl-sdr.h>
@@ -39,7 +40,7 @@ private:
 	std::unique_ptr<std::thread> runner_thread;
 	std::list<std::string> error_list;
 
-	Observable<const std::complex<uint8_t>*, const int> obs_on_data;
+	Observable<tcb::span<const std::complex<uint8_t>>> obs_on_data;
 	Observable<const std::string&, const uint32_t> obs_on_center_frequency;
 public:
 	Device(rtlsdr_dev_t* _device, const DeviceDescriptor& _descriptor, const int block_multiple=1);
@@ -66,7 +67,7 @@ public:
 	void SetCenterFrequency(const std::string& label, const uint32_t freq); 
 private:
 	void SearchGains(void);	
-	void UpdateDataAsync(uint8_t* buf, uint32_t len); 
+	void UpdateDataAsync(tcb::span<uint8_t> buf); 
 private:
 	static void rtlsdr_callback(uint8_t* buf, uint32_t len, void* ctx); 
 };

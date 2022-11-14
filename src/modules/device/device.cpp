@@ -110,15 +110,16 @@ void Device::SearchGains(void) {
     }
 }	
 
-void Device::UpdateDataAsync(uint8_t* buf, uint32_t len) {
+void Device::UpdateDataAsync(tcb::span<uint8_t> buf) {
+    const int len = (int)buf.size();
     if (len != total_bytes) {
         error_list.push_back(fmt::format("Got mismatching buffer size {}!={}", len, total_bytes));
     }
-    auto* data = reinterpret_cast<std::complex<uint8_t>*>(buf);
-    obs_on_data.Notify(data, total_samples);
+    auto* data = reinterpret_cast<std::complex<uint8_t>*>(buf.data());
+    obs_on_data.Notify({data, (size_t)total_samples});
 }
 
 void Device::rtlsdr_callback(uint8_t* buf, uint32_t len, void* ctx) {
     auto* instance = reinterpret_cast<Device*>(ctx);
-    instance->UpdateDataAsync(buf, len);
+    instance->UpdateDataAsync({buf, (size_t)len});
 }
