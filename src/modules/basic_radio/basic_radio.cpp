@@ -1,6 +1,7 @@
 #include "basic_radio.h"
 
 #include "modules/dab/database/dab_database.h"
+#include "modules/dab/database/dab_database_updater.h"
 
 #include "easylogging++.h"
 #include "fmt/core.h"
@@ -9,40 +10,38 @@
 #define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
 
 BasicRadio::BasicRadio(const DAB_Parameters _params)
-: params(_params)
+: params(_params), fic_runner(_params) 
 {
-    fic_runner = new BasicFICRunner(params);
-    db_manager = new Basic_Database_Manager();
+
 }
 
 BasicRadio::~BasicRadio() {
     dab_plus_channels.clear();
-    delete fic_runner;
-    delete db_manager;
 }
 
-void BasicRadio::Process(viterbi_bit_t* const buf, const int N) {
+void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
+    const int N = (int)buf.size();
     if (N != params.nb_frame_bits) {
         LOG_ERROR("Got incorrect number of frame bits {}/{}", N, params.nb_frame_bits);
         return;
     }
 
-    auto* fic_buf = &buf[0];
-    auto* msc_buf = &buf[params.nb_fic_bits];
+    auto fic_buf = tcb::span(&buf[0],                  params.nb_fic_bits);
+    auto msc_buf = tcb::span(&buf[params.nb_fic_bits], params.nb_msc_bits);
 
-    fic_runner->SetBuffer(fic_buf, params.nb_fic_bits);
+    fic_runner.SetBuffer(fic_buf);
     for (auto& [_, channel]: dab_plus_channels) {
-        channel->SetBuffer(msc_buf, params.nb_msc_bits);
+        channel->SetBuffer(msc_buf);
     }
 
     // Launch all channel threads
-    fic_runner->Start();
+    fic_runner.Start();
     for (auto& [_, channel]: dab_plus_channels) {
         channel->Start();
     }
 
     // Join them all now
-    fic_runner->Join();
+    fic_runner.Join();
     for (auto& [_, channel]: dab_plus_channels) {
         channel->Join();
     }
@@ -60,18 +59,18 @@ Basic_DAB_Plus_Channel* BasicRadio::Get_DAB_Plus_Channel(const subchannel_id_t i
 }
 
 void BasicRadio::UpdateDatabase() {
-    auto& misc_info = *(fic_runner->GetMiscInfo());
-    auto* live_db = fic_runner->GetLiveDatabase();
-    auto* db_updater = fic_runner->GetDatabaseUpdater();
+    auto& misc_info = fic_runner.GetMiscInfo();
+    auto& live_db = fic_runner.GetLiveDatabase();
+    auto& db_updater = fic_runner.GetDatabaseUpdater();
 
-    db_manager->OnMiscInfo(misc_info);
-    const bool is_updated = db_manager->OnDatabaseUpdater(live_db, db_updater);
+    db_manager.OnMiscInfo(misc_info);
+    const bool is_updated = db_manager.OnDatabaseUpdater(live_db, db_updater);
     if (!is_updated) {
         return;
     }
 
-    auto* db = db_manager->GetDatabase();
-    for (auto& subchannel: db->subchannels) {
+    auto& db = db_manager.GetDatabase();
+    for (auto& subchannel: db.subchannels) {
         AddSubchannel(subchannel.id);
     }
 }
@@ -82,14 +81,14 @@ bool BasicRadio::AddSubchannel(const subchannel_id_t id) {
         return false;
     }
 
-    auto* db = db_manager->GetDatabase();
-    auto* subchannel = db->GetSubchannel(id);
+    auto& db = db_manager.GetDatabase();
+    auto* subchannel = db.GetSubchannel(id);
     if (subchannel == NULL) {
         LOG_ERROR("Selected subchannel {} which doesn't exist in db", id);
         return false;
     }
 
-    auto* service_component = db->GetServiceComponent_Subchannel(id);
+    auto* service_component = db.GetServiceComponent_Subchannel(id);
     if (service_component == NULL) {
         LOG_ERROR("Selected subchannel {} has no service component", id);
         return false;

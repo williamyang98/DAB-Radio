@@ -22,22 +22,20 @@ static std::time_t Convert_MOT_Time(MOT_UTC_Time& time) {
 }
 
 Basic_Slideshow_Manager::Basic_Slideshow_Manager(const int _max_size) {
-    slideshow_processor = new MOT_Slideshow_Processor();
+    slideshow_processor = std::make_unique<MOT_Slideshow_Processor>();
     SetMaxSize(_max_size);
 }
 
-Basic_Slideshow_Manager::~Basic_Slideshow_Manager() {
-    delete slideshow_processor;
-}
+Basic_Slideshow_Manager::~Basic_Slideshow_Manager() = default;
 
 // Returns NULL if this entity isn't a slideshow
 // Returns pointer to Basic_Slideshow if it was created or already exists
-Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity) {
+Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity& entity) {
     // DOC: ETSI TS 101 499
     // Clause 6.2.3 MOT ContentTypes and ContentSubTypes 
     // For specific types used for slideshows
-    const auto type = entity->header.content_type;
-    const auto sub_type = entity->header.content_sub_type;
+    const auto type = entity.header.content_type;
+    const auto sub_type = entity.header.content_sub_type;
     const auto mot_type = GetMOTContentType(type, sub_type);
 
     Basic_Image_Type image_type;
@@ -54,36 +52,31 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
 
     // User application header extension parameters
     MOT_Slideshow slideshow_header;
-    for (auto& p: entity->header.user_app_params) {
-        slideshow_processor->ProcessHeaderExtension(
-            &slideshow_header, 
-            p.type, p.data, p.nb_data_bytes);
+    for (auto& p: entity.header.user_app_params) {
+        slideshow_processor->ProcessHeaderExtension(slideshow_header, p.type, p.data);
     }
 
-    slideshows.emplace_front(entity->transport_id);
+    slideshows.emplace_front(entity.transport_id);
     RestrictSize();
 
     auto& slideshow = slideshows.front();
     slideshow.image_type = image_type;
 
-    const int N = entity->nb_body_bytes;
-    slideshow.data = new uint8_t[N];
-    slideshow.nb_data_bytes = N;
-    for (int i = 0; i < N; i++) {
-        slideshow.data[i] = entity->body_buf[i];
-    }
+    const int N = (int)entity.body_buf.size();
+    slideshow.image_data.resize(N);
+    std::copy_n(entity.body_buf.begin(), N, slideshow.image_data.begin());
 
     // Core MOT header parameters
-    auto& content_name = entity->header.content_name;
+    auto& content_name = entity.header.content_name;
     if (content_name.exists) {
         slideshow.name_charset = content_name.charset;
-        slideshow.name = std::string(content_name.name, content_name.nb_bytes);
+        slideshow.name = std::string(content_name.name);
     }
-    auto& expire_time = entity->header.expire_time;
+    auto& expire_time = entity.header.expire_time;
     if (expire_time.exists) {
         slideshow.expire_time = Convert_MOT_Time(expire_time);
     }
-    auto& trigger_time = entity->header.trigger_time;
+    auto& trigger_time = entity.header.trigger_time;
     if (trigger_time.exists) {
         slideshow.trigger_time = Convert_MOT_Time(trigger_time);
     }
@@ -91,21 +84,16 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
     // Slideshow MOT header parameters
     slideshow.category_id = slideshow_header.category_id;
     slideshow.slide_id = slideshow_header.slide_id;
+
     auto& category_title = slideshow_header.category_title;
-    if (category_title.buf != NULL) {
-        slideshow.category_title = std::string(
-            category_title.buf, category_title.nb_bytes);
-    }
+    slideshow.category_title = std::string(category_title);
+
     auto& alt_location_url = slideshow_header.alt_location_url;
-    if (alt_location_url.buf != NULL) {
-        slideshow.alt_location_url = std::string(
-            alt_location_url.buf, alt_location_url.nb_bytes);
-    }
+    slideshow.alt_location_url = std::string(alt_location_url);
+
     auto& click_through_url = slideshow_header.click_through_url;
-    if (click_through_url.buf != NULL) {
-        slideshow.click_through_url = std::string(
-            click_through_url.buf, click_through_url.nb_bytes);
-    }
+    slideshow.click_through_url = std::string(click_through_url);
+
     auto& alert = slideshow_header.alert;
     switch (alert) {
     case MOT_Slideshow_Alert::EMERGENCY:
@@ -119,7 +107,7 @@ Basic_Slideshow* Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity* entity)
     }
 
     LOG_MESSAGE("Added slideshow tid={} name={}", slideshow.transport_id, slideshow.name);
-    obs_on_new_slideshow.Notify(&slideshow);
+    obs_on_new_slideshow.Notify(slideshow);
     return &slideshow;
 }
 
@@ -138,7 +126,7 @@ void Basic_Slideshow_Manager::RestrictSize(void) {
     std::advance(start, max_size);
 
     for (auto it = start; it != end; it++) {
-        auto* v = &(*it);
+        auto& v = *it;
         obs_on_remove_slideshow.Notify(v);
     }
 

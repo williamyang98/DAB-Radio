@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thread>
+#include <memory>
 #include <mutex>
 #include <condition_variable>
 
@@ -11,7 +12,7 @@ private:
     bool is_terminated;
     bool is_start;
     bool is_join;
-    std::thread* runner_thread;
+    std::unique_ptr<std::thread> runner_thread;
     std::mutex mutex_start;
     std::condition_variable cv_start;
     std::mutex mutex_join;
@@ -21,6 +22,13 @@ private:
 public:
     BasicThreadedChannel();
     virtual ~BasicThreadedChannel();
+    // The runner thread takes a lambda 
+    // this pointer is passed to it at initialisation, so we cannot move this class 
+    BasicThreadedChannel(BasicThreadedChannel&) = delete;
+    BasicThreadedChannel(BasicThreadedChannel&&) = delete;
+    BasicThreadedChannel& operator=(BasicThreadedChannel&) = delete;
+    BasicThreadedChannel& operator=(BasicThreadedChannel&&) = delete;
+
     void Start();
     void Join();
     void Stop();

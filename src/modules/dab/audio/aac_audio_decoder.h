@@ -11,8 +11,7 @@ class AAC_Audio_Decoder
 {
 public:
     struct Result {
-        uint8_t* audio_buf;
-        int nb_audio_buf_bytes;
+        tcb::span<const uint8_t> audio_buf;
         bool is_error;
         int error_code;
     };
@@ -45,6 +44,10 @@ private:
 public:
     AAC_Audio_Decoder(const struct Params _params);
     ~AAC_Audio_Decoder();
+    AAC_Audio_Decoder(AAC_Audio_Decoder&) = delete;
+    AAC_Audio_Decoder(AAC_Audio_Decoder&&) = delete;
+    AAC_Audio_Decoder& operator=(AAC_Audio_Decoder&) = delete;
+    AAC_Audio_Decoder& operator=(AAC_Audio_Decoder&&) = delete;
     Result DecodeFrame(tcb::span<uint8_t> data);
     Params GetParams() { return params; }
 private:

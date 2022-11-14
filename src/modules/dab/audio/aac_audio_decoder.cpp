@@ -275,8 +275,7 @@ AAC_Audio_Decoder::~AAC_Audio_Decoder() {
 AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(tcb::span<uint8_t> data) {
     const int N = (int)data.size();
     AAC_Audio_Decoder::Result res;
-    res.audio_buf = NULL;
-    res.nb_audio_buf_bytes = 0;
+    res.audio_buf = {};
     res.is_error = false;
     res.error_code = -1;
 
@@ -301,8 +300,7 @@ AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(tcb::span<uint8_t> data
     
     const int nb_output_bytes = decoder_frame_info->samples * sizeof(uint16_t);
     res.is_error = false;
-    res.audio_buf = audio_data;
-    res.nb_audio_buf_bytes = nb_output_bytes;
+    res.audio_buf = {audio_data, (size_t)nb_output_bytes};
 
 	return res;
 }

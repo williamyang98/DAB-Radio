@@ -5,6 +5,7 @@
 #include "modules/dab/audio/aac_audio_decoder.h"
 #include "modules/dab/audio/aac_data_decoder.h"
 #include "modules/dab/mot/mot_slideshow_processor.h"
+#include "basic_slideshow.h"
 
 #include "easylogging++.h"
 #include "fmt/core.h"
@@ -14,30 +15,21 @@
 
 Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters _params, const Subchannel _subchannel) 
 : params(_params), subchannel(_subchannel) {
-    msc_decoder = new MSC_Decoder(subchannel);
-    aac_frame_processor = new AAC_Frame_Processor();
+    msc_decoder = std::make_unique<MSC_Decoder>(subchannel);
+    aac_frame_processor = std::make_unique<AAC_Frame_Processor>();
     aac_audio_decoder = NULL;
-    aac_data_decoder = new AAC_Data_Decoder();
-    slideshow_manager = new Basic_Slideshow_Manager();
-
+    aac_data_decoder = std::make_unique<AAC_Data_Decoder>();
+    slideshow_manager = std::make_unique<Basic_Slideshow_Manager>();
     SetupCallbacks();
 }
 
 Basic_DAB_Plus_Channel::~Basic_DAB_Plus_Channel() {
     Stop();
     Join();
-    delete msc_decoder;
-    delete aac_frame_processor;
-    if (aac_audio_decoder != NULL) {
-        delete aac_audio_decoder;
-    }
-    delete aac_data_decoder;
-    delete slideshow_manager;
 }
 
-void Basic_DAB_Plus_Channel::SetBuffer(const viterbi_bit_t* _buf, const int _N) {
+void Basic_DAB_Plus_Channel::SetBuffer(tcb::span<const viterbi_bit_t> _buf) {
     msc_bits_buf = _buf;
-    nb_msc_bits = _N;
 }
 
 void Basic_DAB_Plus_Channel::BeforeRun() {
@@ -45,13 +37,14 @@ void Basic_DAB_Plus_Channel::BeforeRun() {
 }
 
 void Basic_DAB_Plus_Channel::Run() {
-    if (nb_msc_bits != params.nb_msc_bits) {
-        LOG_ERROR("Got incorrect number of MSC bits {}/{}", nb_msc_bits, params.nb_msc_bits);
+    if (msc_bits_buf.empty()) {
+        LOG_ERROR("Got NULL for msc bits buffer");
         return;
     }
 
-    if (msc_bits_buf == NULL) {
-        LOG_ERROR("Got NULL for msc bits buffer");
+    const int nb_msc_bits = (int)msc_bits_buf.size();
+    if (nb_msc_bits != params.nb_msc_bits) {
+        LOG_ERROR("Got incorrect number of MSC bits {}/{}", nb_msc_bits, params.nb_msc_bits);
         return;
     }
 
@@ -60,14 +53,15 @@ void Basic_DAB_Plus_Channel::Run() {
     }
 
     for (int i = 0; i < params.nb_cifs; i++) {
-        const auto* cif_buf = &msc_bits_buf[params.nb_cif_bits*i];
-        const int nb_decoded_bytes = msc_decoder->DecodeCIF(cif_buf, params.nb_cif_bits);
+        const auto cif_buf = tcb::span(
+            &msc_bits_buf[params.nb_cif_bits*i], 
+            (size_t)params.nb_cif_bits);
+        const auto decoded_bytes = msc_decoder->DecodeCIF(cif_buf);
         // The MSC decoder can have 0 bytes if the deinterleaver is still collecting frames
-        if (nb_decoded_bytes == 0) {
+        if (decoded_bytes.empty()) {
             continue;
         }
-        const auto* decoded_buf = msc_decoder->GetDecodedBytes();
-        aac_frame_processor->Process(decoded_buf, nb_decoded_bytes);
+        aac_frame_processor->Process(decoded_bytes);
     }
 }
 
@@ -80,20 +74,17 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
         audio_params.is_SBR = header.SBR_flag;
         audio_params.is_stereo = header.is_stereo;
 
-        if (aac_audio_decoder == NULL) {
-            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
-            return;
-        }
-
-        const auto old_audio_params = aac_audio_decoder->GetParams();
-        if (old_audio_params != audio_params) {
-            delete aac_audio_decoder;
-            aac_audio_decoder = new AAC_Audio_Decoder(audio_params);
+        const bool replace_decoder = 
+            (aac_audio_decoder == NULL) ||
+            (aac_audio_decoder->GetParams() != audio_params);
+        
+        if (replace_decoder) {
+            aac_audio_decoder = std::make_unique<AAC_Audio_Decoder>(audio_params);
         }
     });
 
     // Decode audio
-    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, tcb::span<uint8_t> buf) {
         if (!controls.GetIsDecodeAudio()) {
             return;
         }
@@ -101,7 +92,7 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
         if (aac_audio_decoder == NULL) {
             return;
         }
-        const auto res = aac_audio_decoder->DecodeFrame(buf, N);
+        const auto res = aac_audio_decoder->DecodeFrame(buf);
         if (res.is_error) {
             LOG_ERROR("[aac-audio-decoder] error={} au_index={}/{}", 
                 res.error_code, au_index, nb_aus);
@@ -113,31 +104,30 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
         params.frequency = audio_params.sampling_frequency;
         params.is_stereo = true;
         params.bytes_per_sample = 2;
-        obs_audio_data.Notify(params, res.audio_buf, res.nb_audio_buf_bytes);
+        obs_audio_data.Notify(params, res.audio_buf);
     });
 
     // Decode data
-    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, uint8_t* buf, const int N) {
+    aac_frame_processor->OnAccessUnit().Attach([this](const int au_index, const int nb_aus, tcb::span<uint8_t> buf) {
         if (!controls.GetIsDecodeData()) {
             return;
         }
-        aac_data_decoder->ProcessAccessUnit(buf, N);
+        aac_data_decoder->ProcessAccessUnit(buf);
     });
 
     auto& pad_processor = aac_data_decoder->Get_PAD_Processor();
-    pad_processor.OnLabelUpdate().Attach([this](const uint8_t* label, const int N, const uint8_t charset) {
-        const auto* label_str = reinterpret_cast<const char*>(label);
-        dynamic_label = std::string(label_str, N);
+    pad_processor.OnLabelUpdate().Attach([this](std::string_view label_str, const uint8_t charset) {
+        dynamic_label = std::string(label_str);
         obs_dynamic_label.Notify(dynamic_label);
-        LOG_MESSAGE("dynamic_label[{}]={} | charset={}", N, dynamic_label, charset);
+        LOG_MESSAGE("dynamic_label[{}]={} | charset={}", label_str.size(), label_str, charset);
     });
 
     pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
-        auto* res = slideshow_manager->Process_MOT_Entity(&entity);
+        auto* res = slideshow_manager->Process_MOT_Entity(entity);
         if (res != NULL) {
-            obs_slideshow.Notify(entity.transport_id, res);
+            obs_slideshow.Notify(*res);
         } else {
-            obs_MOT_entity.Notify(&entity);
+            obs_MOT_entity.Notify(entity);
         }
     });
 }

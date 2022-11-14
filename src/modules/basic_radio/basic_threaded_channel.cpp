@@ -6,7 +6,7 @@ BasicThreadedChannel::BasicThreadedChannel() {
     is_join = false;
     is_running = true;
     is_terminated = false;
-    runner_thread = new std::thread([this]() {
+    runner_thread = std::make_unique<std::thread>([this]() {
         RunnerThread();
     });
 }
@@ -15,7 +15,6 @@ BasicThreadedChannel::~BasicThreadedChannel() {
     Stop();
     Join();
     runner_thread->join();
-    delete runner_thread;
 }
 
 void BasicThreadedChannel::Start() {
