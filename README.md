@@ -67,6 +67,7 @@ But the core algorithms are platform independent. You just need to write code to
 | basic_radio_scraper | Reads raw 8bit IQ stream, demodulates and decodes the data, then saves it to disk |
 | basic_radio_scraper_no_demod | Reads in a digital OFDM frame from ofdm_demod_gui or ofdm_demod_cli, decodes the data then saves it to disk |
 | simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an 8bit IQ stream to stdout. |
+| apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
 
 ## Example usage scenarios
 ### 1. Run the complete radio app with rtlsdr tuner controls
@@ -109,7 +110,8 @@ But the core algorithms are platform independent. You just need to write code to
 - Make OFDM demodulator more performant
     - ~~Replace use of cosf and sinf in phase locked loop for fine freq compensation~~
     - ~~Added multithreading to improve performance~~
-    - Reduce overhead due to complex multiplication
+    - Speed up complex multiplication (Karatsuba multiplication needs to be profiled)
+    - Speed up atan2f ([link](https://mazzo.li/posts/vectorized-atan2.html#atan2-primer) needs profiling)
 - ~~Make DAB frame decoder more performant~~
     - ~~Replace inefficient general viterbi decoder with the SPIRAL project's implementation found [here](https://www.spiral.net/software/viterbi.html).~~
 - Profile other parts of the code that are excessively slow
@@ -129,6 +131,7 @@ But the core algorithms are platform independent. You just need to write code to
 - Support the rest of the DAB standard
     - MPEG-II audio for DAB channels
     - ~~Stream/packet data for slideshows and extra programme information~~
+- ~~Add coarse frequency correction~~
 - Add TII (transmitter identificaton information) decoding
 - Add SNR meter
 - Add view for OFDM symbol magnitude spectrum
