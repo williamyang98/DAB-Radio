@@ -171,6 +171,11 @@ public:
 		frame_double_buffer->Close();
 		ofdm_demod_thread->join();
 		basic_radio_thread->join();
+		// NOTE: We delete this to close the rtlsdr async callback
+		// Otherwise the callback might fire and call OnData
+		// Since this occurs after the App destructor entities like double_buffer may be deleted 
+		// which causes an invalid memory access (Caught with address sanitiser)
+		device_selector = NULL;
 	}
 	RadioInstance* GetSelectedRadio() {
 		auto res = basic_radios.find(selected_radio);
@@ -250,9 +255,7 @@ class Renderer: public ImguiSkeleton
 private:
 	App& app;
 public:
-    Renderer(App& _app)
-	: app(_app) 
-	{}
+    Renderer(App& _app): app(_app) {}
 public:
     virtual GLFWwindow* Create_GLFW_Window(void) {
         return glfwCreateWindow(

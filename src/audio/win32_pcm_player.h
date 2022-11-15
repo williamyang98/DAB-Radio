@@ -37,7 +37,7 @@ private:
     int inactive_block_nb_bytes = 0;
 public:
     Win32_PCM_Player();
-    ~Win32_PCM_Player();
+    virtual ~Win32_PCM_Player();
     // We bind a callback through the win32 api, so we cannot move the location of this object
     Win32_PCM_Player(Win32_PCM_Player&) = delete;
     Win32_PCM_Player(Win32_PCM_Player&&) = delete;

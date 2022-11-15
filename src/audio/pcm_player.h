@@ -20,6 +20,7 @@ public:
         }
     };
 public:
+    virtual ~PCM_Player() {};
     virtual void ConsumeBuffer(tcb::span<const uint8_t> buf) = 0;
     virtual bool SetParameters(const Parameters params) = 0;
     virtual Parameters GetParameters(void) = 0;

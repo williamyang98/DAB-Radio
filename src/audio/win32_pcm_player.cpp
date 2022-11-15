@@ -118,6 +118,11 @@ Win32_PCM_Player::Win32_PCM_Player() {
 
 Win32_PCM_Player::~Win32_PCM_Player() {
     is_running = false;
+    {
+        auto lock_rx = std::scoped_lock(mutex_cv_received_block);
+        is_received_block = true;
+        cv_received_block.notify_one();
+    }
     audio_thread->join();
 }
 
