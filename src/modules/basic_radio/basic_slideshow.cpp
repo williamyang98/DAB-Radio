@@ -1,5 +1,7 @@
 #include "basic_slideshow.h"
 
+#include <algorithm>
+
 #include "modules/dab/constants/MOT_content_types.h"
 #include "modules/dab/mot/MOT_slideshow_processor.h"
 #include "modules/dab/mot/MOT_processor.h"

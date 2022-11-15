@@ -2,10 +2,11 @@
 
 #include <stdint.h>
 #include <string>
-#include <ctime>
 #include <list>
-
 #include <vector>
+#include <memory>
+#include <ctime>
+
 #include "modules/dab/mot/MOT_entities.h"
 #include "utility/observable.h"
 

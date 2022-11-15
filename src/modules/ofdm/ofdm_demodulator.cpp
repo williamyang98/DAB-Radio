@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <algorithm>
 
 #include "ofdm_demodulator.h"
 #include "ofdm_demodulator_threads.h"

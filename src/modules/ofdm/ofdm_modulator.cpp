@@ -1,5 +1,6 @@
 #include "ofdm_modulator.h"
 #include <kiss_fft.h>
+#include <algorithm>
 
 OFDM_Modulator::OFDM_Modulator(
     const OFDM_Params _params, 
