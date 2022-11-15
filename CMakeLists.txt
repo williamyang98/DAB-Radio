@@ -173,8 +173,9 @@ set_target_properties(convert_viterbi PROPERTIES CXX_STANDARD 17)
 target_link_libraries(convert_viterbi PRIVATE getopt)
 
 add_executable(apply_frequency_shift 
-    ${SRC_DIR}/apply_frequency_shift.cpp)
-target_include_directories(apply_frequency_shift PUBLIC ${SRC_DIR})
+    ${SRC_DIR}/apply_frequency_shift.cpp
+    ${OFDM_CORE_DIR}/quantized_oscillator.cpp)
+target_include_directories(apply_frequency_shift PUBLIC ${SRC_DIR} ${OFDM_CORE_DIR})
 set_target_properties(apply_frequency_shift PROPERTIES CXX_STANDARD 17)
 target_link_libraries(apply_frequency_shift PRIVATE getopt)
 
