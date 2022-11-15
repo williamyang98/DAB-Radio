@@ -18,13 +18,13 @@ private:
     std::mutex mutex_start;
     std::condition_variable cv_start;
 
+    bool is_phase_error_done;
+    std::mutex mutex_phase_error_done;
+    std::condition_variable cv_phase_error_done;
+
     bool is_fft_done;
     std::mutex mutex_fft_done;
     std::condition_variable cv_fft_done;
-
-    bool is_start_dqpsk;
-    std::mutex mutex_start_dqpsk;
-    std::condition_variable cv_start_dqpsk;
 
     bool is_end;
     std::mutex mutex_end;
@@ -44,15 +44,15 @@ public:
     inline float& GetAveragePhaseError() { return average_phase_error; }
     void Stop();
     bool IsStopped() const { return is_terminated; }
-    // reader thread
+    // Called from coordinator thread
     void Start();
-    void WaitFFT();
-    void StartDQPSK();
+    void WaitPhaseError();
     void WaitEnd();
-    // worker thread
+    // Called by pipeline thread
     void WaitStart();
+    void SignalPhaseError();
     void SignalFFT();
-    void WaitDQPSK();
+    void WaitFFT();
     void SignalEnd();
 };
 
@@ -78,10 +78,10 @@ public:
     OFDM_Demod_Coordinator_Thread& operator=(OFDM_Demod_Coordinator_Thread&&) = delete;
     void Stop();
     bool IsStopped() const { return is_terminated; }
-    // reader thread
+    // Called by reader thread
     void Start();
     void Wait();
-    // worker thread
+    // Called by coordinator thread
     void WaitStart();
     void SignalEnd();
 };

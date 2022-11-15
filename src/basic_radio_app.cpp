@@ -43,15 +43,7 @@ std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
 	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
 	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
-
 	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-
-	{
-		auto& cfg = ofdm_demod->GetConfig();
-		cfg.toggle_flags.is_update_data_sym_mag = true;
-		cfg.toggle_flags.is_update_tii_sym_mag = true;
-	}
-
 	return std::move(ofdm_demod);
 }
 

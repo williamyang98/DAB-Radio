@@ -17,5 +17,7 @@ QuantizedOscillator::QuantizedOscillator(
             static_cast<float>(std::cos(dx)), 
             static_cast<float>(std::sin(dx)));
         dx += step;
+        // Avoid floating point precision errors
+        dx = std::fmod(dx, TWO_PI);
     }
 }

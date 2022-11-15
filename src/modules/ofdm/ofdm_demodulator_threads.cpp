@@ -6,8 +6,8 @@ OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const size_t _start, cons
 : symbol_start(_start), symbol_end(_end)
 {
     is_start = false;
+    is_phase_error_done = false;
     is_fft_done = false;
-    is_start_dqpsk = false;
     is_end = false;
     is_terminated = false;
 }
@@ -34,6 +34,18 @@ void OFDM_Demod_Pipeline_Thread::WaitStart() {
     is_start = false;
 }
 
+void OFDM_Demod_Pipeline_Thread::SignalPhaseError() {
+    auto lock = std::scoped_lock(mutex_phase_error_done);
+    is_phase_error_done = true;
+    cv_phase_error_done.notify_one();
+}
+
+void OFDM_Demod_Pipeline_Thread::WaitPhaseError() {
+    auto lock = std::unique_lock(mutex_phase_error_done);
+    cv_phase_error_done.wait(lock, [this]() { return is_phase_error_done; });
+    is_phase_error_done = false;
+}
+
 void OFDM_Demod_Pipeline_Thread::SignalFFT() {
     auto lock = std::scoped_lock(mutex_fft_done);
     is_fft_done = true;
@@ -44,18 +56,6 @@ void OFDM_Demod_Pipeline_Thread::WaitFFT() {
     auto lock = std::unique_lock(mutex_fft_done);
     cv_fft_done.wait(lock, [this]() { return is_fft_done; });
     is_fft_done = false;
-}
-
-void OFDM_Demod_Pipeline_Thread::StartDQPSK() {
-    auto lock = std::scoped_lock(mutex_start_dqpsk);
-    is_start_dqpsk = true;
-    cv_start_dqpsk.notify_one();
-}
-
-void OFDM_Demod_Pipeline_Thread::WaitDQPSK() {
-    auto lock = std::unique_lock(mutex_start_dqpsk);
-    cv_start_dqpsk.wait(lock, [this]() { return is_start_dqpsk; });
-    is_start_dqpsk = false;
 }
 
 void OFDM_Demod_Pipeline_Thread::SignalEnd() {
