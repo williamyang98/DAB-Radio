@@ -29,13 +29,10 @@ For those who are interested only in parts of the implementation refer to the fo
 ## How to run
 ### Method 1
 Download the ZIP archive from the releases page. 
-Use git-bash or a shell that supports redirecting stdout. 
 
-Run <code>./get_live_data.sh -c [your_dab_channel] | ./basic_radio_app.exe</code>
+Run <code>./radio_app.exe</code>
 
-Refer to the code inside <code>./get_live_data.sh</code> for the list of possible frequency blocks where your DAB ensemble exists in.
-
-Inside the GUI app go to the subchannels tab and wait for the database to update. Your list of radio stations will pop up. Click on any of them to start playing them. You can play multiple radio stations simulataneously.
+Go to the simple_view tab and select a service from the list. Click "Run All" to listen to the channel and receive slideshows.
 
 [Wohnort](http://www.wohnort.org/dab/australia.html) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are <code>[9A,9B,9C]</code>.
 
@@ -50,9 +47,16 @@ Build the applications using cmake.
 
 <code>cmake . -B build -DCMAKE_BUILD_TYPE=Release</code>
 
-NOTE that the application was written for Windows and will not work with other platforms.
+The core algorithsm for OFDM demodulation and DAB digital decoding are platform independent. The GUI code and audio player is windows specific, but should be easily portable to other platforms.
 
-But the core algorithms are platform independent. You just need to write code to support other platforms. This includes the imgui GUI code, and the 16bit PCM audio player.
+Built on Windows 10 with:
+- msbuild 17.2.1 + 52cd2da31
+- cl 19.32.31332 for x64
+- Visual Studio 2022 Community Edition (Which installs msbuild, cl and cmake)
+
+Dependencies are:
+- glfw3
+- opengl
 
 ## Application list
 | Name | Description |
@@ -123,8 +127,8 @@ But the core algorithms are platform independent. You just need to write code to
 
 ### Features
 - Improve the basic radio GUI
-    - Make a user friendly interface that is less technically involved
-- Replace imgui with a less GPU/CPU hungry GUI framework
+    - Make a user friendly interface that is streamlined
+    - Replace imgui with a less GPU/CPU hungry GUI framework
 - ~~Integrate the rtl_sdr.exe code from the librtlsdr library~~
     - ~~Add in ensemble scanning across possible block frequencies~~
     - ~~Add support for basic radio to handle multiple ensembles~~
@@ -132,6 +136,7 @@ But the core algorithms are platform independent. You just need to write code to
 - Support the rest of the DAB standard
     - MPEG-II audio for DAB channels
     - ~~Stream/packet data for slideshows and extra programme information~~
+    - Handle strings with utf-8, utf-16 character sets (right now they show up as a question mark)
 - ~~Add coarse frequency correction~~
 - Add TII (transmitter identificaton information) decoding
 - Add SNR meter
