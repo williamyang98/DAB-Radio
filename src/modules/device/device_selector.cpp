@@ -7,7 +7,7 @@ extern "C" {
 }
 
 DeviceSelector::DeviceSelector() {
-    SearchDevices();
+
 }
 
 DeviceSelector::~DeviceSelector() {

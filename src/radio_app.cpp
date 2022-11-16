@@ -163,8 +163,6 @@ public:
 				frame_double_buffer->ReleaseActiveBuffer();
 			}
 		});
-
-		device_selector->SelectDevice(0);
 	}	
 	~App() {
 		raw_double_buffer->Close();
@@ -349,7 +347,16 @@ int main(int argc, char **argv)
 
 	auto app = App();
 	auto renderer = Renderer(app);
+	// Automatically select the first rtlsdr dongle we find
+	auto init_command_thread = std::thread([&app]() {
+		auto& device_selector = app.GetDeviceSelector();
+		device_selector.SearchDevices();
+		if (device_selector.GetDeviceList().size() > 0) {
+			device_selector.SelectDevice(0);
+		}
+	});
 	RenderImguiSkeleton(&renderer);
+	init_command_thread.join();
 
 	return 0;
 }
