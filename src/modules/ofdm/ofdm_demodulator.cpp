@@ -245,18 +245,18 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
     //      2. The PRS impulse response didn't have a sufficiently large peak
 
     // We analyse the average power of the signal using blocks of size K
-    const size_t N = buf.size();
-    const size_t K = cfg.signal_l1.nb_samples;
-    const size_t M = N-K;
+    const int N = (int)buf.size();
+    const int K = (int)cfg.signal_l1.nb_samples;
+    const int M = N-K;
 
     const float null_start_thresh = signal_l1_average * cfg.null_l1_search.thresh_null_start;
     const float null_end_thresh = signal_l1_average * cfg.null_l1_search.thresh_null_end;
 
     // if the loop doesn't exit then we copy all samples into circular buffer
-    size_t nb_read = N;
-    for (size_t i = 0; i < M; i+=K) {
+    int nb_read = N;
+    for (int i = 0; i < M; i+=K) {
         auto* block = &buf[i];
-        const float l1_avg = CalculateL1Average({block, K});
+        const float l1_avg = CalculateL1Average({block, (size_t)K});
         if (is_null_start_found) {
             if (l1_avg > null_end_thresh) {
                 is_null_end_found = true;
@@ -270,9 +270,9 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
         }
     }
 
-    null_power_dip_buffer.ConsumeBuffer({buf.data(), nb_read}, true);
+    null_power_dip_buffer.ConsumeBuffer({buf.data(), (size_t)nb_read}, true);
     if (!is_null_end_found) {
-        return nb_read;
+        return (size_t)nb_read;
     }
 
     // Copy null symbol into correlation buffer
@@ -291,7 +291,7 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
     null_power_dip_buffer.SetLength(0);
     state = State::READING_NULL_AND_PRS;
 
-    return nb_read;
+    return (size_t)nb_read;
 }
 
 size_t OFDM_Demod::ReadNullPRS(tcb::span<const std::complex<float>> buf) {
