@@ -68,6 +68,7 @@ But the core algorithms are platform independent. You just need to write code to
 | basic_radio_scraper_no_demod | Reads in a digital OFDM frame from ofdm_demod_gui or ofdm_demod_cli, decodes the data then saves it to disk |
 | simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an 8bit IQ stream to stdout. |
 | apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
+| read_wav | Reads in a wav file which can be 8bit or 16bit PCM and dumps raw data to output as 8bit |
 
 ## Example usage scenarios
 ### 1. Run the complete radio app with rtlsdr tuner controls
