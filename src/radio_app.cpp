@@ -58,7 +58,6 @@ public:
 	{
 		radio = std::move(_radio);
 		view_controller = std::move(_view_controller);
-		view_controller->AttachRadio(*(radio.get()));
 
 		using namespace std::placeholders;
 		radio->On_DAB_Plus_Channel().Attach(std::bind(&RadioInstance::Attach_DAB_Plus_Audio_Player, this, _1, _2));
@@ -241,9 +240,11 @@ private:
 private:
 	void CreateRadio(const std::string& key) {
 		const auto dab_params = get_dab_parameters(transmission_mode);
+		auto radio = std::make_unique<BasicRadio>(dab_params);
+		auto view_controller = std::make_unique<SimpleViewController>(*(radio.get()));
 		auto instance = std::make_unique<RadioInstance>(
-			std::move(std::make_unique<BasicRadio>(dab_params)), 
-			std::move(std::make_unique<SimpleViewController>()));
+			std::move(radio), 
+			std::move(view_controller));
 		basic_radios.insert({key, std::move(instance)});
 	}
 };

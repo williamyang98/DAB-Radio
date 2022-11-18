@@ -76,8 +76,7 @@ public:
 
         ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
         radio = std::make_unique<BasicRadio>(params);
-        radio_view_controller = std::make_unique<SimpleViewController>();
-        radio_view_controller->AttachRadio(*(radio.get()));
+        radio_view_controller = std::make_unique<SimpleViewController>(*(radio.get()));
 
         using namespace std::placeholders;
         radio->On_DAB_Plus_Channel().Attach(std::bind(&App::Attach_DAB_Plus_Audio_Player, this, _1, _2));
