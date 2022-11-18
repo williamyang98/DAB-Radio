@@ -1,7 +1,6 @@
 #include "basic_dab_plus_channel.h"
 
 #include "modules/dab/msc/msc_decoder.h"
-#include "modules/dab/audio/aac_frame_processor.h"
 #include "modules/dab/audio/aac_audio_decoder.h"
 #include "modules/dab/audio/aac_data_decoder.h"
 #include "modules/dab/mot/mot_slideshow_processor.h"
@@ -68,6 +67,8 @@ void Basic_DAB_Plus_Channel::Run() {
 void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
     // Decode audio
     aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
+        super_frame_header = header;
+
         AAC_Audio_Decoder::Params audio_params;
         audio_params.sampling_frequency = header.sampling_rate;
         audio_params.is_PS = header.PS_flag;
@@ -130,6 +131,31 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
             obs_MOT_entity.Notify(entity);
         }
     });
+
+    // Listen for errors
+    aac_frame_processor->OnFirecodeError().Attach([this](int frame_index, uint16_t crc_got, uint16_t crc_calc) {
+        is_firecode_error = true;
+    });
+
+    aac_frame_processor->OnRSError().Attach([this](int au_index, int total_aus) {
+        is_rs_error = true;
+    });
+
+    aac_frame_processor->OnSuperFrameHeader().Attach([this](SuperFrameHeader header) {
+        is_firecode_error = false;
+        is_rs_error = false;
+    });
+
+    aac_frame_processor->OnAccessUnitCRCError().Attach([this](int au_index, int nb_aus, uint16_t crc_got, uint16_t crc_calc) {
+        is_au_error = true;
+    });
+
+    aac_frame_processor->OnAccessUnit().Attach([this](int au_index, int nb_aus, tcb::span<uint8_t> data) {
+        if (au_index == 0) {
+            is_au_error = false;
+        }
+    });
+
 }
 
 // controls

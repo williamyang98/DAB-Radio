@@ -86,7 +86,8 @@ add_library(basic_radio_gui STATIC
     ${BASIC_RADIO_GUI_DIR}/render_common.cpp
     ${BASIC_RADIO_GUI_DIR}/simple_view_controller.cpp
     ${BASIC_RADIO_GUI_DIR}/texture.cpp
-    ${BASIC_RADIO_GUI_DIR}/formatters.cpp)
+    ${BASIC_RADIO_GUI_DIR}/formatters.cpp
+    ${SRC_DIR}/gui/imgui_extensions.cpp)
 set_target_properties(basic_radio_gui PROPERTIES CXX_STANDARD 17)
 target_include_directories(basic_radio_gui PUBLIC 
     ${BASIC_RADIO_DIR} ${SRC_DIR}

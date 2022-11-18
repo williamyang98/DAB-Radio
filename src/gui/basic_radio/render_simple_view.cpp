@@ -6,7 +6,9 @@
 #include <fmt/core.h>
 #include "formatters.h"
 
-#include "imgui.h"
+#include <imgui.h>
+#include "gui/font_awesome_definitions.h"
+#include "gui/imgui_extensions.h"
 #include "render_common.h"
 
 void RenderSimple_ServiceList(BasicRadio& radio, SimpleViewController& controller);
@@ -77,6 +79,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, SimpleViewController& controlle
 
 void RenderSimple_Service(BasicRadio& radio, SimpleViewController& controller, Service* service) {
     auto& db = radio.GetDatabaseManager().GetDatabase();
+    auto& ensemble = *db.GetEnsemble();
 
     if (ImGui::Begin("Service Description") && service) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
@@ -103,6 +106,12 @@ void RenderSimple_Service(BasicRadio& radio, SimpleViewController& controller, S
             FIELD_MACRO("Programme Type", "%u", service->programme_type);
             FIELD_MACRO("Language", "%u", service->language);
             FIELD_MACRO("Closed Caption", "%u", service->closed_caption);
+            // FIELD_MACRO("Country Name", "%s", GetCountryString(
+            //     service->extended_country_code ? service->extended_country_code : ensemble.extended_country_code, 
+            //     service->country_id ? service->country_id : ensemble.country_id));
+            FIELD_MACRO("Language Name", "%s", GetLanguageTypeString(service->language));
+            FIELD_MACRO("Programme Type Name", "%s", GetProgrammeTypeString(
+                ensemble.international_table_id, service->programme_type));
 
             #undef FIELD_MACRO
 
@@ -206,6 +215,36 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController
         controls.SetIsPlayAudio(v);
     }
 
+
+    const auto& superframe_header = channel.GetSuperFrameHeader();
+    if (superframe_header.sampling_rate != 0) {
+        const char* mpeg_surround = GetMPEGSurroundString(superframe_header.mpeg_surround);
+        ImGui::Text("Codec: %uHz %s %s %s", 
+            superframe_header.sampling_rate, 
+            superframe_header.is_stereo ? "Stereo" : "Mono",  
+            GetAACDescriptionString(superframe_header.SBR_flag, superframe_header.PS_flag),
+            mpeg_surround ? mpeg_surround : "");
+    }
+
+
+    static const auto ERROR_INDICATOR = [](const char* label, bool is_error) {
+        static const auto COLOR_NO_ERROR = ImColor(0,255,0).Value;
+        static const auto COLOR_ERROR    = ImColor(255,0,0).Value;
+        ImGui::BeginGroupPanel(NULL);
+        ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
+        ImGui::Text(ICON_FA_CIRCLE);
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text(label);
+        ImGui::EndGroupPanel();
+    };
+
+    ERROR_INDICATOR("Firecode", channel.IsFirecodeError());
+    ImGui::SameLine();
+    ERROR_INDICATOR("Reed Solomon", channel.IsRSError());
+    ImGui::SameLine();
+    ERROR_INDICATOR("Access Unit CRC", channel.IsAUError());
+
     // Programme associated data
     // 1. Dynamic label
     // 2. MOT slideshow
@@ -213,6 +252,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController
     ImGui::Text("Dynamic label: %.*s", label.length(), label.c_str());
 
     auto& slideshow_manager = channel.GetSlideshowManager();
+    auto lock = std::scoped_lock(slideshow_manager.GetMutex());
     auto& slideshows = slideshow_manager.GetSlideshows();
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize;

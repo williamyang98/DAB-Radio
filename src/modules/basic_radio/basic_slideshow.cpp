@@ -132,5 +132,7 @@ void Basic_Slideshow_Manager::RestrictSize(void) {
         obs_on_remove_slideshow.Notify(v);
     }
 
+    // Cannot remove slideshow while we are using the image data in the render thread
+    auto lock = std::scoped_lock(mutex_slideshows);
     slideshows.erase(start, end);
 }

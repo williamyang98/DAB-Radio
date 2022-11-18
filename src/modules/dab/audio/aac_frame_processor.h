@@ -12,11 +12,11 @@ enum MPEG_Surround {
 };
 
 struct SuperFrameHeader {
-    uint32_t sampling_rate;
-    bool PS_flag;
-    bool SBR_flag;
-    bool is_stereo;
-    MPEG_Surround mpeg_surround;
+    uint32_t sampling_rate = 0;
+    bool PS_flag = false;
+    bool SBR_flag = false;
+    bool is_stereo = false;
+    MPEG_Surround mpeg_surround = MPEG_Surround::NOT_USED;
 };
 
 class AAC_Frame_Processor 
@@ -43,10 +43,10 @@ private:
     Observable<const int, const uint16_t, const uint16_t> obs_firecode_error;
     // rs_frame_index, rs_total_frames
     Observable<const int, const int> obs_rs_error;
-    // au_index, total_aus, crc_got, crc_calculated
-    Observable<const int, const int, const uint16_t, const uint16_t> obs_au_crc_error;
     // superframe_header
     Observable<SuperFrameHeader> obs_superframe_header;
+    // au_index, total_aus, crc_got, crc_calculated
+    Observable<const int, const int, const uint16_t, const uint16_t> obs_au_crc_error;
     // au_index, total_aus, au_buffer
     Observable<const int, const int , tcb::span<uint8_t>> obs_access_unit;
 public:
@@ -57,6 +57,7 @@ public:
     auto& OnFirecodeError(void) { return obs_firecode_error; }
     auto& OnRSError(void) { return obs_rs_error; }
     auto& OnSuperFrameHeader(void) { return obs_superframe_header; }
+    auto& OnAccessUnitCRCError(void) { return obs_au_crc_error; }
     auto& OnAccessUnit(void) { return obs_access_unit; }
 private:
     bool CalculateFirecode(tcb::span<const uint8_t> buf);

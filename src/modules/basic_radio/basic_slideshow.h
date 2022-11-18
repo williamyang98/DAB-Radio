@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <ctime>
+#include <mutex>
 
 #include "modules/dab/mot/MOT_entities.h"
 #include "utility/observable.h"
@@ -49,6 +50,10 @@ private:
     Observable<Basic_Slideshow&> obs_on_new_slideshow;
     Observable<Basic_Slideshow&> obs_on_remove_slideshow;
     int max_size;
+
+    // Render thread may use the slideshow to load image data into a texture
+    // Thus we need to guarantee that we don't remove any slideshows while rendering them
+    std::mutex mutex_slideshows;
 public:
     Basic_Slideshow_Manager(const int _max_size=10);
     ~Basic_Slideshow_Manager();
@@ -58,6 +63,7 @@ public:
     auto& OnRemoveSlideshow(void) { return obs_on_remove_slideshow; }
     void SetMaxSize(const int _max_size);
     int GetMaxSize(void) const { return max_size; };
+    auto& GetMutex(void) { return mutex_slideshows; }
 private:
     void RestrictSize(void);
 };

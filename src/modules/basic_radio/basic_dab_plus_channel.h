@@ -7,6 +7,7 @@
 
 #include "basic_threaded_channel.h"
 #include "basic_audio_params.h"
+#include "modules/dab/audio/aac_frame_processor.h"
 #include "modules/dab/constants/dab_parameters.h"
 #include "modules/dab/database/dab_database_entities.h"
 #include "utility/observable.h"
@@ -14,7 +15,6 @@
 #include "viterbi_config.h"
 
 class MSC_Decoder;
-class AAC_Frame_Processor;
 class AAC_Audio_Decoder;
 class AAC_Data_Decoder;
 struct MOT_Entity;
@@ -67,6 +67,11 @@ private:
     Observable<std::string&> obs_dynamic_label;
     Observable<Basic_Slideshow&> obs_slideshow;
     Observable<MOT_Entity&> obs_MOT_entity;
+    // decoder values
+    SuperFrameHeader super_frame_header;
+    bool is_firecode_error = false;
+    bool is_rs_error = false;
+    bool is_au_error = false;
 public:
     Basic_DAB_Plus_Channel(const DAB_Parameters _params, const Subchannel _subchannel);
     ~Basic_DAB_Plus_Channel();
@@ -86,6 +91,11 @@ public:
     auto& OnDynamicLabel(void) { return obs_dynamic_label; }
     auto& OnSlideshow(void) { return obs_slideshow; }
     auto& OnMOTEntity(void) { return obs_MOT_entity; }
+
+    const auto& GetSuperFrameHeader() const { return super_frame_header; }
+    bool IsFirecodeError() const { return is_firecode_error; }
+    bool IsRSError() const { return is_rs_error; }
+    bool IsAUError() const { return is_au_error; }
 protected:
     virtual void BeforeRun();
     virtual void Run();

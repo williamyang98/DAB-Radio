@@ -100,6 +100,8 @@ void RenderEnsemble(BasicRadio& radio) {
             FIELD_MACRO("Inter Table ID", "%u", ensemble.international_table_id);
             FIELD_MACRO("Total Services", "%u", ensemble.nb_services);
             FIELD_MACRO("Total Reconfig", "%u", ensemble.reconfiguration_count);
+            FIELD_MACRO("Country Name", "%s", GetCountryString(
+                ensemble.extended_country_code, ensemble.country_id));
             #undef FIELD_MACRO
 
             ImGui::EndTable();
