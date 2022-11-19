@@ -6,19 +6,8 @@
 #include "ofdm_demodulator_threads.h"
 #include <kiss_fft.h>
 
-#include "utility/profiler.h"
 #define PROFILE_ENABLE 1
-#if !PROFILE_ENABLE
-#define PROFILE_BEGIN_FUNC() (void)0
-#define PROFILE_BEGIN(label) (void)0
-#define PROFILE_END(label) (void)0
-#define PROFILE_TAG_THREAD(label) (void)0
-#else
-#define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
-#define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
-#define PROFILE_END(label) timer_##label.Stop()
-#define PROFILE_TAG_THREAD(label) Instrumentor::Get().SetThreadLabel(label)
-#endif
+#include "utility/profiler.h"
 
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
@@ -170,13 +159,13 @@ OFDM_Demod::OFDM_Demod(
     )));
 
     for (int i = 0; i < pipelines.size(); i++) {
-        auto* pipeline = pipelines[i].get();
+        auto& pipeline = *(pipelines[i].get());
         auto* dependent_pipeline = ((i+1) >= pipelines.size()) ? NULL : pipelines[i+1].get();
         threads.emplace_back(std::move(std::make_unique<std::thread>(
-            [this, pipeline, dependent_pipeline]() {
+            [this, &pipeline, dependent_pipeline]() {
                 PROFILE_TAG_THREAD("OFDM_Demod::PipelineThread");
                 while (is_running) {
-                    PipelineThread(*pipeline, dependent_pipeline);
+                    PipelineThread(pipeline, dependent_pipeline);
                 }
             }
         )));
@@ -596,6 +585,8 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     if (thread_data.IsStopped()) {
         return;
     }
+
+    PROFILE_BEGIN(data_processing);
 
     PROFILE_BEGIN(apply_pll);
     auto pipeline_time_buffer = active_buffer.GetData();

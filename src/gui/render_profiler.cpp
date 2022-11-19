@@ -46,10 +46,12 @@ void RenderProfiler() {
             const int N = (int)results.size();
 
             static ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
-            if (ImGui::BeginTable("Results", 2, flags)) {
+            if (ImGui::BeginTable("Results", 4, flags)) {
                 // The first column will use the default _WidthStretch when ScrollX is Off and _WidthFixed when ScrollX is On
                 ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoHide);
                 ImGui::TableSetupColumn("Duration (us)", ImGuiTableColumnFlags_NoHide);
+                ImGui::TableSetupColumn("Start (us)", ImGuiTableColumnFlags_NoHide);
+                ImGui::TableSetupColumn("End (us)", ImGuiTableColumnFlags_NoHide);
                 ImGui::TableHeadersRow();
 
                 // Keep track of position in tree 
@@ -82,6 +84,10 @@ void RenderProfiler() {
                     } 
                     ImGui::TableNextColumn();
                     ImGui::Text("%lld", result.end-result.start);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%lld", result.start);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%lld", result.end);
                 }
 
                 while (prev_stack_index > 0) {

@@ -83,15 +83,33 @@ private:
     }
 };
 
+static std::chrono::time_point<std::chrono::high_resolution_clock> GetNow() {
+    return std::chrono::high_resolution_clock::now();
+}
+
+static int64_t ConvertMillis(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::milliseconds>(time).time_since_epoch().count();
+}
+
+static int64_t ConvertMicros(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::microseconds>(time).time_since_epoch().count();
+}
+
+static int64_t ConvertNanos(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::nanoseconds>(time).time_since_epoch().count();
+}
+
 class Instrumentor
 {
 private:
     std::unordered_map<std::thread::id, InstrumentorThread> threads;
     std::vector<std::pair<std::thread::id, InstrumentorThread&>> threads_ref_list;
+    int64_t base_dt;
 private:
     Instrumentor()
     {
         threads_ref_list.reserve(100);
+        base_dt = ConvertMicros(GetNow());
     }
 public:
     InstrumentorThread& GetInstrumentorThread(std::thread::id id) {
@@ -109,6 +127,9 @@ public:
     }
     auto& GetThreadsList() {
         return threads_ref_list;
+    }
+    const auto& GetBase() {
+        return base_dt;
     }
     static Instrumentor& Get()
     {
@@ -149,21 +170,20 @@ public:
     void Stop() {
         is_stopped = true;
         auto time_end = GetNow();
-        auto dt_start = ConvertMicros(time_start);
-        auto dt_end = ConvertMicros(time_end);
+        auto dt_start = ConvertMicros(time_start) - Instrumentor::Get().GetBase();
+        auto dt_end = ConvertMicros(time_end) - Instrumentor::Get().GetBase();
         thread_ptr->WriteProfile({ name, stack_index, result_index, dt_start, dt_end, thread_id });
     }
-private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> GetNow() {
-        return std::chrono::high_resolution_clock::now();
-    }
-    int64_t ConvertMillis(std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-        return std::chrono::time_point_cast<std::chrono::milliseconds>(time).time_since_epoch().count();
-    }
-    int64_t ConvertMicros(std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-        return std::chrono::time_point_cast<std::chrono::microseconds>(time).time_since_epoch().count();
-    }
-    int64_t ConvertNanos(std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-        return std::chrono::time_point_cast<std::chrono::nanoseconds>(time).time_since_epoch().count();
-    }
 };
+
+#if !PROFILE_ENABLE
+#define PROFILE_BEGIN_FUNC() (void)0
+#define PROFILE_BEGIN(label) (void)0
+#define PROFILE_END(label) (void)0
+#define PROFILE_TAG_THREAD(label) (void)0
+#else
+#define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
+#define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
+#define PROFILE_END(label) timer_##label.Stop()
+#define PROFILE_TAG_THREAD(label) Instrumentor::Get().SetThreadLabel(label)
+#endif

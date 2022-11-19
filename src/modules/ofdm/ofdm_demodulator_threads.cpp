@@ -1,6 +1,9 @@
 #include "ofdm_demodulator_threads.h"
 #include <stdint.h>
 
+#define PROFILE_ENABLE 1
+#include "utility/profiler.h"
+
 // Pipeline thread
 OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const size_t _start, const size_t _end) 
 : symbol_start(_start), symbol_end(_end)
@@ -17,24 +20,38 @@ OFDM_Demod_Pipeline_Thread::~OFDM_Demod_Pipeline_Thread() {
 }
 
 void OFDM_Demod_Pipeline_Thread::Stop() {
+    PROFILE_BEGIN_FUNC();
     is_terminated = true;
     Start();
 }
 
 void OFDM_Demod_Pipeline_Thread::Start() {
+    PROFILE_BEGIN_FUNC();
+
+    PROFILE_BEGIN(lock_create);
     auto lock = std::scoped_lock(mutex_start);
+    PROFILE_END(lock_create);
+
     is_start = true;
+    PROFILE_BEGIN(cv_notify);
     cv_start.notify_one();
 }
 
 void OFDM_Demod_Pipeline_Thread::WaitStart() {
+    PROFILE_BEGIN_FUNC();
     if (is_terminated) return;
+
+    PROFILE_BEGIN(lock_create);
     auto lock = std::unique_lock(mutex_start);
+    PROFILE_END(lock_create);
+
+    PROFILE_BEGIN(cv_wait);
     cv_start.wait(lock, [this]() { return is_start; });
     is_start = false;
 }
 
 void OFDM_Demod_Pipeline_Thread::SignalPhaseError() {
+    PROFILE_BEGIN_FUNC();
     auto lock = std::scoped_lock(mutex_phase_error_done);
     is_phase_error_done = true;
     cv_phase_error_done.notify_one();
@@ -59,13 +76,25 @@ void OFDM_Demod_Pipeline_Thread::WaitFFT() {
 }
 
 void OFDM_Demod_Pipeline_Thread::SignalEnd() {
+    PROFILE_BEGIN_FUNC();
+
+    PROFILE_BEGIN(lock_create);
     auto lock = std::scoped_lock(mutex_end);
+    PROFILE_END(lock_create);
+
     is_end = true;
+    PROFILE_BEGIN(cv_notify);
     cv_end.notify_one();
 }
 
 void OFDM_Demod_Pipeline_Thread::WaitEnd() {
+    PROFILE_BEGIN_FUNC();
+
+    PROFILE_BEGIN(lock_create);
     auto lock = std::unique_lock(mutex_end);
+    PROFILE_END(lock_create);
+
+    PROFILE_BEGIN(cv_wait);
     cv_end.wait(lock, [this]() { return is_end; });
     is_end = false;
 }
