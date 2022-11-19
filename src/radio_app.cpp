@@ -27,6 +27,7 @@
 #include "gui/render_device_selector.h"
 #include "gui/render_ofdm_demod.h"
 #include "gui/basic_radio/render_simple_view.h"
+#include "gui/render_profiler.h"
 #include "audio/win32_pcm_player.h"
 
 #include "block_frequencies.h"
@@ -282,6 +283,8 @@ public:
         ImPlot::DestroyContext();
     }
     virtual void Render() {
+		RenderProfiler();
+
 		if (ImGui::Begin("Demodulator Controls")) {
 			ImGui::DockSpace(ImGui::GetID("Demodulator Dockspace"));
 			RenderDeviceSelector(app.GetDeviceSelector(), block_frequencies);

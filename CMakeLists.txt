@@ -80,6 +80,12 @@ target_include_directories(basic_radio PUBLIC ${BASIC_RADIO_DIR} ${SRC_DIR})
 target_link_libraries(basic_radio PRIVATE dab_core easyloggingpp fmt)
 target_compile_definitions(basic_radio PRIVATE ELPP_THREAD_SAFE)
 
+set(OFDM_GUI ${SRC_DIR}/gui)
+add_library(ofdm_gui STATIC ${OFDM_GUI}/render_ofdm_demod.cpp)
+set_target_properties(ofdm_gui PROPERTIES CXX_STANDARD 17)
+target_include_directories(ofdm_gui PUBLIC ${OFDM_GUI} ${SRC_DIR})
+target_link_libraries(ofdm_gui PRIVATE imgui implot)
+
 set(BASIC_RADIO_GUI_DIR ${SRC_DIR}/gui/basic_radio)
 add_library(basic_radio_gui STATIC
     ${BASIC_RADIO_GUI_DIR}/render_simple_view.cpp
@@ -101,14 +107,21 @@ set(GETOPT_DIR ${SRC_DIR}/utility/getopt)
 add_library(getopt STATIC ${GETOPT_DIR}/getopt.c)
 target_include_directories(getopt PUBLIC ${GETOPT_DIR})
 
+set(PROFILER_GUI_DIR ${SRC_DIR}/gui)
+add_library(profiler_gui STATIC ${PROFILER_GUI_DIR}/render_profiler.cpp)
+set_target_properties(profiler_gui PROPERTIES CXX_STANDARD 17)
+target_include_directories(profiler_gui PUBLIC ${PROFILER_GUI_DIR} ${SRC_DIR})
+target_link_libraries(profiler_gui PRIVATE imgui implot)
+
 # Our applications
 add_executable(ofdm_demod_gui 
     ${SRC_DIR}/ofdm_demod_gui.cpp
-    ${SRC_DIR}/gui/render_ofdm_demod.cpp
     ${SRC_DIR}/gui/imgui_skeleton.cpp)
 target_include_directories(ofdm_demod_gui PUBLIC ${SRC_DIR})
 set_target_properties(ofdm_demod_gui PROPERTIES CXX_STANDARD 17)
-target_link_libraries(ofdm_demod_gui PRIVATE ofdm_core getopt imgui implot)
+target_link_libraries(ofdm_demod_gui PRIVATE 
+    ofdm_core getopt 
+    ofdm_gui profiler_gui imgui implot)
 
 add_executable(ofdm_demod_cli 
     ${SRC_DIR}/ofdm_demod_cli.cpp)
@@ -130,7 +143,6 @@ target_compile_definitions(basic_radio_app_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_app
     ${SRC_DIR}/basic_radio_app.cpp
-    ${SRC_DIR}/gui/render_ofdm_demod.cpp
     ${SRC_DIR}/gui/imgui_skeleton.cpp
     ${SRC_DIR}/audio/win32_pcm_player.cpp)
 target_include_directories(basic_radio_app PUBLIC ${SRC_DIR})
@@ -138,7 +150,7 @@ set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app PRIVATE 
     ofdm_core dab_core basic_radio
     getopt easyloggingpp fmt
-    basic_radio_gui imgui implot)
+    ofdm_gui basic_radio_gui profiler_gui imgui implot)
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_scraper
@@ -191,14 +203,13 @@ add_executable(radio_app
     ${SRC_DIR}/modules/device/device.cpp
     ${SRC_DIR}/gui/imgui_skeleton.cpp
     ${SRC_DIR}/gui/render_device_selector.cpp
-    ${SRC_DIR}/gui/render_ofdm_demod.cpp
     ${SRC_DIR}/audio/win32_pcm_player.cpp)
 target_include_directories(radio_app PUBLIC ${SRC_DIR})
 set_target_properties(radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(radio_app PRIVATE 
     rtlsdr ofdm_core dab_core basic_radio
     getopt fmt easyloggingpp
-    basic_radio_gui imgui implot)
+    ofdm_gui basic_radio_gui profiler_gui imgui implot)
 target_compile_definitions(radio_app PRIVATE ELPP_THREAD_SAFE)
 
 # vcpkg.cmake has internal stuff that autogenerates this

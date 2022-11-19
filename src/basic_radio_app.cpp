@@ -18,6 +18,7 @@
 
 #include "gui/render_ofdm_demod.h"
 #include "gui/basic_radio/render_simple_view.h"
+#include "gui/render_profiler.h"
 #include "gui/imgui_skeleton.h"
 #include "gui/font_awesome_definitions.h"
 
@@ -195,6 +196,8 @@ public:
         ImGuiSetupCustomConfig();
     }
     virtual void Render() {
+		RenderProfiler();
+
         if (ImGui::Begin("Demodulator")) {
             ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
             ImGui::DockSpace(dockspace_id);

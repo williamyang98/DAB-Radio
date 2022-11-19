@@ -6,6 +6,20 @@
 #include "ofdm_demodulator_threads.h"
 #include <kiss_fft.h>
 
+#include "utility/profiler.h"
+#define PROFILE_ENABLE 1
+#if !PROFILE_ENABLE
+#define PROFILE_BEGIN_FUNC() (void)0
+#define PROFILE_BEGIN(label) (void)0
+#define PROFILE_END(label) (void)0
+#define PROFILE_TAG_THREAD(label) (void)0
+#else
+#define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
+#define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
+#define PROFILE_END(label) timer_##label.Stop()
+#define PROFILE_TAG_THREAD(label) Instrumentor::Get().SetThreadLabel(label)
+#endif
+
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
 
@@ -130,6 +144,7 @@ OFDM_Demod::OFDM_Demod(
     coordinator_thread = std::make_unique<OFDM_Demod_Coordinator_Thread>();
     {
         const size_t nb_all_syms = params.nb_frame_symbols+1;
+        // const size_t nb_threads = 1;
         const size_t nb_threads = std::min(
             nb_all_syms, 
             (size_t)(std::thread::hardware_concurrency()));
@@ -146,6 +161,7 @@ OFDM_Demod::OFDM_Demod(
     }
     threads.emplace_back(std::move(std::make_unique<std::thread>(
         [this]() {
+            PROFILE_TAG_THREAD("OFDM_Demod::CoordinatorThread");
             while (is_running) {
                 CoordinatorThread();
             }
@@ -158,6 +174,7 @@ OFDM_Demod::OFDM_Demod(
         auto* dependent_pipeline = ((i+1) >= pipelines.size()) ? NULL : pipelines[i+1].get();
         threads.emplace_back(std::move(std::make_unique<std::thread>(
             [this, pipeline, dependent_pipeline]() {
+                PROFILE_TAG_THREAD("OFDM_Demod::PipelineThread");
                 while (is_running) {
                     PipelineThread(*pipeline, dependent_pipeline);
                 }
@@ -188,6 +205,9 @@ OFDM_Demod::~OFDM_Demod() {
 // Clause 3.13.2 Integral frequency offset estimation
 // Clause 3.12.2: Frame synchronisation
 void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
+    PROFILE_TAG_THREAD("OFDM_Demod::ProcessThread");
+    PROFILE_BEGIN_FUNC();
+
     UpdateSignalAverage(buf);
 
     const size_t N = buf.size();
@@ -225,6 +245,7 @@ void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
 }
 
 void OFDM_Demod::Reset() {
+    PROFILE_BEGIN_FUNC();
     state = State::FINDING_NULL_POWER_DIP;
     correlation_time_buffer.SetLength(0);
     total_frames_desync++;
@@ -238,6 +259,7 @@ void OFDM_Demod::Reset() {
 }
 
 size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
+    PROFILE_BEGIN_FUNC();
     // Clause 3.12.2 - Frame synchronisation using power detection
     // we run this if we dont have an initial estimate for the prs index
     // This can occur if:
@@ -295,6 +317,7 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
 }
 
 size_t OFDM_Demod::ReadNullPRS(tcb::span<const std::complex<float>> buf) {
+    PROFILE_BEGIN_FUNC();
     const size_t nb_read = correlation_time_buffer.ConsumeBuffer(buf);
     if (!correlation_time_buffer.IsFull()) {
         return nb_read;
@@ -305,6 +328,7 @@ size_t OFDM_Demod::ReadNullPRS(tcb::span<const std::complex<float>> buf) {
 }
 
 size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
+    PROFILE_BEGIN_FUNC();
     // Clause: 3.13.2 Integral frequency offset estimation
     if (!cfg.sync.is_coarse_freq_correction) {
         freq_coarse_offset = 0;
@@ -385,6 +409,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
 }
 
 size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
+    PROFILE_BEGIN_FUNC();
     // Clause 3.12.1 - Symbol timing synchronisation
     auto corr_time_buf = correlation_time_buffer.GetData();
     auto corr_prs_buf = tcb::span(&corr_time_buf[params.nb_null_period], params.nb_symbol_period);
@@ -460,6 +485,7 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
 }
 
 size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
+    PROFILE_BEGIN_FUNC();
     const size_t nb_read = inactive_buffer.ConsumeBuffer(buf);
     if (!inactive_buffer.IsFull()) {
         return nb_read;
@@ -474,12 +500,16 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
         correlation_time_buffer[i] = null_sym[i];
     }
 
+    PROFILE_BEGIN(coordinator_wait);
     coordinator_thread->Wait();
+    PROFILE_END(coordinator_wait);
     // double buffer
     std::swap(inactive_buffer, active_buffer);
     inactive_buffer.SetLength(0);
     // launch all our worker threads
+    PROFILE_BEGIN(coordinator_start);
     coordinator_thread->Start();
+    PROFILE_END(coordinator_start);
 
     state = State::READING_NULL_AND_PRS;
     return nb_read;
@@ -489,19 +519,30 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
 // Clause 3.13: Frequency offset estimation and correction
 // Clause 3.13.1: Fractional frequency offset estimation
 void OFDM_Demod::CoordinatorThread() {
+    PROFILE_BEGIN_FUNC();
+
+    PROFILE_BEGIN(coordinator_wait_start);
     coordinator_thread->WaitStart();
+    PROFILE_END(coordinator_wait_start);
+
     if (coordinator_thread->IsStopped()) {
         return;
     }
+
+    PROFILE_BEGIN(pipeline_start);
     for (auto& pipeline: pipelines) {
         pipeline->Start();
     }
+    PROFILE_END(pipeline_start);
 
+    PROFILE_BEGIN(pipeline_wait_phase_error);
     for (auto& pipeline: pipelines) {
         pipeline->WaitPhaseError();
     }
+    PROFILE_END(pipeline_wait_phase_error);
 
     // Clause 3.13.1 - Fraction frequency offset estimation
+    PROFILE_BEGIN(calculate_phase_error);
     float average_cyclic_error = 0;
     for (auto& pipeline: pipelines) {
         const float cyclic_error = pipeline->GetAveragePhaseError();
@@ -513,14 +554,22 @@ void OFDM_Demod::CoordinatorThread() {
     const float fine_freq_adjust = average_cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
     const float delta = -cfg.sync.fine_freq_update_beta*fine_freq_adjust;
     UpdateFineFrequencyOffset(delta);
+    PROFILE_END(calculate_phase_error);
 
+    PROFILE_BEGIN(pipeline_wait_end);
     for (auto& pipeline: pipelines) {
         pipeline->WaitEnd();
     }
+    PROFILE_END(pipeline_wait_end);
 
     total_frames_read++;
-    obs_on_ofdm_frame.Notify(pipeline_out_bits);
+    PROFILE_BEGIN(coordinator_signal_end);
     coordinator_thread->SignalEnd();
+    PROFILE_END(coordinator_signal_end);
+
+    PROFILE_BEGIN(obs_on_ofdm_frame);
+    obs_on_ofdm_frame.Notify(pipeline_out_bits);
+    PROFILE_END(obs_on_ofdm_frame);
 }
 
 // Thread 3xN: Process ofdm frame
@@ -532,17 +581,23 @@ void OFDM_Demod::CoordinatorThread() {
 // DOC: ETSI EN 300 401
 // Referring to clause 14.5 - QPSK symbol mapper 
 void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data) {
+    PROFILE_BEGIN_FUNC();
+
     const int symbol_start = (int)thread_data.GetSymbolStart();
     const int symbol_end = (int)thread_data.GetSymbolEnd();
     const int total_symbols = symbol_end-symbol_start;
     const int symbol_end_no_null = std::min(symbol_end, (int)params.nb_frame_symbols);
     const int symbol_end_dqpsk = std::min(symbol_end, (int)params.nb_frame_symbols-1);
 
+    PROFILE_BEGIN(pipeline_wait_start);
     thread_data.WaitStart();
+    PROFILE_END(pipeline_wait_start);
+
     if (thread_data.IsStopped()) {
         return;
     }
 
+    PROFILE_BEGIN(apply_pll);
     auto pipeline_time_buffer = active_buffer.GetData();
     auto symbols_time_buf = tcb::span(
         &pipeline_time_buffer[symbol_start*params.nb_symbol_period],
@@ -555,10 +610,12 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     const int sample_offset = symbol_start*(int)params.nb_symbol_period;
     const float dt_start = CalculateTimeOffset(sample_offset, frequency_offset);
     ApplyPLL(symbols_time_buf, symbols_time_buf, frequency_offset, dt_start); 
+    PROFILE_END(apply_pll);
 
     // Clause 3.13: Frequency offset estimation and correction
     // Clause 3.13.1 - Fraction frequency offset estimation
     // Get phase error using cyclic prefix (ignore null symbol)
+    PROFILE_BEGIN(calculate_phase_error);
     float total_phase_error = 0.0f;
     for (int i = symbol_start; i < symbol_end_no_null; i++) {
         auto sym_buf = tcb::span(
@@ -568,11 +625,15 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
         total_phase_error += cyclic_error;
     }
     thread_data.GetAveragePhaseError() = total_phase_error;
+    PROFILE_END(calculate_phase_error);
     // Signal to coordinator thread that phase errors have been calculated
+    PROFILE_BEGIN(pipeline_signal_phase_error);
     thread_data.SignalPhaseError();
+    PROFILE_END(pipeline_signal_phase_error);
 
     // Clause 3.14.2 - FFT
     // Calculate fft (include null symbol)
+    PROFILE_BEGIN(calculate_fft);
     for (int i = symbol_start; i < symbol_end; i++) {
         auto* sym_buf = &pipeline_time_buffer[i*params.nb_symbol_period];
         // Clause 3.14.1 - Cyclic prefix removal
@@ -582,8 +643,11 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
             (kiss_fft_cpx*)data_buf,
             (kiss_fft_cpx*)fft_buf);
     }
+    PROFILE_END(calculate_fft);
     // Signal to other pipeline threads which need these FFT results due to DQPSK encoding
+    PROFILE_BEGIN(pipeline_signal_fft);
     thread_data.SignalFFT();
+    PROFILE_END(pipeline_signal_fft);
 
     const auto calculate_dqpsk = [this](int start, int end) {
         // Clause 3.15 - Differential demodulator
@@ -611,13 +675,25 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
         }
     };
 
-    calculate_dqpsk(symbol_start, symbol_end_dqpsk-1);
     // Get DQPSK result for last symbol in this thread 
     // which is dependent on other threads finishing
     if (dependent_thread_data != NULL) {
+        PROFILE_BEGIN(calculate_independent_dqpsk);
+        calculate_dqpsk(symbol_start, symbol_end_dqpsk-1);
+        PROFILE_END(calculate_independent_dqpsk);
+
+        PROFILE_BEGIN(dependent_pipeline_wait_fft);
         dependent_thread_data->WaitFFT();
+        PROFILE_END(dependent_pipeline_wait_fft);
+
+        PROFILE_BEGIN(calculate_dependent_dqpsk);
+        calculate_dqpsk(symbol_end_dqpsk-1, symbol_end_dqpsk);
+        PROFILE_END(calculate_dependent_dqpsk);
+    } else {
+        PROFILE_BEGIN(calculate_independent_dqpsk);
+        calculate_dqpsk(symbol_start, symbol_end_dqpsk);
+        PROFILE_END(calculate_independent_dqpsk);
     }
-    calculate_dqpsk(symbol_end_dqpsk-1, symbol_end_dqpsk);
 
     // TODO: optional - and we need to calculate the average
     // Calculate symbol magnitude (include null symbol)
@@ -627,13 +703,16 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     //     CalculateMagnitude(fft_buf, fft_mag_buf);
     // }
 
+    PROFILE_BEGIN(pipeline_signal_end);
     thread_data.SignalEnd();
+    PROFILE_END(pipeline_signal_end);
 }
 
 float OFDM_Demod::ApplyPLL(
     tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
     const float freq_offset, const float dt0)
 {
+    PROFILE_BEGIN_FUNC();
     #if !USE_PLL_TABLE
     const int N = (int)x.size();
 
@@ -671,6 +750,7 @@ float OFDM_Demod::ApplyPLL(
 // Since we may be breaking up the PLL calculation over multiple threads
 // We need to make sure that the end of one PLL matches with the start of the next PLL
 float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
+    PROFILE_BEGIN_FUNC();
     #if !USE_PLL_TABLE
     const float j = std::fmod((float)i, 2.0f*(float)M_PI);
     return 2.0f * (float)M_PI * freq_offset* Ts * j;
@@ -689,6 +769,7 @@ float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
 // Reader thread: Runs coarse frequency correction during frame sychronisation which also affects fine frequency offset
 // Coordinator thread: Joins phase errors from pipeline thread and calculates average adjustment for fine frequency offset
 void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
+    PROFILE_BEGIN_FUNC();
     auto lock = std::scoped_lock(mutex_freq_fine_offset);
 
     const float ofdm_freq_spacing = (float)(params.freq_carrier_spacing);
@@ -705,6 +786,7 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
 }
 
 float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym) {
+    PROFILE_BEGIN_FUNC();
     // Clause 3.13.1 - Fraction frequency offset estimation
     const size_t N = params.nb_cyclic_prefix;
     const size_t M = params.nb_fft;
@@ -721,6 +803,7 @@ void OFDM_Demod::CalculateDQPSK(
     tcb::span<std::complex<float>> out_vec, 
     tcb::span<float> out_phase)
 {
+    PROFILE_BEGIN_FUNC();
     const int M = (int)params.nb_data_carriers/2;
     const int N_fft = (int)params.nb_fft;
 
@@ -743,6 +826,7 @@ void OFDM_Demod::CalculateDQPSK(
 }
 
 void OFDM_Demod::CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::span<viterbi_bit_t> bit_buf) {
+    PROFILE_BEGIN_FUNC();
     const size_t N = params.nb_data_carriers;
 
     // DOC: ETSI EN 300 401
@@ -758,6 +842,7 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::spa
 }
 
 void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out) {
+    PROFILE_BEGIN_FUNC();
     const int N = (int)params.nb_fft;
     for (int i = 0; i < (N-1); i++) {
         const auto vec = std::conj(fft_in[i]) * fft_in[i+1];
@@ -767,6 +852,7 @@ void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft
 }
 
 void OFDM_Demod::CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf) {
+    PROFILE_BEGIN_FUNC();
     const size_t N = params.nb_fft;
     const size_t M = N/2;
     for (int i = 0; i < N; i++) {
@@ -777,6 +863,7 @@ void OFDM_Demod::CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf
 }
 
 float OFDM_Demod::CalculateL1Average(tcb::span<const std::complex<float>> block) {
+    PROFILE_BEGIN_FUNC();
     const size_t N = block.size();
     float l1_avg = 0.0f;
     for (int i = 0; i < N; i++) {
@@ -788,6 +875,7 @@ float OFDM_Demod::CalculateL1Average(tcb::span<const std::complex<float>> block)
 }
 
 void OFDM_Demod::UpdateSignalAverage(tcb::span<const std::complex<float>> block) {
+    PROFILE_BEGIN_FUNC();
     const size_t N = block.size();
     const size_t K = (size_t)cfg.signal_l1.nb_samples;
     const size_t M = N-K;

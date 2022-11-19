@@ -28,6 +28,8 @@
 #include <vector>
 #include <mutex>
 
+#include "gui/render_profiler.h"
+
 std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
 	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
 	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
@@ -195,10 +197,15 @@ public:
     }
 
     virtual void Render() {
-        auto& buf = app.GetRawBuffer();
-        RenderSourceBuffer(buf);
-        RenderOFDMDemodulator(app.GetDemod());
-        RenderAppControls();
+        RenderProfiler();
+        if (ImGui::Begin("Demodulator")) {
+            ImGui::DockSpace(ImGui::GetID("OFDM Demod Dockspace"));
+            auto& buf = app.GetRawBuffer();
+            RenderSourceBuffer(buf);
+            RenderOFDMDemodulator(app.GetDemod());
+            RenderAppControls();
+        }
+        ImGui::End();
     }
     virtual void AfterShutdown() {
         ImPlot::DestroyContext();
