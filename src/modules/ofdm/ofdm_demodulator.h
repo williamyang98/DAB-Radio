@@ -106,7 +106,8 @@ public:
     OFDM_Demod(
         const OFDM_Params _params, 
         tcb::span<const std::complex<float>> _prs_fft_ref, 
-        tcb::span<const int> _carrier_mapper);
+        tcb::span<const int> _carrier_mapper,
+        int nb_desired_threads=0);
     ~OFDM_Demod();
     // threads use lambdas which take in the this pointer
     // therefore we disable move/copy semantics to preservce its memory location

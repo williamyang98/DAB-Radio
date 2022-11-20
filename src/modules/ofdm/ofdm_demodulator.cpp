@@ -48,7 +48,8 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
 OFDM_Demod::OFDM_Demod(
     const OFDM_Params _params, 
     tcb::span<const std::complex<float>> _prs_fft_ref, 
-    tcb::span<const int> _carrier_mapper)
+    tcb::span<const int> _carrier_mapper,
+    int nb_desired_threads)
 :   params(_params), 
     null_power_dip_buffer(_params.nb_null_period),
     correlation_time_buffer(_params.nb_null_period + _params.nb_symbol_period)
@@ -132,20 +133,37 @@ OFDM_Demod::OFDM_Demod(
     // Setup our multithreaded processing pipeline
     coordinator_thread = std::make_unique<OFDM_Demod_Coordinator_Thread>();
     {
-        const size_t nb_all_syms = params.nb_frame_symbols+1;
-        // const size_t nb_threads = 1;
-        const size_t nb_threads = std::min(
-            nb_all_syms, 
-            (size_t)(std::thread::hardware_concurrency()));
-            
-        const size_t nb_sym_per_thread = nb_all_syms/nb_threads;
+        const int nb_syms = (int)params.nb_frame_symbols+1;
+        const int total_system_threads = (int)std::thread::hardware_concurrency();
+        int nb_threads = 0; 
+        // Manually set number of threads
+        if (nb_desired_threads > 0) {
+            nb_threads = std::min(nb_syms, nb_desired_threads);
+        // Automatically determine
+        } else {
+            nb_threads = std::min(nb_syms, total_system_threads);
+            // NOTE: If we have alot of physical cores, then reducing the number of pipeline threads
+            //       actually improves performance slightly since we reduce thread contention with other threads
+            //       Thread contention causes some pipeline threads to start late or take longer
+            //       Since the coordinator thread has to wait for the slowest pipeline thread
+            //       minimising inter-thread variance by reducing the number of assigned threads actually improves performance
+            if (nb_threads > 8) {
+                nb_threads -= 1;
+            } 
+        }
+
+        int symbol_start = 0;    
         for (int i = 0; i < nb_threads; i++) {
-            const size_t symbol_start = i*nb_sym_per_thread;
             const bool is_last_thread = (i == (nb_threads-1));
-            const size_t symbol_end = is_last_thread ? nb_all_syms : (i+1)*nb_sym_per_thread;
+
+            const int nb_syms_remain = (nb_syms-symbol_start);
+            const int nb_threads_remain = (nb_threads-i);
+            const int nb_syms_in_thread = (int)std::ceil((float)nb_syms_remain / (float)nb_threads_remain);
+            const int symbol_end = is_last_thread ? nb_syms : (symbol_start+nb_syms_in_thread);
             pipelines.emplace_back(std::move(std::make_unique<OFDM_Demod_Pipeline_Thread>(
                 symbol_start, symbol_end
             )));
+            symbol_start = symbol_end;
         }
     }
     threads.emplace_back(std::move(std::make_unique<std::thread>(
@@ -164,6 +182,15 @@ OFDM_Demod::OFDM_Demod(
         threads.emplace_back(std::move(std::make_unique<std::thread>(
             [this, &pipeline, dependent_pipeline]() {
                 PROFILE_TAG_THREAD("OFDM_Demod::PipelineThread");
+
+                // Give custom data to profiler
+                union Data { 
+                    struct { uint32_t start, end; } fields; 
+                    uint64_t data;
+                } X;
+                X.fields.start = (int)pipeline.GetSymbolStart();
+                X.fields.end   = (int)pipeline.GetSymbolEnd();
+                PROFILE_TAG_DATA_THREAD(X.data);
                 while (is_running) {
                     PipelineThread(pipeline, dependent_pipeline);
                 }

@@ -34,16 +34,18 @@ struct ProfileResult
 class InstrumentorThread 
 {
 private:
+    const char* label = "";
+    uint64_t data = 0;
+
     int stack_index = 0;
     int results_length = 0;
-    const char* label = "";
     std::vector<ProfileResult> results;
     std::vector<ProfileResult> prev_results;
     std::mutex mutex_prev_results;
 public:
     InstrumentorThread() {
-        results.reserve(100);
-        prev_results.reserve(100);
+        results.reserve(200);
+        prev_results.reserve(200);
     }
 
     std::pair<int,int> PushStackIndex() { 
@@ -66,20 +68,28 @@ public:
     void SetLabel(const char* _label) {
         label = _label;
     }
+    void SetData(uint64_t _data) {
+        data = _data;
+    }
     const char* GetLabel() const {
         return label;
+    }
+    uint64_t GetData() const {
+        return data;
     }
 private:
     int PopStackIndex() { 
         stack_index--; 
         if (stack_index == 0) {
-            auto lock = std::scoped_lock(mutex_prev_results);
-            prev_results = results;
-            results_length = 0;
-            results.clear();
+            UpdateResults();
         }
 
         return stack_index;
+    }
+    void UpdateResults() {
+        auto lock = std::scoped_lock(mutex_prev_results);
+        std::swap(results, prev_results);
+        results_length = 0;
     }
 };
 
@@ -122,8 +132,8 @@ public:
         }
         return res->second;
     }
-    void SetThreadLabel(const char* label) {
-        GetInstrumentorThread(std::this_thread::get_id()).SetLabel(label);
+    InstrumentorThread& GetInstrumentorThread(void) {
+        return GetInstrumentorThread(std::this_thread::get_id());
     }
     auto& GetThreadsList() {
         return threads_ref_list;
@@ -181,9 +191,11 @@ public:
 #define PROFILE_BEGIN(label) (void)0
 #define PROFILE_END(label) (void)0
 #define PROFILE_TAG_THREAD(label) (void)0
+#define PROFILE_TAG_DATA_THREAD(data) (void)0
 #else
 #define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
 #define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
 #define PROFILE_END(label) timer_##label.Stop()
-#define PROFILE_TAG_THREAD(label) Instrumentor::Get().SetThreadLabel(label)
+#define PROFILE_TAG_THREAD(label) Instrumentor::Get().GetInstrumentorThread().SetLabel(label)
+#define PROFILE_TAG_DATA_THREAD(data) Instrumentor::Get().GetInstrumentorThread().SetData(data)
 #endif

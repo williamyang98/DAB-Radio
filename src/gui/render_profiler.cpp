@@ -2,18 +2,20 @@
 #include <imgui.h>
 #include "utility/profiler.h"
 
+void HandleInstrumentorThread(InstrumentorThread& thread);
+
 void RenderProfiler() {
     auto& instrumentor = Instrumentor::Get();
-
 
     if (ImGui::Begin("Profiler")) {
         static InstrumentorThread* thread = NULL;
 
         const ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
-        if (ImGui::BeginTable("Threads", 2, flags)) {
+        if (ImGui::BeginTable("Threads", 3, flags)) {
             // The first column will use the default _WidthStretch when ScrollX is Off and _WidthFixed when ScrollX is On
             ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_NoHide);
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoHide);
+            ImGui::TableSetupColumn("Description", ImGuiTableColumnFlags_NoHide);
             ImGui::TableHeadersRow();
 
 
@@ -33,6 +35,8 @@ void RenderProfiler() {
                         thread = &instrumentor_thread;
                     }
                 }
+                ImGui::TableNextColumn();
+                HandleInstrumentorThread(instrumentor_thread);
                 ImGui::PopID();
             }
 
@@ -101,4 +105,25 @@ void RenderProfiler() {
         ImGui::EndChild();
     }
     ImGui::End();
+}
+
+// NOTE: We have data stored in the (void*) pointer
+// By checking for the label associated with the thread, we can cast it back 
+void HandleInstrumentorThread(InstrumentorThread& thread) {
+    const auto* label = thread.GetLabel();
+    uint64_t data = thread.GetData();
+
+    // SOURCE: ofdm_demodulator.cpp
+    if (strncmp(label, "OFDM_Demod::PipelineThread", 28) == 0) {
+        union Data { 
+            struct { uint32_t start, end; } fields; 
+            uint64_t data;
+        } X;
+        X.data = data;
+        const int symbol_start = (int)X.fields.start;
+        const int symbol_end   = (int)X.fields.end;
+        const int total_symbols = symbol_end-symbol_start;
+        ImGui::Text("Start=%-2d End=%-2d Total=%-2d", symbol_start, symbol_end, total_symbols);
+        return;
+    }
 }
