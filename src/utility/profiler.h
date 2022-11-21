@@ -33,15 +33,27 @@ struct ProfileResult
 
 class InstrumentorThread 
 {
+public:
+    typedef std::vector<ProfileResult> profile_trace_t;
+    struct TraceLog {
+        int count = 0;
+        profile_trace_t trace;
+    };
+    typedef std::unordered_map<uint64_t, TraceLog> profile_trace_logger_t;
 private:
     const char* label = "";
     uint64_t data = 0;
 
+    bool is_trace_logging = false;
+
     int stack_index = 0;
     int results_length = 0;
-    std::vector<ProfileResult> results;
-    std::vector<ProfileResult> prev_results;
+    profile_trace_t results;
+    profile_trace_t prev_results;
+    profile_trace_logger_t profiler_logger;
+
     std::mutex mutex_prev_results;
+    std::mutex mutex_profiler_logger;
 public:
     InstrumentorThread() {
         results.reserve(200);
@@ -59,24 +71,24 @@ public:
         results[res.result_index] = res;
         PopStackIndex();
     }
-    auto& GetResults() {
+    auto& GetPrevTrace() {
         return prev_results;
     }
-    auto& GetMutex() { 
+    auto& GetPrevTraceMutex() { 
         return mutex_prev_results;
     }
-    void SetLabel(const char* _label) {
-        label = _label;
+    auto& GetTraceLogs() {
+        return profiler_logger;
     }
-    void SetData(uint64_t _data) {
-        data = _data;
+    auto& GetTraceLogsMutex() {
+        return mutex_profiler_logger;
     }
-    const char* GetLabel() const {
-        return label;
-    }
-    uint64_t GetData() const {
-        return data;
-    }
+    void SetLabel(const char* _label) { label = _label; }
+    void SetData(uint64_t _data) { data = _data; }
+    void SetIsLogTraces(bool _is_trace_logging) { is_trace_logging = _is_trace_logging; }
+    const char* GetLabel() const { return label; }
+    uint64_t GetData() const { return data; }
+    bool GetIsLogTraces() const { return is_trace_logging; }
 private:
     int PopStackIndex() { 
         stack_index--; 
@@ -87,9 +99,35 @@ private:
         return stack_index;
     }
     void UpdateResults() {
-        auto lock = std::scoped_lock(mutex_prev_results);
-        std::swap(results, prev_results);
-        results_length = 0;
+        if (is_trace_logging) {
+            auto lock = std::scoped_lock(mutex_profiler_logger);
+            const auto key = CalculateHash(results);
+            auto res = profiler_logger.find(key);
+            if (res == profiler_logger.end()) {
+                profiler_logger.insert({key, {1, results}});
+            } else {
+                res->second.count++;
+            }
+        }
+        {
+            auto lock = std::scoped_lock(mutex_prev_results);
+            std::swap(results, prev_results);
+            results_length = 0;
+        }
+    }
+    uint64_t CalculateHash(profile_trace_t& stack_trace) {
+        uint64_t hash = 0;
+        hash = (hash >> 32) ^ (hash << 32) ^ stack_trace.size();
+        for (auto& e: stack_trace) {
+            hash = (hash >> 32) ^ (hash << 32) ^ e.stack_index;
+            // if (e.stack_index >= 2) continue;
+            if (e.name != NULL) {
+                for (const char* c = e.name; (*c) != 0; c++) {
+                    hash = (hash >> 8) ^ (hash << 8) ^ (uint64_t)(*c);
+                }
+            }
+        }
+        return hash;
     }
 };
 
@@ -192,10 +230,12 @@ public:
 #define PROFILE_END(label) (void)0
 #define PROFILE_TAG_THREAD(label) (void)0
 #define PROFILE_TAG_DATA_THREAD(data) (void)0
+#define PROFILE_ENABLE_TRACE_LOGGING(is_log) (void)0
 #else
 #define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
 #define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
 #define PROFILE_END(label) timer_##label.Stop()
 #define PROFILE_TAG_THREAD(label) Instrumentor::Get().GetInstrumentorThread().SetLabel(label)
 #define PROFILE_TAG_DATA_THREAD(data) Instrumentor::Get().GetInstrumentorThread().SetData(data)
+#define PROFILE_ENABLE_TRACE_LOGGING(is_log) Instrumentor::Get().GetInstrumentorThread().SetIsLogTraces(is_log) 
 #endif

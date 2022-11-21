@@ -222,6 +222,7 @@ OFDM_Demod::~OFDM_Demod() {
 // Clause 3.12.2: Frame synchronisation
 void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
     PROFILE_TAG_THREAD("OFDM_Demod::ProcessThread");
+    PROFILE_ENABLE_TRACE_LOGGING(true);
     PROFILE_BEGIN_FUNC();
 
     UpdateSignalAverage(buf);
