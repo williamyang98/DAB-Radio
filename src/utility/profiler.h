@@ -7,6 +7,11 @@
 #include <thread>
 #include <mutex>
 
+// Crossplatform pretty function
+#ifdef _MSC_VER
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
 // Get time stamps
 static std::chrono::time_point<std::chrono::high_resolution_clock> GetNow() {
     return std::chrono::high_resolution_clock::now();
@@ -230,7 +235,7 @@ public:
 #define PROFILE_ENABLE_TRACE_LOGGING(is_log) (void)0
 #define PROFILE_ENABLE_TRACE_LOGGING_CONTINUOUS(is_continuous) (void)0
 #else
-#define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
+#define PROFILE_BEGIN_FUNC() auto timer_##__PRETTY_FUNCTION__ = InstrumentationTimer(__PRETTY_FUNCTION__)
 #define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
 #define PROFILE_END(label) timer_##label.Stop()
 #define PROFILE_TAG_THREAD(label) Instrumentor::Get().GetInstrumentorThread().SetLabel(label)
