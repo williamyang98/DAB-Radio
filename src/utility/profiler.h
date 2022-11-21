@@ -1,36 +1,37 @@
-//
-// Basic instrumentation profiler by Cherno
-
-// Usage: include this header file somewhere in your code (eg. precompiled header), and then use like:
-//
-// Instrumentor::Get().BeginSession("Session Name");        // Begin session 
-// {
-//     InstrumentationTimer timer("Profiled Scope Name");   // Place code like this in scopes you'd like to include in profiling
-//     // Code
-// }
-// Instrumentor::Get().EndSession();                        // End Session
-//
-// You will probably want to macro-fy this, to switch on/off easily and use things like __FUNCSIG__ for the profile name.
-//
 #pragma once
 
 #include <stdint.h>
+#include <unordered_map>
 #include <vector>
 #include <chrono>
 #include <thread>
-#include <unordered_map>
-#include <fmt/core.h>
 #include <mutex>
+
+// Get time stamps
+static std::chrono::time_point<std::chrono::high_resolution_clock> GetNow() {
+    return std::chrono::high_resolution_clock::now();
+}
+
+static int64_t ConvertMillis(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::milliseconds>(time).time_since_epoch().count();
+}
+
+static int64_t ConvertMicros(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::microseconds>(time).time_since_epoch().count();
+}
+
+static int64_t ConvertNanos(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
+    return std::chrono::time_point_cast<std::chrono::nanoseconds>(time).time_since_epoch().count();
+}
 
 struct ProfileResult
 {
     const char* name;
     int stack_index;
-    int result_index;
     int64_t start, end;
-    std::thread::id thread_id;
 };
 
+// Store stack trace for each thread
 class InstrumentorThread 
 {
 public:
@@ -44,12 +45,19 @@ private:
     const char* label = "";
     uint64_t data = 0;
 
+    // Log all traces with a unique hash
     bool is_trace_logging = false;
+    // Log a single snapshot of the unique trace, or continuously update it
+    bool is_trace_logging_snapshot = true;
 
     int stack_index = 0;
     int results_length = 0;
     profile_trace_t results;
     profile_trace_t prev_results;
+
+    // Log all unique stack traces
+    // This is useful if the stack trace varies each call and we are interested 
+    // in profiling each of these possible variations
     profile_trace_logger_t profiler_logger;
 
     std::mutex mutex_prev_results;
@@ -67,28 +75,27 @@ public:
         return {stack_index-1, results_length-1};
     }
 
-    void WriteProfile(ProfileResult&& res) {
-        results[res.result_index] = res;
+    void WriteProfile(ProfileResult&& res, int result_index) {
+        results[result_index] = res;
         PopStackIndex();
     }
-    auto& GetPrevTrace() {
-        return prev_results;
-    }
-    auto& GetPrevTraceMutex() { 
-        return mutex_prev_results;
-    }
-    auto& GetTraceLogs() {
-        return profiler_logger;
-    }
-    auto& GetTraceLogsMutex() {
-        return mutex_profiler_logger;
-    }
-    void SetLabel(const char* _label) { label = _label; }
-    void SetData(uint64_t _data) { data = _data; }
-    void SetIsLogTraces(bool _is_trace_logging) { is_trace_logging = _is_trace_logging; }
+
+    auto& GetPrevTrace() { return prev_results; }
+    auto& GetPrevTraceMutex() { return mutex_prev_results; }
+    auto& GetTraceLogs() { return profiler_logger; }
+    auto& GetTraceLogsMutex() { return mutex_profiler_logger; }
+
     const char* GetLabel() const { return label; }
+    void SetLabel(const char* _label) { label = _label; }
+
+    void SetData(uint64_t _data) { data = _data; }
     uint64_t GetData() const { return data; }
+
+    void SetIsLogTraces(bool _is_trace_logging) { is_trace_logging = _is_trace_logging; }
     bool GetIsLogTraces() const { return is_trace_logging; }
+
+    void SetIsLogTracesSnapshot(bool _is_snapshot) { is_trace_logging_snapshot = _is_snapshot; }
+    bool GetIsLogTracesSnapshot() const { return is_trace_logging_snapshot; }
 private:
     int PopStackIndex() { 
         stack_index--; 
@@ -107,6 +114,10 @@ private:
                 profiler_logger.insert({key, {1, results}});
             } else {
                 res->second.count++;
+                // We continously update the unique trace
+                if (!is_trace_logging_snapshot) {
+                    res->second.trace = results;
+                }
             }
         }
         {
@@ -131,22 +142,7 @@ private:
     }
 };
 
-static std::chrono::time_point<std::chrono::high_resolution_clock> GetNow() {
-    return std::chrono::high_resolution_clock::now();
-}
-
-static int64_t ConvertMillis(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-    return std::chrono::time_point_cast<std::chrono::milliseconds>(time).time_since_epoch().count();
-}
-
-static int64_t ConvertMicros(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-    return std::chrono::time_point_cast<std::chrono::microseconds>(time).time_since_epoch().count();
-}
-
-static int64_t ConvertNanos(const std::chrono::time_point<std::chrono::high_resolution_clock>& time) {
-    return std::chrono::time_point_cast<std::chrono::nanoseconds>(time).time_since_epoch().count();
-}
-
+// Store instrumentation for each thread
 class Instrumentor
 {
 private:
@@ -186,6 +182,7 @@ public:
     }
 };
 
+// Scoped timer
 class InstrumentationTimer
 {
 private:
@@ -220,7 +217,7 @@ public:
         auto time_end = GetNow();
         auto dt_start = ConvertMicros(time_start) - Instrumentor::Get().GetBase();
         auto dt_end = ConvertMicros(time_end) - Instrumentor::Get().GetBase();
-        thread_ptr->WriteProfile({ name, stack_index, result_index, dt_start, dt_end, thread_id });
+        thread_ptr->WriteProfile({ name, stack_index, dt_start, dt_end }, result_index);
     }
 };
 
@@ -231,6 +228,7 @@ public:
 #define PROFILE_TAG_THREAD(label) (void)0
 #define PROFILE_TAG_DATA_THREAD(data) (void)0
 #define PROFILE_ENABLE_TRACE_LOGGING(is_log) (void)0
+#define PROFILE_ENABLE_TRACE_LOGGING_CONTINUOUS(is_continuous) (void)0
 #else
 #define PROFILE_BEGIN_FUNC() auto timer_##__FUNCSIG__ = InstrumentationTimer(__FUNCSIG__)
 #define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
@@ -238,4 +236,5 @@ public:
 #define PROFILE_TAG_THREAD(label) Instrumentor::Get().GetInstrumentorThread().SetLabel(label)
 #define PROFILE_TAG_DATA_THREAD(data) Instrumentor::Get().GetInstrumentorThread().SetData(data)
 #define PROFILE_ENABLE_TRACE_LOGGING(is_log) Instrumentor::Get().GetInstrumentorThread().SetIsLogTraces(is_log) 
+#define PROFILE_ENABLE_TRACE_LOGGING_CONTINUOUS(is_continuous) Instrumentor::Get().GetInstrumentorThread().SetIsLogTracesSnapshot(!is_continuous)
 #endif

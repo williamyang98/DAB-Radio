@@ -223,6 +223,7 @@ OFDM_Demod::~OFDM_Demod() {
 void OFDM_Demod::Process(tcb::span<const std::complex<float>> buf) {
     PROFILE_TAG_THREAD("OFDM_Demod::ProcessThread");
     PROFILE_ENABLE_TRACE_LOGGING(true);
+    PROFILE_ENABLE_TRACE_LOGGING_CONTINUOUS(true);
     PROFILE_BEGIN_FUNC();
 
     UpdateSignalAverage(buf);
