@@ -72,6 +72,7 @@ private:
     bool is_firecode_error = false;
     bool is_rs_error = false;
     bool is_au_error = false;
+    bool is_codec_error = false;
 public:
     Basic_DAB_Plus_Channel(const DAB_Parameters _params, const Subchannel _subchannel);
     ~Basic_DAB_Plus_Channel();
@@ -96,6 +97,7 @@ public:
     bool IsFirecodeError() const { return is_firecode_error; }
     bool IsRSError() const { return is_rs_error; }
     bool IsAUError() const { return is_au_error; }
+    bool IsCodecError() const { return is_codec_error; }
 protected:
     virtual void BeforeRun();
     virtual void Run();

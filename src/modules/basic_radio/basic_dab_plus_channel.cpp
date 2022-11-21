@@ -94,9 +94,14 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
             return;
         }
         const auto res = aac_audio_decoder->DecodeFrame(buf);
+        // reset error flag on new superframe
+        if (au_index == 0) {
+            is_codec_error = res.is_error;
+        }
         if (res.is_error) {
             LOG_ERROR("[aac-audio-decoder] error={} au_index={}/{}", 
                 res.error_code, au_index, nb_aus);
+            is_codec_error = true;
             return;
         }
 
@@ -155,7 +160,6 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
             is_au_error = false;
         }
     });
-
 }
 
 // controls

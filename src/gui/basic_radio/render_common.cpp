@@ -94,14 +94,13 @@ void RenderEnsemble(BasicRadio& radio) {
             const float LTO = static_cast<float>(ensemble.local_time_offset) / 10.0f;
             FIELD_MACRO("Name", "%.*s", ensemble.label.length(), ensemble.label.c_str());
             FIELD_MACRO("ID", "%u", ensemble.reference);
-            FIELD_MACRO("Country ID", "%u", ensemble.country_id);
-            FIELD_MACRO("Extended Country Code", "0x%02X", ensemble.extended_country_code);
+            FIELD_MACRO("Country Code", "%s (0x%02X.%01X)", 
+                GetCountryString(ensemble.extended_country_code, ensemble.country_id),
+                ensemble.extended_country_code, ensemble.country_id);
             FIELD_MACRO("Local Time Offset", "%.1f hours", LTO);
             FIELD_MACRO("Inter Table ID", "%u", ensemble.international_table_id);
             FIELD_MACRO("Total Services", "%u", ensemble.nb_services);
             FIELD_MACRO("Total Reconfig", "%u", ensemble.reconfiguration_count);
-            FIELD_MACRO("Country Name", "%s", GetCountryString(
-                ensemble.extended_country_code, ensemble.country_id));
             #undef FIELD_MACRO
 
             ImGui::EndTable();

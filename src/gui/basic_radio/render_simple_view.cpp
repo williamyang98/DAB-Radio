@@ -6,6 +6,8 @@
 #include <fmt/core.h>
 #include "formatters.h"
 
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui_internal.h>
 #include <imgui.h>
 #include "gui/font_awesome_definitions.h"
 #include "gui/imgui_extensions.h"
@@ -101,17 +103,15 @@ void RenderSimple_Service(BasicRadio& radio, SimpleViewController& controller, S
 
             FIELD_MACRO("Name", "%.*s", service->label.length(), service->label.c_str());
             FIELD_MACRO("ID", "%u", service->reference);
-            FIELD_MACRO("Country ID", "%u", service->country_id);
-            FIELD_MACRO("Extended Country Code", "0x%02X", service->extended_country_code);
-            FIELD_MACRO("Programme Type", "%u", service->programme_type);
-            FIELD_MACRO("Language", "%u", service->language);
+            FIELD_MACRO("Country Code", "0x%02X.%01X", service->extended_country_code, service->country_id);
+            FIELD_MACRO("Programme Type", "%s (%u)", 
+                GetProgrammeTypeString(ensemble.international_table_id, service->programme_type),
+                service->programme_type);
+            FIELD_MACRO("Language", "%s (%u)", GetLanguageTypeString(service->language), service->language);
             FIELD_MACRO("Closed Caption", "%u", service->closed_caption);
             // FIELD_MACRO("Country Name", "%s", GetCountryString(
             //     service->extended_country_code ? service->extended_country_code : ensemble.extended_country_code, 
             //     service->country_id ? service->country_id : ensemble.country_id));
-            FIELD_MACRO("Language Name", "%s", GetLanguageTypeString(service->language));
-            FIELD_MACRO("Programme Type Name", "%s", GetProgrammeTypeString(
-                ensemble.international_table_id, service->programme_type));
 
             #undef FIELD_MACRO
 
@@ -140,52 +140,73 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, SimpleViewController& cont
     auto& db = radio.GetDatabaseManager().GetDatabase();
     const auto subchannel_id = component.subchannel_id;
     auto* subchannel = db.GetSubchannel(subchannel_id);
-    
-    ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
-    if (ImGui::BeginTable("Component", 2, flags)) {
-        ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableHeadersRow();
 
-        int row_id  = 0;
-        #define FIELD_MACRO(name, fmt, ...) {\
-            ImGui::PushID(row_id++);\
-            ImGui::TableNextRow();\
-            ImGui::TableSetColumnIndex(0);\
-            ImGui::TextWrapped(name);\
-            ImGui::TableSetColumnIndex(1);\
-            ImGui::TextWrapped(fmt, __VA_ARGS__);\
-            ImGui::PopID();\
-        }\
+    ImGui::DockSpace(ImGui::GetID("Service Component Dockspace"));
 
-        const bool is_audio_type = (component.transport_mode == TransportMode::STREAM_MODE_AUDIO);
-        const char* type_str = is_audio_type ? 
-            GetAudioTypeString(component.audio_service_type) :
-            GetDataTypeString(component.data_service_type);
-        
-        FIELD_MACRO("Label", "%.*s", component.label.length(), component.label.c_str());
-        FIELD_MACRO("Component ID", "%u", component.component_id);
-        FIELD_MACRO("Global ID", "%u", component.global_id);
-        FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
-        FIELD_MACRO("Type", "%s", type_str);
-        FIELD_MACRO("Subchannel ID", "%u", component.subchannel_id);
+    #define FIELD_MACRO(name, fmt, ...) {\
+        ImGui::PushID(row_id++);\
+        ImGui::TableNextRow();\
+        ImGui::TableSetColumnIndex(0);\
+        ImGui::TextWrapped(name);\
+        ImGui::TableSetColumnIndex(1);\
+        ImGui::TextWrapped(fmt, __VA_ARGS__);\
+        ImGui::PopID();\
+    }\
 
-        if (subchannel != NULL) {
+    ImGuiTableFlags table_flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
+
+    if (ImGui::Begin("Service Component")) {
+        if (ImGui::BeginTable("Service Component", 2, table_flags)) {
+            ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableHeadersRow();
+
+            int row_id  = 0;
+            const bool is_audio_type = (component.transport_mode == TransportMode::STREAM_MODE_AUDIO);
+            const char* type_str = is_audio_type ? 
+                GetAudioTypeString(component.audio_service_type) :
+                GetDataTypeString(component.data_service_type);
+            
+            FIELD_MACRO("Label", "%.*s", component.label.length(), component.label.c_str());
+            FIELD_MACRO("Component ID", "%u", component.component_id);
+            FIELD_MACRO("Global ID", "%u", component.global_id);
+            FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
+            FIELD_MACRO("Type", "%s", type_str);
+            // FIELD_MACRO("Subchannel ID", "%u", component.subchannel_id);
+
+            ImGui::EndTable();
+        }
+    }
+    ImGui::End();
+
+    if (ImGui::Begin("Subchannel")) {
+        if ((subchannel != NULL) && ImGui::BeginTable("Subchannel", 2, table_flags)) {
+            ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableHeadersRow();
+
+            int row_id  = 0;
             const auto prot_label = GetSubchannelProtectionLabel(*subchannel);
             const uint32_t bitrate_kbps = GetSubchannelBitrate(*subchannel);
+            FIELD_MACRO("Subchannel ID", "%u", subchannel->id);
             FIELD_MACRO("Start Address", "%u", subchannel->start_address);
             FIELD_MACRO("Capacity Units", "%u", subchannel->length);
             FIELD_MACRO("Protection", "%.*s", prot_label.length(), prot_label.c_str());
             FIELD_MACRO("Bitrate", "%u kb/s", bitrate_kbps);
-        }
 
-        #undef FIELD_MACRO
-        ImGui::EndTable();
+            ImGui::EndTable();
+        }
     }
+    ImGui::End();
+
+    #undef FIELD_MACRO
 
     auto* dab_plus_channel = radio.Get_DAB_Plus_Channel(subchannel_id);
     if (dab_plus_channel != NULL) {
-        RenderSimple_Basic_DAB_Plus_Channel(radio, controller, *dab_plus_channel, subchannel_id);
+        if (ImGui::Begin("DAB Plus Channel")) {
+            RenderSimple_Basic_DAB_Plus_Channel(radio, controller, *dab_plus_channel, subchannel_id);
+        }
+        ImGui::End();
     }
 }
 
@@ -201,6 +222,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController
     }
     bool v = false;
     v = controls.GetIsDecodeAudio();
+    ImGui::SameLine();
     if (ImGui::Checkbox("Decode audio", &v)) {
         controls.SetIsDecodeAudio(v);
     }
@@ -215,6 +237,36 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController
         controls.SetIsPlayAudio(v);
     }
 
+    static const auto ERROR_INDICATOR = [](const char* label, bool is_error) {
+        static const auto COLOR_NO_ERROR = ImColor(0,255,0).Value;
+        static const auto COLOR_ERROR    = ImColor(255,0,0).Value;
+        const auto padding = ImGui::GetStyle().FramePadding / 2;
+        const auto pos_group_start = ImGui::GetCursorScreenPos();
+        ImGui::BeginGroup();
+        ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
+        ImGui::Text(ICON_FA_CIRCLE);
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text(label);
+        ImGui::EndGroup();
+        const auto pos_group_end = ImGui::GetItemRectMax();
+        ImGui::GetWindowDrawList()->AddRect(
+            pos_group_start-padding, pos_group_end+padding, 
+            ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)), 
+            ImGui::GetStyle().FrameBorderSize);
+    };
+
+    ImGui::SameLine();
+
+    ImGui::BeginGroup();
+    ERROR_INDICATOR("Firecode", channel.IsFirecodeError());
+    ImGui::SameLine();
+    ERROR_INDICATOR("Reed Solomon", channel.IsRSError());
+    ImGui::SameLine();
+    ERROR_INDICATOR("Access Unit CRC", channel.IsAUError());
+    ImGui::SameLine();
+    ERROR_INDICATOR("AAC Decoder", channel.IsCodecError());
+    ImGui::EndGroup();
 
     const auto& superframe_header = channel.GetSuperFrameHeader();
     if (superframe_header.sampling_rate != 0) {
@@ -225,25 +277,6 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, SimpleViewController
             GetAACDescriptionString(superframe_header.SBR_flag, superframe_header.PS_flag),
             mpeg_surround ? mpeg_surround : "");
     }
-
-
-    static const auto ERROR_INDICATOR = [](const char* label, bool is_error) {
-        static const auto COLOR_NO_ERROR = ImColor(0,255,0).Value;
-        static const auto COLOR_ERROR    = ImColor(255,0,0).Value;
-        ImGui::BeginGroupPanel(NULL);
-        ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
-        ImGui::Text(ICON_FA_CIRCLE);
-        ImGui::PopStyleColor();
-        ImGui::SameLine();
-        ImGui::Text(label);
-        ImGui::EndGroupPanel();
-    };
-
-    ERROR_INDICATOR("Firecode", channel.IsFirecodeError());
-    ImGui::SameLine();
-    ERROR_INDICATOR("Reed Solomon", channel.IsRSError());
-    ImGui::SameLine();
-    ERROR_INDICATOR("Access Unit CRC", channel.IsAUError());
 
     // Programme associated data
     // 1. Dynamic label
