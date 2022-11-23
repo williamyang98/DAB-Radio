@@ -568,9 +568,9 @@ void OFDM_Demod::CoordinatorThread() {
     }
     average_cyclic_error /= (float)(params.nb_frame_symbols);
     // Calculate adjustments to fine frequency offset 
-    const float ofdm_freq_spacing = (float)(params.freq_carrier_spacing);
-    const float fine_freq_adjust = average_cyclic_error/(float)M_PI * ofdm_freq_spacing/2.0f;
-    const float delta = -cfg.sync.fine_freq_update_beta*fine_freq_adjust;
+    const float fine_freq_error = CalculateFineFrequencyError(average_cyclic_error);
+    const float beta = cfg.sync.fine_freq_update_beta;
+    const float delta = -beta*fine_freq_error;
     UpdateFineFrequencyOffset(delta);
     PROFILE_END(calculate_phase_error);
 
@@ -785,6 +785,61 @@ float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
     #endif
 }
 
+float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym) {
+    PROFILE_BEGIN_FUNC();
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    const size_t N = params.nb_cyclic_prefix;
+    const size_t M = params.nb_fft;
+    auto error_vec = std::complex<float>(0,0);
+    for (int i = 0; i < N; i++) {
+        error_vec += std::conj(sym[i]) * sym[M+i];
+    }
+    return cargf(error_vec);
+}
+
+float OFDM_Demod::CalculateFineFrequencyError(const float cyclic_phase_error) {
+    PROFILE_BEGIN_FUNC();
+    // Clause 3.13.1 - Fraction frequency offset estimation
+    // Definition of cyclic prefix
+    // wd = OFDM frequency spacing = FFT bin width
+    // Let w0 be a subcarrier, w0=k1*wd, k1 is an integer
+    // Prefix = e^jw0(t+T), Data = e^jw0t
+    // Since the prefix is equal to the data in an OFDM symbol
+    // w0(t+T) = w0t + 2*k2*pi, k2 is an integer
+    // T = k2*(2*pi)/w0                 (equ 1) 
+    // 
+    // Calculation of phase error (no frequency error)
+    // phi = conj(prefix)*data
+    // phi = e^-jw0(t+T) * e^jw0t
+    // phi = e^-jw0T = e^(-j*k2*2*pi)
+    // error = arg(phi) = -2*pi*k2 = 0
+    // 
+    // Calculate of phase error (with frequency offset)
+    // Let w1 = frequency offset
+    // Prefix = e^jw0(t+T) * e^jw1(t+T) = e^j(w0+w1)(t+T)
+    // Data   = e^jw0t     * e^jw1t     = e^j(w0+w1)t
+    // phi = conj(prefix)*data
+    // phi = e^-j(w0+w1)(t+T) * e^j(w0+w1)t
+    // phi = e^-j(w0+w1)T
+    // error = arg(phi) 
+    // error = (w0+w1)T
+    // error = (w0+w1)/w0 * k2 * 2*pi, using (equ 1)
+    // error = k2*2*pi + (w1/w0)*k2*2*pi
+    // error = k2 * w1/w0 * 2*pi
+    // error = w1/w0 * 2*pi,            (since |error| <= pi, then k2=1)
+    // error = w1/(k1*wd) * 2*pi,       (w0=k1*wd)
+    // w1 = k1 * wd/2 * error/pi       
+    //
+    // Since |w1| <= wd/2 due to coarse frequency correction
+    // w1 = wd/2 * error/pi,            (k1=1)
+    //
+    // Since |error| <= pi
+    // then w1 = [-wd/2, wd/2] which is our fine frequency correction range
+    const float w_d = (float)(params.freq_carrier_spacing);
+    const float w_error = w_d/2.0f * cyclic_phase_error/(float)(M_PI);
+    return w_error;
+}
+
 // Two threads may try to update the fine frequency offset simulataneously 
 // Reader thread: Runs coarse frequency correction during frame sychronisation which also affects fine frequency offset
 // Coordinator thread: Joins phase errors from pipeline thread and calculates average adjustment for fine frequency offset
@@ -805,17 +860,6 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
     freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f + overflow_margin);
 }
 
-float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym) {
-    PROFILE_BEGIN_FUNC();
-    // Clause 3.13.1 - Fraction frequency offset estimation
-    const size_t N = params.nb_cyclic_prefix;
-    const size_t M = params.nb_fft;
-    auto error_vec = std::complex<float>(0,0);
-    for (int i = 0; i < N; i++) {
-        error_vec += std::conj(sym[i]) * sym[M+i];
-    }
-    return cargf(error_vec);
-}
 
 void OFDM_Demod::CalculateDQPSK(
     tcb::span<const std::complex<float>> in0, 

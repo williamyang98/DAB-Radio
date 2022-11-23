@@ -150,6 +150,7 @@ private:
         const float freq_offset, const float dt0=0);
     float CalculateTimeOffset(const size_t i, const float freq_offset);
     float CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym);
+    float CalculateFineFrequencyError(const float cyclic_phase_error);
     void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf);
     void CalculateDQPSK(
         tcb::span<const std::complex<float>> in0, tcb::span<const std::complex<float>> in1, 
