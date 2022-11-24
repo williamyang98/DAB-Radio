@@ -62,8 +62,8 @@ void usage() {
 
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
-    char* output_dir = NULL;
-    char* rd_filename = NULL;
+    const char* output_dir = NULL;
+    const char* rd_filename = NULL;
     bool is_logging = false;
     int transmission_mode = 1;
 
