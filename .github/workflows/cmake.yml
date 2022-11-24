@@ -24,3 +24,13 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
+    - name: Create Archive (Release)
+      shell: pwsh
+      run: ${{github.workspace}}/create_windows_package.ps1
+
+    - name: Upload Archive (Release)
+      uses: actions/upload-artifact@v3
+      with:
+        name: dab_radio_windows_x64
+        path: ${{github.workspace}}/dab_radio_windows_x64.zip
+
