@@ -3,7 +3,7 @@
 #include "modules/dab/msc/msc_decoder.h"
 #include "modules/dab/audio/aac_audio_decoder.h"
 #include "modules/dab/audio/aac_data_decoder.h"
-#include "modules/dab/mot/mot_slideshow_processor.h"
+#include "modules/dab/mot/MOT_slideshow_processor.h"
 #include "basic_slideshow.h"
 
 #include "easylogging++.h"

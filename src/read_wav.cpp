@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
+#include <string.h>
 
 #ifdef _WIN32
 #include <io.h>
