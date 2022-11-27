@@ -20,8 +20,14 @@
 
 #include "phil_karn_viterbi_decoder.h"
 
+#ifdef _WIN32
+#define ALIGNED(x) __declspec(align(x))
 #define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ? 0 : errno)
 #define posix_free(a) _aligned_free(a)
+#else
+#define ALIGNED(x) __attribute__ ((aligned(x)))
+#define posix_free(a) free(a)
+#endif
 
 
 #define K CONSTRAINT_LENGTH
@@ -89,24 +95,24 @@ const static uint8_t* BitcountTable = CreateBitCountTable();
 const static uint8_t* BitReverseTable = CreateBitReverseTable();
 
 // decision_t is a BIT vector
-typedef __declspec(align(ALIGN_AMOUNT)) union {
+typedef ALIGNED(ALIGN_AMOUNT) union {
     DECISIONTYPE buf[NUMSTATES/DECISIONTYPE_BITSIZE];
     uint32_t buf32[NUMSTATES/32];
     uint16_t buf16[NUMSTATES/16];
     uint8_t  buf8 [NUMSTATES/8 ];
 } decision_t;
 
-typedef __declspec(align(ALIGN_AMOUNT)) union {
+typedef ALIGNED(ALIGN_AMOUNT) union {
     COMPUTETYPE buf[NUMSTATES];
     __m128i b128[8];
     __m256i b256[4];
 } metric_t;
 
 struct vitdec_t {
-    __declspec(align(ALIGN_AMOUNT)) metric_t metrics1;
-    __declspec(align(ALIGN_AMOUNT)) metric_t metrics2;
+    ALIGNED(ALIGN_AMOUNT) metric_t metrics1;
+    ALIGNED(ALIGN_AMOUNT) metric_t metrics2;
 
-    union __declspec(align(ALIGN_AMOUNT)) {
+    union ALIGNED(ALIGN_AMOUNT) {
         COMPUTETYPE buf[32];
         __m128i b128[4];
         __m256i b256[2];

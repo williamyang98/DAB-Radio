@@ -12,12 +12,14 @@ find_package(fmt REQUIRED)
 set(rtlsdr_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/librtlsdr)
 find_package(rtlsdr CONFIG REQUIRED)
 
+find_package(portaudio CONFIG REQUIRED)
+
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
 if(MSVC)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-elseif(UNIX)
+else()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2 -msse4.1 -ffast-math")
 endif()
 
@@ -113,6 +115,23 @@ set_target_properties(profiler_gui PROPERTIES CXX_STANDARD 17)
 target_include_directories(profiler_gui PUBLIC ${PROFILER_GUI_DIR} ${SRC_DIR})
 target_link_libraries(profiler_gui PRIVATE imgui implot)
 
+set(AUDIO_DIR ${SRC_DIR}/audio)
+add_library(audio_lib STATIC 
+    ${AUDIO_DIR}/resampled_pcm_player.cpp
+    ${AUDIO_DIR}/audio_mixer.cpp
+    ${AUDIO_DIR}/portaudio_output.cpp
+    ${AUDIO_DIR}/portaudio_utility.cpp)
+set_target_properties(audio_lib PROPERTIES CXX_STANDARD 17)
+target_include_directories(audio_lib PUBLIC ${AUDIO_DIR} ${SRC_DIR})
+target_link_libraries(audio_lib PRIVATE portaudio)
+
+set(AUDIO_LIB_GUI ${SRC_DIR}/gui)
+add_library(audio_lib_gui STATIC 
+    ${AUDIO_LIB_GUI}/render_portaudio_controls.cpp)
+set_target_properties(audio_lib_gui PROPERTIES CXX_STANDARD 17)
+target_include_directories(audio_lib_gui PUBLIC ${AUDIO_LIB_GUI} ${SRC_DIR})
+target_link_libraries(audio_lib_gui PRIVATE imgui)
+
 # Our applications
 add_executable(ofdm_demod_gui 
     ${SRC_DIR}/ofdm_demod_gui.cpp
@@ -131,26 +150,26 @@ target_link_libraries(ofdm_demod_cli PRIVATE ofdm_core getopt)
 
 add_executable(basic_radio_app_no_demod
     ${SRC_DIR}/basic_radio_app_no_demod.cpp
-    ${SRC_DIR}/gui/imgui_skeleton.cpp
-    ${SRC_DIR}/audio/win32_pcm_player.cpp)
+    ${SRC_DIR}/gui/imgui_skeleton.cpp)
 target_include_directories(basic_radio_app_no_demod PUBLIC ${SRC_DIR})
 set_target_properties(basic_radio_app_no_demod PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app_no_demod PRIVATE 
-    dab_core basic_radio
+    dab_core basic_radio audio_lib
     getopt easyloggingpp fmt
-    basic_radio_gui imgui)
+    basic_radio_gui audio_lib_gui 
+    imgui)
 target_compile_definitions(basic_radio_app_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_app
     ${SRC_DIR}/basic_radio_app.cpp
-    ${SRC_DIR}/gui/imgui_skeleton.cpp
-    ${SRC_DIR}/audio/win32_pcm_player.cpp)
+    ${SRC_DIR}/gui/imgui_skeleton.cpp)
 target_include_directories(basic_radio_app PUBLIC ${SRC_DIR})
 set_target_properties(basic_radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_app PRIVATE 
-    ofdm_core dab_core basic_radio
+    ofdm_core dab_core basic_radio audio_lib
     getopt easyloggingpp fmt
-    ofdm_gui basic_radio_gui profiler_gui imgui implot)
+    ofdm_gui basic_radio_gui audio_lib_gui profiler_gui 
+    imgui implot)
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_scraper
@@ -202,14 +221,14 @@ add_executable(radio_app
     ${SRC_DIR}/modules/device/device_selector.cpp
     ${SRC_DIR}/modules/device/device.cpp
     ${SRC_DIR}/gui/imgui_skeleton.cpp
-    ${SRC_DIR}/gui/render_device_selector.cpp
-    ${SRC_DIR}/audio/win32_pcm_player.cpp)
+    ${SRC_DIR}/gui/render_device_selector.cpp)
 target_include_directories(radio_app PUBLIC ${SRC_DIR})
 set_target_properties(radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(radio_app PRIVATE 
-    rtlsdr ofdm_core dab_core basic_radio
+    rtlsdr ofdm_core dab_core basic_radio audio_lib
     getopt fmt easyloggingpp
-    ofdm_gui basic_radio_gui profiler_gui imgui implot)
+    ofdm_gui basic_radio_gui audio_lib_gui profiler_gui 
+    imgui implot)
 target_compile_definitions(radio_app PRIVATE ELPP_THREAD_SAFE)
 
 # vcpkg.cmake has internal stuff that autogenerates this
@@ -229,6 +248,8 @@ target_compile_options(dab_core             PRIVATE "/MP")
 target_compile_options(basic_radio          PRIVATE "/MP")
 target_compile_options(basic_radio_gui      PRIVATE "/MP")
 target_compile_options(getopt               PRIVATE "/MP")
+target_compile_options(audio_lib            PRIVATE "/MP")
+target_compile_options(audio_lib_gui        PRIVATE "/MP")
 
 target_compile_options(ofdm_demod_gui       PRIVATE "/MP")
 target_compile_options(ofdm_demod_cli       PRIVATE "/MP")
@@ -242,5 +263,4 @@ target_compile_options(convert_viterbi      PRIVATE "/MP")
 target_compile_options(apply_frequency_shift PRIVATE "/MP")
 target_compile_options(read_wav             PRIVATE "/MP")
 target_compile_options(radio_app            PRIVATE "/MP")
-
 endif()

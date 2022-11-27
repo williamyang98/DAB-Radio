@@ -6,12 +6,6 @@
 #include <fcntl.h>
 #endif
 
-#include <GLFW/glfw3.h>
-#include <imgui.h>
-#include <implot.h>
-#include "gui/imgui_skeleton.h"
-#include "gui/font_awesome_definitions.h"
-
 #include <unordered_map>
 #include <thread>
 #include <string>
@@ -23,12 +17,26 @@
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_prs_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/ofdm/ofdm_helpers.h"
+
 #include "modules/basic_radio/basic_radio.h"
+
+#include "audio/portaudio_output.h"
+#include "audio/audio_mixer.h"
+#include "audio/resampled_pcm_player.h"
+#include "audio/portaudio_utility.h"
+
+#include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <implot.h>
+#include "gui/imgui_skeleton.h"
+#include "gui/font_awesome_definitions.h"
+
 #include "gui/render_device_selector.h"
 #include "gui/render_ofdm_demod.h"
 #include "gui/basic_radio/render_simple_view.h"
+#include "gui/render_portaudio_controls.h"
 #include "gui/render_profiler.h"
-#include "audio/win32_pcm_player.h"
 
 #include "block_frequencies.h"
 #include "utility/double_buffer.h"
@@ -37,25 +45,21 @@
 #include "easylogging++.h"
 #include "modules/dab/logging.h"
 
-std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
-	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
-	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
-	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
-	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
-	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref, 1);
-	return std::move(ofdm_demod);
-}
-
 class RadioInstance 
 {
 private:
 	std::unique_ptr<BasicRadio> radio;
 	std::unique_ptr<SimpleViewController> view_controller;	
-	std::unordered_map<subchannel_id_t, std::unique_ptr<PCM_Player>> dab_plus_audio_players;
+
+	std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
+	PaDeviceList& pa_devices;
+	PortAudio_Output& pa_output;
 public:
-	RadioInstance(std::unique_ptr<BasicRadio> _radio, std::unique_ptr<SimpleViewController> _view_controller)
-	: dab_plus_audio_players() 
+	RadioInstance(
+		std::unique_ptr<BasicRadio> _radio, std::unique_ptr<SimpleViewController> _view_controller,
+		PaDeviceList& _pa_devices, PortAudio_Output& _pa_output)
+	: dab_plus_audio_players(),
+	  pa_devices(_pa_devices), pa_output(_pa_output)
 	{
 		radio = std::move(_radio);
 		view_controller = std::move(_view_controller);
@@ -73,21 +77,26 @@ public:
 private:
 	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
 		auto& controls = channel.GetControls();
-		auto res = dab_plus_audio_players.emplace(
-			subchannel_id, 
-			std::move(std::make_unique<Win32_PCM_Player>())).first;
+
+        auto& mixer = pa_output.GetMixer();
+        auto buf = mixer.CreateManagedBuffer(2);
+
+        auto player = std::make_unique<Resampled_PCM_Player>(buf, pa_output.GetSampleRate());
+		auto res = dab_plus_audio_players.emplace(subchannel_id, std::move(player)).first;
 		auto* pcm_player = res->second.get(); 
-		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> data) {
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> buf) {
 			if (!controls.GetIsPlayAudio()) {
 				return;
 			}
 
-			auto pcm_params = pcm_player->GetParameters();
-			pcm_params.sample_rate = params.frequency;
-			pcm_params.total_channels = 2;
-			pcm_params.bytes_per_sample = 2;
-			pcm_player->SetParameters(pcm_params);
-			pcm_player->ConsumeBuffer(data);
+            pcm_player->SetInputSampleRate(params.frequency);
+
+            tcb::span<const Frame<int16_t>> rd_buf = {
+                reinterpret_cast<const Frame<int16_t>*>(buf.data()),
+                (size_t)(buf.size() / sizeof(Frame<int16_t>))
+            };
+
+			pcm_player->ConsumeBuffer(rd_buf);
 		});
 	}
 };
@@ -113,14 +122,25 @@ private:
 	// rtlsdr_device, ofdm_demodulator, basic_radio all operate on separate threads
 	std::unique_ptr<std::thread> ofdm_demod_thread;
 	std::unique_ptr<std::thread> basic_radio_thread;
+
+    PaDeviceList pa_devices;
+    PortAudio_Output pa_output;
 public:
 	App() {
 		device_selector = std::make_unique<DeviceSelector>();
 		const auto dab_params = get_dab_parameters(transmission_mode);
-		ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
+		ofdm_demod = Create_OFDM_Demodulator(transmission_mode, 1);
 
 		frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits);
 		raw_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(0);
+
+        #ifdef _WIN32
+        const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
+        const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
+        pa_output.Open(target_device_index);
+        #else
+        pa_output.Open(Pa_GetDefaultOutputDevice());
+        #endif
 
 		device_selector->OnDeviceChange().Attach([this](Device* device) {
 			if (device == NULL) {
@@ -186,6 +206,8 @@ public:
 	auto& GetOFDMDemodulator(void) { return *(ofdm_demod.get()); }
 	auto& GetInputBuffer(void) { return *(raw_double_buffer.get()); }
 	auto& GetDeviceSelector(void) { return *(device_selector.get()); }
+    auto& GetPaAudioOutput() { return pa_output; }
+    auto& GetPaDevices() { return pa_devices; }
 private:
 	void OnTotalSamplesChanged(const int N) {
 		if (raw_double_buffer->GetLength() == N) {
@@ -245,7 +267,8 @@ private:
 		auto view_controller = std::make_unique<SimpleViewController>(*(radio.get()));
 		auto instance = std::make_unique<RadioInstance>(
 			std::move(radio), 
-			std::move(view_controller));
+			std::move(view_controller),
+			pa_devices, pa_output);
 		basic_radios.insert({key, std::move(instance)});
 	}
 };
@@ -300,11 +323,18 @@ public:
 		}
 		ImGui::End();
 
-		{
-			auto* instance = app.GetSelectedRadio();
-			if (instance != NULL) {
+		auto* instance = app.GetSelectedRadio();
+		if (instance != NULL) {
+			if (ImGui::Begin("Simple View")) {
+				ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
+				ImGui::DockSpace(dockspace_id);
+				if (ImGui::Begin("Audio Controls")) {
+					RenderPortAudioControls(app.GetPaDevices(), app.GetPaAudioOutput());
+				}
+				ImGui::End();
 				RenderSimple_Root(instance->GetRadio(), instance->GetViewController());
 			}
+			ImGui::End();
 		}
     }
 };
@@ -349,6 +379,7 @@ int main(int argc, char **argv)
     el::Loggers::reconfigureAllLoggers(defaultConf);
     el::Helpers::setThreadName("main-thread");
 
+    auto port_audio_handler = ScopedPaHandler();
 	auto app = App();
 	auto renderer = Renderer(app);
 	// Automatically select the first rtlsdr dongle we find

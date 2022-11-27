@@ -3,8 +3,11 @@
 #include <assert.h>
 #include <iostream>
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif 
+
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 
@@ -55,9 +58,11 @@ Texture::Texture(tcb::span<const uint8_t> image_buffer)
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
     // wrap texture on x (S) and y (T) axis 
+    #ifdef _WIN32
     // NOTE: apparently we need a header file for opengl 1.2
     //       windows doesn't give this at all
     constexpr auto GL_CLAMP_TO_EDGE = 0x812F;
+    #endif
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 

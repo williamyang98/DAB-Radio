@@ -10,6 +10,10 @@
     {
       "name": "opengl",
       "version>=": "0.0#9"
+    },
+    {
+      "name": "portaudio",
+      "version>=": "19.7"
     }
   ]
 }
