@@ -10,19 +10,24 @@
 #include <fcntl.h>
 #endif
 
-#include "modules/basic_radio/basic_radio.h"
-#include "gui/basic_radio/render_simple_view.h"
-#include "gui/imgui_skeleton.h"
-#include "gui/font_awesome_definitions.h"
-#include "audio/win32_pcm_player.h"
+#include "audio/portaudio_output.h"
+#include "audio/audio_mixer.h"
+#include "audio/resampled_pcm_player.h"
+#include "audio/portaudio_utility.h"
 
-#include <GLFW/glfw3.h> 
-#include <imgui.h>
+#include "modules/basic_radio/basic_radio.h"
 
 #include <thread>
 #include <memory>
 #include <vector>
 #include <unordered_map>
+
+#include <GLFW/glfw3.h> 
+#include <imgui.h>
+#include "gui/imgui_skeleton.h"
+#include "gui/font_awesome_definitions.h"
+#include "gui/basic_radio/render_simple_view.h"
+#include "gui/render_portaudio_controls.h"
 
 #include "utility/getopt/getopt.h"
 #include "easylogging++.h"
@@ -37,7 +42,10 @@ private:
     std::unique_ptr<BasicRadio> radio;
     std::unique_ptr<SimpleViewController> gui_controller;
     std::unique_ptr<std::thread> radio_thread;
-    std::unordered_map<subchannel_id_t, std::unique_ptr<PCM_Player>> dab_plus_audio_players;
+
+    PaDeviceList pa_devices;
+    PortAudio_Output pa_output;
+    std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
 public:
     App(const int transmission_mode, FILE* const _fp_in) 
     : fp_in(_fp_in) {
@@ -52,6 +60,14 @@ public:
         radio_thread = std::make_unique<std::thread>([this]() {
             RunnerThread();
         });
+
+        #ifdef _WIN32
+        const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
+        const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
+        pa_output.Open(target_device_index);
+        #else
+        pa_output.Open(Pa_GetDefaultOutputDevice());
+        #endif
     }
     ~App() {
         fclose(fp_in);
@@ -60,6 +76,8 @@ public:
     }
     auto& GetRadio() { return *(radio.get()); }
     auto& GetViewController() { return *(gui_controller.get()); }
+    auto& GetPaAudioOutput() { return pa_output; }
+    auto& GetPaDevices() { return pa_devices; }
 private:
     void RunnerThread() {
         while (true) {
@@ -76,21 +94,26 @@ private:
     }
 	void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
 		auto& controls = channel.GetControls();
-		auto res = dab_plus_audio_players.emplace(
-			subchannel_id, 
-			std::move(std::make_unique<Win32_PCM_Player>())).first;
+
+        auto& mixer = pa_output.GetMixer();
+        auto buf = mixer.CreateManagedBuffer(2);
+
+        auto player = std::make_unique<Resampled_PCM_Player>(buf, pa_output.GetSampleRate());
+		auto res = dab_plus_audio_players.emplace(subchannel_id, std::move(player)).first;
 		auto* pcm_player = res->second.get(); 
-		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> data) {
+		channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> buf) {
 			if (!controls.GetIsPlayAudio()) {
 				return;
 			}
 
-			auto pcm_params = pcm_player->GetParameters();
-			pcm_params.sample_rate = params.frequency;
-			pcm_params.total_channels = 2;
-			pcm_params.bytes_per_sample = 2;
-			pcm_player->SetParameters(pcm_params);
-			pcm_player->ConsumeBuffer(data);
+            pcm_player->SetInputSampleRate(params.frequency);
+
+            tcb::span<const Frame<int16_t>> rd_buf = {
+                reinterpret_cast<const Frame<int16_t>*>(buf.data()),
+                (size_t)(buf.size() / sizeof(Frame<int16_t>))
+            };
+
+			pcm_player->ConsumeBuffer(rd_buf);
 		});
 	}
 };
@@ -125,12 +148,18 @@ public:
         ImGuiSetupCustomConfig();
     }
     virtual void Render() {
-        RenderSimple_Root(app.GetRadio(), app.GetViewController());
+        if (ImGui::Begin("Simple View")) {
+            ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
+            ImGui::DockSpace(dockspace_id);
+            if (ImGui::Begin("Audio Controls")) {
+                RenderPortAudioControls(app.GetPaDevices(), app.GetPaAudioOutput());
+            }
+            ImGui::End();
+            RenderSimple_Root(app.GetRadio(), app.GetViewController());
+        }
+        ImGui::End();
+
     }
-private:
-    void RunnerThread() {
-        
-    }    
 };
 
 void usage() {
@@ -199,6 +228,7 @@ int main(int argc, char** argv) {
     el::Loggers::reconfigureAllLoggers(defaultConf);
     el::Helpers::setThreadName("main-thread");
 
+    auto port_audio_handler = ScopedPaHandler();
     auto app = App(transmission_mode, fp_in);
     auto renderer = Renderer(app);
     const int rv = RenderImguiSkeleton(&renderer);

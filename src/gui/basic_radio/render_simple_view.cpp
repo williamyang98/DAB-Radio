@@ -32,27 +32,20 @@ void RenderSimple_Root(BasicRadio& radio, SimpleViewController& controller) {
     auto& db = db_manager.GetDatabase();
     auto lock = std::scoped_lock(db_manager.GetDatabaseMutex());
 
-    if (ImGui::Begin("Simple View")) 
-    {
-        ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
-        ImGui::DockSpace(dockspace_id);
+    auto* selected_service = db.GetService(controller.selected_service);
 
-        auto* selected_service = db.GetService(controller.selected_service);
+    RenderSimple_ServiceList(radio, controller);
+    RenderSimple_Service(radio, controller, selected_service);
 
-        RenderSimple_ServiceList(radio, controller);
-        RenderSimple_Service(radio, controller, selected_service);
+    RenderEnsemble(radio);
+    RenderDateTime(radio);
+    RenderDatabaseStatistics(radio);
 
-        RenderEnsemble(radio);
-        RenderDateTime(radio);
-        RenderDatabaseStatistics(radio);
-
-        RenderSimple_BasicSlideshowSelected(radio, controller);
-        RenderSimple_GlobalBasicAudioChannelControls(radio);
-        RenderOtherEnsembles(radio);
-        RenderSimple_LinkServices(radio, controller, selected_service);
-        RenderSimple_ServiceComponentList(radio, controller, selected_service);
-    }
-    ImGui::End();
+    RenderSimple_BasicSlideshowSelected(radio, controller);
+    RenderSimple_GlobalBasicAudioChannelControls(radio);
+    RenderOtherEnsembles(radio);
+    RenderSimple_LinkServices(radio, controller, selected_service);
+    RenderSimple_ServiceComponentList(radio, controller, selected_service);
 }
 
 void RenderSimple_ServiceList(BasicRadio& radio, SimpleViewController& controller) {

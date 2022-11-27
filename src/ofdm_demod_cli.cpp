@@ -16,20 +16,11 @@
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_prs_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/ofdm/ofdm_helpers.h"
 
 #include <memory>
 #include <vector>
 #include <mutex>
-
-std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
-	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
-	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
-	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
-	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
-	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-	return std::move(ofdm_demod);
-}
 
 class App 
 {
@@ -52,7 +43,7 @@ public:
         buf_rd.resize(_block_size);
         buf_rd_raw.resize(_block_size);
 
-        demod = Init_OFDM_Demodulator(transmission_mode);
+        demod = Create_OFDM_Demodulator(transmission_mode);
 
         using namespace std::placeholders;
         demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1));
