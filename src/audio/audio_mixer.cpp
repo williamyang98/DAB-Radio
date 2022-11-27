@@ -1,4 +1,6 @@
 #include "audio_mixer.h"
+#include <algorithm>
+#include <cstring>
 
 AudioMixer::AudioMixer(const int _block_size)
 : block_size(_block_size)

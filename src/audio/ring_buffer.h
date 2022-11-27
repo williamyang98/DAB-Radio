@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <vector>
+#include <algorithm>
 #include "utility/span.h"
 
 template <typename T>
