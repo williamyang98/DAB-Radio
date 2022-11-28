@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <stdio.h>
 
-#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[portaudio] " fmt "\n", __VA_ARGS__)
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [portaudio] " fmt "\n", __VA_ARGS__)
+#define LOG_MESSAGE(fmt, ...) fprintf(stderr, "[portaudio] " fmt "\n", ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) fprintf(stderr, "ERROR: [portaudio] " fmt "\n", ##__VA_ARGS__)
 
 PortAudio_Output::PortAudio_Output(const int _sample_rate) 
 : sample_rate(_sample_rate), total_channels(TOTAL_AUDIO_CHANNELS),

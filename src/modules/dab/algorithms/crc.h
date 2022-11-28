@@ -11,14 +11,6 @@
 template <typename T>
 class CRC_Calculator {
 private:
-    // Global lut for CRC lookup tables for all CRC polynomials
-    // key = polynomial, value = lookup table
-    // NOTE: inline keyword allows for initialization of static template member
-    //       without it we get a segmentation fault when using the table (c++17 required)
-    // TODO: this runtime initialisation doesn't seem to work for non MSVC compilers
-    //       on these other platforms we get a math error because it does (x % nb_bins) when nb_bins=0
-    inline static std::unordered_map<T, T*> LOOKUP_TABLES;
-private:
     T* lut;
     const T G;
     // Different CRC implementations have a non-zero initial register state
@@ -45,7 +37,9 @@ public:
     inline void SetFinalXORValue(const T x) { final_xor_value = x; }
 private:
     static T* GenerateTable(const T G) {
-        auto& table = CRC_Calculator<T>::LOOKUP_TABLES;
+        // Global lut for CRC lookup tables for all CRC polynomials
+        // key = polynomial, value = lookup table
+        static auto table = std::unordered_map<T, T*>{};
         auto res = table.find(G);
         if (res != table.end()) {
             return res->second;

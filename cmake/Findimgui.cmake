@@ -43,11 +43,9 @@ find_package(OpenGL REQUIRED)
 
 if (WIN32)
 set(IMGUI_DXLIBS glfw opengl32.lib)
-endif(WIN32)
-
-if (UNIX)
-set(IMGUI_DXLIBS glfw GL)
-endif(UNIX)
+else()
+set(IMGUI_DXLIBS glfw GL dl)
+endif()
 
 # set(IMGUI_DXLIBS "d3d9.lib" "dxgi.lib" "d3dcompiler.lib")
 # set(IMGUI_DXLIBS "d3d11.lib" "dxgi.lib" "d3dcompiler.lib")

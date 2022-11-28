@@ -9,10 +9,21 @@ find_package(kissfft REQUIRED)
 find_package(easyloggingpp REQUIRED)
 find_package(fmt REQUIRED)
 
+if(WIN32)
 set(rtlsdr_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/librtlsdr)
 find_package(rtlsdr CONFIG REQUIRED)
-
 find_package(portaudio CONFIG REQUIRED)
+set(RTLSDR_LIBS rtlsdr)
+set(PORTAUDIO_LIBS portaudio)
+set(EXTRA_LIBS "")
+else()
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(rtlsdr REQUIRED IMPORTED_TARGET librtlsdr)
+pkg_check_modules(portaudio REQUIRED IMPORTED_TARGET portaudio-2.0)
+set(RTLSDR_LIBS PkgConfig::rtlsdr)
+set(PORTAUDIO_LIBS PkgConfig::portaudio)
+set(EXTRA_LIBS pthread)
+endif()
 
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
@@ -123,7 +134,7 @@ add_library(audio_lib STATIC
     ${AUDIO_DIR}/portaudio_utility.cpp)
 set_target_properties(audio_lib PROPERTIES CXX_STANDARD 17)
 target_include_directories(audio_lib PUBLIC ${AUDIO_DIR} ${SRC_DIR})
-target_link_libraries(audio_lib PRIVATE portaudio)
+target_link_libraries(audio_lib PRIVATE ${PORTAUDIO_LIBS})
 
 set(AUDIO_LIB_GUI ${SRC_DIR}/gui)
 add_library(audio_lib_gui STATIC 
@@ -140,13 +151,16 @@ target_include_directories(ofdm_demod_gui PUBLIC ${SRC_DIR})
 set_target_properties(ofdm_demod_gui PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_demod_gui PRIVATE 
     ofdm_core getopt 
-    ofdm_gui profiler_gui imgui implot)
+    ofdm_gui profiler_gui imgui implot
+    ${EXTRA_LIBS})
 
 add_executable(ofdm_demod_cli 
     ${SRC_DIR}/ofdm_demod_cli.cpp)
 target_include_directories(ofdm_demod_cli PUBLIC ${SRC_DIR})
 set_target_properties(ofdm_demod_cli PROPERTIES CXX_STANDARD 17)
-target_link_libraries(ofdm_demod_cli PRIVATE ofdm_core getopt)
+target_link_libraries(ofdm_demod_cli PRIVATE 
+    ofdm_core getopt 
+    ${EXTRA_LIBS})
 
 add_executable(basic_radio_app_no_demod
     ${SRC_DIR}/basic_radio_app_no_demod.cpp
@@ -157,7 +171,8 @@ target_link_libraries(basic_radio_app_no_demod PRIVATE
     dab_core basic_radio audio_lib
     getopt easyloggingpp fmt
     basic_radio_gui audio_lib_gui 
-    imgui)
+    imgui
+    ${EXTRA_LIBS})
 target_compile_definitions(basic_radio_app_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_app
@@ -169,7 +184,8 @@ target_link_libraries(basic_radio_app PRIVATE
     ofdm_core dab_core basic_radio audio_lib
     getopt easyloggingpp fmt
     ofdm_gui basic_radio_gui audio_lib_gui profiler_gui 
-    imgui implot)
+    imgui implot
+    ${EXTRA_LIBS})
 target_compile_definitions(basic_radio_app PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_scraper
@@ -179,7 +195,8 @@ target_include_directories(basic_radio_scraper PUBLIC ${SRC_DIR})
 set_target_properties(basic_radio_scraper PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_scraper PRIVATE 
     ofdm_core dab_core basic_radio
-    getopt easyloggingpp fmt)
+    getopt easyloggingpp fmt
+    ${EXTRA_LIBS})
 target_compile_definitions(basic_radio_scraper PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(basic_radio_scraper_no_demod
@@ -189,7 +206,8 @@ target_include_directories(basic_radio_scraper_no_demod PUBLIC ${SRC_DIR})
 set_target_properties(basic_radio_scraper_no_demod PROPERTIES CXX_STANDARD 17)
 target_link_libraries(basic_radio_scraper_no_demod PRIVATE 
     dab_core basic_radio
-    getopt easyloggingpp fmt)
+    getopt easyloggingpp fmt
+    ${EXTRA_LIBS})
 target_compile_definitions(basic_radio_scraper_no_demod PRIVATE ELPP_THREAD_SAFE)
 
 add_executable(simulate_transmitter 
@@ -225,21 +243,23 @@ add_executable(radio_app
 target_include_directories(radio_app PUBLIC ${SRC_DIR})
 set_target_properties(radio_app PROPERTIES CXX_STANDARD 17)
 target_link_libraries(radio_app PRIVATE 
-    rtlsdr ofdm_core dab_core basic_radio audio_lib
+    ${RTLSDR_LIBS} ofdm_core dab_core basic_radio audio_lib
     getopt fmt easyloggingpp
     ofdm_gui basic_radio_gui audio_lib_gui profiler_gui 
-    imgui implot)
+    imgui implot
+    ${EXTRA_LIBS})
 target_compile_definitions(radio_app PRIVATE ELPP_THREAD_SAFE)
 
-# vcpkg.cmake has internal stuff that autogenerates this
-# we have to do this manually
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    add_custom_command(TARGET radio_app 
-        POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${rtlsdr_DIR}/bin/x64/
-        $<TARGET_FILE_DIR:radio_app>)
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR "x86 rtlsdr is unsupported")
+if(MSVC)
+    # Copy dlls for prebuilt librtlsdr
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        add_custom_command(TARGET radio_app 
+            POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${rtlsdr_DIR}/bin/x64/
+            $<TARGET_FILE_DIR:radio_app>)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "x86 rtlsdr is unsupported")
+    endif()
 endif()
 
 if(MSVC)

@@ -4,9 +4,6 @@ project(faad2)
 set(FAAD_SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/libfaad)
 set(FAAD_HEADER_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/include)
 
-# win32_ver.h is required to set the package version string
-configure_file(cmake/faad2_win32_ver.h.in ${FAAD_SRC_DIR}/win32_ver.h)
-
 add_library(faad2 SHARED
     ${FAAD_SRC_DIR}/bits.c 
     ${FAAD_SRC_DIR}/cfft.c 
@@ -110,3 +107,18 @@ add_library(faad2 SHARED
 target_include_directories(faad2 PRIVATE ${FAAD_SRC_DIR})
 target_include_directories(faad2 PUBLIC ${FAAD_HEADER_DIR})
 set_target_properties(faad2 PROPERTIES CXX_STANDARD 17)
+
+if(WIN32)
+# win32_ver.h is required to set the package version string
+configure_file(cmake/faad2_win32_ver.h.in ${FAAD_SRC_DIR}/win32_ver.h)
+target_compile_definitions(faad2 PRIVATE
+    HAVE_STDINT_H
+    HAVE_STRING_H
+    HAVE_MEMCPY)
+else()
+target_compile_definitions(faad2 PRIVATE
+    PACKAGE_VERSION="libfaad2"
+    HAVE_STDINT_H
+    HAVE_STRING_H
+    HAVE_MEMCPY)
+endif()
