@@ -187,12 +187,12 @@ public:
 	~App() {
 		raw_double_buffer->Close();
 		frame_double_buffer->Close();
-		ofdm_demod_thread->join();
+		// NOTE: OFDM thread might not be created if device wasn't found
+		if (ofdm_demod_thread != NULL) {
+			ofdm_demod_thread->join();
+		}
 		basic_radio_thread->join();
-		// NOTE: We delete this to close the rtlsdr async callback
-		// Otherwise the callback might fire and call OnData
-		// Since this occurs after the App destructor entities like double_buffer may be deleted 
-		// which causes an invalid memory access (Caught with address sanitiser)
+		// NOTE: Close device since the callback could call deleted data
 		device_selector = NULL;
 	}
 	RadioInstance* GetSelectedRadio() {
