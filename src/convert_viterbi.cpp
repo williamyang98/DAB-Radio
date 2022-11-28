@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "di:o:M:h")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "di:o:M:h")) != -1) {
         switch (opt) {
         case 'd':
             is_decode = true;

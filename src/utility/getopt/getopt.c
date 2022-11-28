@@ -24,7 +24,7 @@
 char* optarg = NULL;
 int optind = 1;
 
-int getopt(int argc, char *const argv[], const char *optstring)
+int getopt_custom(int argc, char *const argv[], const char *optstring)
 {
     if ((optind >= argc) || (argv[optind][0] != '-') || (argv[optind][0] == 0))
     {

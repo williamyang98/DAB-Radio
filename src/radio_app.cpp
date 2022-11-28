@@ -352,7 +352,7 @@ int main(int argc, char **argv)
 {
 	bool is_logging = false;
 	int opt; 
-    while ((opt = getopt(argc, argv, "vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "vh")) != -1) {
         switch (opt) {
         case 'v':
             is_logging = true;

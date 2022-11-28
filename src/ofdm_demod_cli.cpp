@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "b:i:o:M:Dh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "b:i:o:M:Dh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));

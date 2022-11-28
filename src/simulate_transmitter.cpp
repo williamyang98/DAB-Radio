@@ -79,7 +79,7 @@ int main(int argc, char** argv)
     bool print_sample_message = false;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "M:f:Ph")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "M:f:Ph")) != -1) {
         switch (opt) {
         case 'M':
             transmission_mode = (int)(atof(optarg));

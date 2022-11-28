@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
     int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "i:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:M:vh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;

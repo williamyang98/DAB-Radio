@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     bool is_quantised = true;
 
     int opt; 
-    while ((opt = getopt(argc, argv, "f:b:i:o:Qh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "f:b:i:o:Qh")) != -1) {
         switch (opt) {
         case 'f':
             frequency_shift = (float)(atof(optarg));
