@@ -57,7 +57,7 @@ tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
     }
 
     const int total_bits = end_bit-start_bit;
-    auto subchannel_buf = tcb::span(&buf[start_bit], (size_t)total_bits);
+    auto subchannel_buf = buf.subspan(start_bit, total_bits);
     deinterleaver->Consume(subchannel_buf);
 
     // Deinterleaver doesn't have enough frames

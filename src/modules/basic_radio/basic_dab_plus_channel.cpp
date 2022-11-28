@@ -52,9 +52,9 @@ void Basic_DAB_Plus_Channel::Run() {
     }
 
     for (int i = 0; i < params.nb_cifs; i++) {
-        const auto cif_buf = tcb::span(
-            &msc_bits_buf[params.nb_cif_bits*i], 
-            (size_t)params.nb_cif_bits);
+        const auto cif_buf = msc_bits_buf.subspan(
+            i*params.nb_cif_bits, 
+              params.nb_cif_bits);
         const auto decoded_bytes = msc_decoder->DecodeCIF(cif_buf);
         // The MSC decoder can have 0 bytes if the deinterleaver is still collecting frames
         if (decoded_bytes.empty()) {

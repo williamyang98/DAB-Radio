@@ -116,7 +116,7 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
         xpad_unreverse_buf[i] = xpad_reversed[nb_xpad_bytes-1-i];
     }
 
-    auto xpad_data = tcb::span(xpad_unreverse_buf.data(), nb_xpad_bytes);
+    auto xpad_data = tcb::span(xpad_unreverse_buf).first(nb_xpad_bytes);
 
     switch (xpad_indicator) {
     // No xpad field
@@ -241,7 +241,7 @@ void PAD_Processor::ProcessDataField(tcb::span<const uint8_t> data_field) {
 
         // LOG_MESSAGE("CI={}/{} ci_app={} ci_len={} N={}", 
         //     i, ci_list_length, content.app_type, content.length, N);
-        auto data_subfield = tcb::span(&data_field[curr_byte], (size_t)content.length);
+        auto data_subfield = data_field.subspan(curr_byte, content.length);
 
         // DOC: ETSI EN 300 401 
         // Clause 7.4.5.1: MSC data groups in X-PAD 

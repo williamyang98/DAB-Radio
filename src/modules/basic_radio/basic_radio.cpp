@@ -26,8 +26,8 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
         return;
     }
 
-    auto fic_buf = tcb::span(&buf[0],                  params.nb_fic_bits);
-    auto msc_buf = tcb::span(&buf[params.nb_fic_bits], params.nb_msc_bits);
+    auto fic_buf = buf.subspan(0,                  params.nb_fic_bits);
+    auto msc_buf = buf.subspan(params.nb_fic_bits, params.nb_msc_bits);
 
     fic_runner.SetBuffer(fic_buf);
     for (auto& [_, channel]: dab_plus_channels) {

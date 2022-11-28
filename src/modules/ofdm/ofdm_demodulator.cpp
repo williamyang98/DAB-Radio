@@ -355,7 +355,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     }
 
     auto corr_time_buf = correlation_time_buffer.GetData();
-    auto prs_sym = tcb::span(&corr_time_buf[params.nb_null_period], params.nb_symbol_period);
+    auto prs_sym = corr_time_buf.subspan(params.nb_null_period, params.nb_symbol_period);
 
     // To find the coarse frequency error correlate the FFT of the received and reference PRS
     // To mitigate effect of phase shifts we instead correlate the complex difference between consecutive FFT bins
@@ -430,7 +430,7 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     PROFILE_BEGIN_FUNC();
     // Clause 3.12.1 - Symbol timing synchronisation
     auto corr_time_buf = correlation_time_buffer.GetData();
-    auto corr_prs_buf = tcb::span(&corr_time_buf[params.nb_null_period], params.nb_symbol_period);
+    auto corr_prs_buf = corr_time_buf.subspan(params.nb_null_period, params.nb_symbol_period);
 
     // To synchronise to start of the PRS we calculate the impulse response 
     const float freq_offset = freq_coarse_offset + freq_fine_offset;
@@ -511,8 +511,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
 
     // Copy the null symbol so we can use it in the PRS correlation step
     auto block = inactive_buffer.GetData();
-    const size_t M = inactive_buffer.Capacity();
-    auto null_sym = tcb::span(&block[M-params.nb_null_period], params.nb_null_period);
+    auto null_sym = block.last(params.nb_null_period);
     correlation_time_buffer.SetLength(params.nb_null_period);
     for (int i = 0; i < params.nb_null_period; i++) {
         correlation_time_buffer[i] = null_sym[i];
@@ -619,9 +618,9 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
 
     PROFILE_BEGIN(apply_pll);
     auto pipeline_time_buffer = active_buffer.GetData();
-    auto symbols_time_buf = tcb::span(
-        &pipeline_time_buffer[symbol_start*params.nb_symbol_period],
-        params.nb_symbol_period*total_symbols);
+    auto symbols_time_buf = pipeline_time_buffer.subspan(
+        symbol_start *params.nb_symbol_period, 
+        total_symbols*params.nb_symbol_period);
 
     // Correct for frequency offset in our signal
     // NOTE: We create a local copy of the frequency offset since it
@@ -638,9 +637,9 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_BEGIN(calculate_phase_error);
     float total_phase_error = 0.0f;
     for (int i = symbol_start; i < symbol_end_no_null; i++) {
-        auto sym_buf = tcb::span(
-            &pipeline_time_buffer[i*params.nb_symbol_period],
-            params.nb_symbol_period);
+        auto sym_buf = pipeline_time_buffer.subspan(
+            i*params.nb_symbol_period, 
+              params.nb_symbol_period);
         const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
         total_phase_error += cyclic_error;
     }

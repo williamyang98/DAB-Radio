@@ -86,7 +86,7 @@ void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
             return;
         }
 
-        const auto fig_buf = tcb::span(&buf[curr_byte+1], (size_t)fig_data_length_bytes);
+        const auto fig_buf = buf.subspan(curr_byte+1, fig_data_length_bytes);
         curr_byte += fig_length_bytes;
 
         switch (fig_type) {
