@@ -23,10 +23,10 @@ public:
         return nb_read;
     }
 
-    auto begin() { return buf.begin(); }
-    auto end() { return buf.end(); }
+    auto begin() const { return buf.begin(); }
+    auto end() const { return buf.end(); }
     size_t size() const { return buf.size(); }
-    auto data() { return buf.data(); }
+    auto data() const { return buf.data(); }
     T& operator[](size_t i) { return buf[i]; }
 
     void Reset() { length = 0; };
