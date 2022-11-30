@@ -8,7 +8,9 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(__VA_ARGS__)
 
-constexpr int MAX_SUPER_FRAME_SIZE = 10000;
+constexpr int NB_FIRECODE_CRC16_BYTES = 2;
+constexpr int NB_FIRECODE_DATA_BYTES = 9;
+constexpr int MIN_DAB_LOGICAL_FRAME_SIZE = NB_FIRECODE_CRC16_BYTES+NB_FIRECODE_DATA_BYTES;
 
 // Reed solomon decoder paramters
 constexpr int NB_RS_MESSAGE_BYTES = 120;
@@ -108,7 +110,7 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
 
     state = State::WAIT_FRAME_START;
     curr_dab_frame = 0;
-    super_frame_buf.resize(MAX_SUPER_FRAME_SIZE);
+    prev_nb_dab_frame_bytes = 0;
     is_synced_superframe = false;
     nb_desync_count = 0;
 }
@@ -122,9 +124,18 @@ void AAC_Frame_Processor::Process(tcb::span<const uint8_t> buf) {
         return;
     }
 
+    if (N < MIN_DAB_LOGICAL_FRAME_SIZE) {
+        LOG_ERROR("DAB frame is of insufficient size %d<%d", N, MIN_DAB_LOGICAL_FRAME_SIZE);
+        return;
+    }
+
     // If the buffer size changed reset our accumulated DAB logical frames
     if (prev_nb_dab_frame_bytes != N) {
+        if (prev_nb_dab_frame_bytes != 0) {
+            LOG_ERROR("Unexpected resize of DAB logical frame %d!=%d", prev_nb_dab_frame_bytes, N);
+        }
         prev_nb_dab_frame_bytes = N;
+        super_frame_buf.resize(TOTAL_DAB_FRAMES*N);
         curr_dab_frame = 0;
         state = State::WAIT_FRAME_START;
     }
@@ -160,14 +171,12 @@ void AAC_Frame_Processor::Process(tcb::span<const uint8_t> buf) {
 }
 
 bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
-    auto* crc_data = &buf[2];
-    const int nb_crc_bytes = 9;
+    auto crc_data = buf.subspan(NB_FIRECODE_CRC16_BYTES, NB_FIRECODE_DATA_BYTES);
     const uint16_t crc_rx = (buf[0] << 8) | buf[1];
-    const uint16_t crc_pred = FIRECODE_CRC_CALC->Process({crc_data, (size_t)nb_crc_bytes});
+    const uint16_t crc_pred = FIRECODE_CRC_CALC->Process(crc_data);
     const bool is_valid = (crc_rx == crc_pred);
-    LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}",
-        is_valid, crc_rx, crc_pred);
-    
+    LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}", is_valid, crc_rx, crc_pred);
+
     if (!is_valid) {
         obs_firecode_error.Notify(curr_dab_frame, crc_rx, crc_pred);
     }
@@ -176,8 +185,8 @@ bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
 }
 
 void AAC_Frame_Processor::AccumulateFrame(tcb::span<const uint8_t> buf) {
-    const int N = (int)buf.size();
-    auto* dst_buf = &super_frame_buf[curr_dab_frame*N];
+    const auto N = buf.size();
+    auto dst_buf = tcb::span(super_frame_buf).subspan(curr_dab_frame*N, N);
     for (int i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
     }
@@ -269,21 +278,23 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
     // process each access unit through the AAC decoder
     for (int i = 0; i < num_aus; i++) {
-        const int nb_au_bytes = static_cast<int>(au_start[i+1]) - static_cast<int>(au_start[i]);
-        uint8_t* au_buf = &buf[au_start[i]];
-
-        const auto nb_crc_bytes = sizeof(uint16_t);
-        const int nb_data_bytes = nb_au_bytes - static_cast<int>(nb_crc_bytes);
-        if (nb_data_bytes < 0) {
-            LOG_ERROR("N={} nb_dab_frame_bytes={}", N, nb_dab_frame_bytes);
-            LOG_ERROR("AU bounds error: num_aus={} nb_au_bytes={} nb_data_bytes={}", 
-                num_aus, nb_au_bytes, nb_data_bytes);
+        const int nb_au_bytes = (int)au_start[i+1] - (int)au_start[i];
+        const int nb_crc_bytes = (int)sizeof(uint16_t);
+        const int nb_data_bytes = nb_au_bytes - nb_crc_bytes;
+        if ((nb_data_bytes < 0) || (au_start[i+1] >= buf.size())) {
+            LOG_ERROR("access unit out of bounds: i=%d/%d range=[%d,%d] N=%d", 
+                i, num_aus, 
+                (int)au_start[i], (int)au_start[i+1],
+                buf.size());
             return;
         }
 
-        const uint8_t* crc_buf = &au_buf[nb_data_bytes];
+        auto au_buf = tcb::span(buf).subspan(au_start[i], nb_au_bytes);
+        auto data_buf = au_buf.first(nb_data_bytes);
+        auto crc_buf = au_buf.last(nb_crc_bytes);
+
         const uint16_t crc_rx = (crc_buf[0] << 8) | crc_buf[1];
-        const uint16_t crc_pred = ACCESS_UNIT_CRC_CALC->Process({au_buf, (size_t)nb_data_bytes});
+        const uint16_t crc_pred = ACCESS_UNIT_CRC_CALC->Process(data_buf);
         const bool is_crc_valid = (crc_pred == crc_rx);
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 
@@ -292,7 +303,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
             continue;
         }
 
-        obs_access_unit.Notify(i, num_aus, {au_buf, (size_t)nb_data_bytes});
+        obs_access_unit.Notify(i, num_aus, data_buf);
     }
 }
 

@@ -4,8 +4,8 @@
 #include "pad/pad_processor.h"
 #include "utility/span.h"
 
-// The AAC codec has a data_stream_element()
-// This contains PAD (programma associated data)
+// The AAC access unit has a data_stream_element()
+// This contains PAD (programme associated data) which we process
 class AAC_Data_Decoder 
 {
 private:

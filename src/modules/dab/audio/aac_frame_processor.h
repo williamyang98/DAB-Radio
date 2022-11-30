@@ -19,6 +19,9 @@ struct SuperFrameHeader {
     MPEG_Surround mpeg_surround = MPEG_Surround::NOT_USED;
 };
 
+// Reads in DAB main service channel frames
+// Reconstructs and decodes AAC superframe
+// Outputs superframe header and AAC access units
 class AAC_Frame_Processor 
 {
 public:
@@ -33,11 +36,11 @@ private:
     // superframe acquisition state
     State state;
     const int TOTAL_DAB_FRAMES = 5;
-    int curr_dab_frame = 0;
-    int prev_nb_dab_frame_bytes = 0;
-    bool is_synced_superframe = false;
-    int nb_desync_count = 0;
     const int nb_desync_max_count = 10;
+    int curr_dab_frame;
+    int prev_nb_dab_frame_bytes;
+    bool is_synced_superframe;
+    int nb_desync_count;
     // callback signatures
     // frame_index, crc_got, crc_calculated
     Observable<const int, const uint16_t, const uint16_t> obs_firecode_error;

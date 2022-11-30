@@ -7,6 +7,8 @@
 struct NeAACDecFrameInfo;
 
 // Wrapper around libfaad2
+// Consumes AAC access units
+// Outputs 16bit stereo audio data
 class AAC_Audio_Decoder 
 {
 public:
