@@ -6,6 +6,8 @@
 #include "ofdm_demodulator_threads.h"
 #include <kiss_fft.h>
 
+#include "utility/joint_allocate.h"
+
 #define PROFILE_ENABLE 1
 #include "utility/profiler.h"
 
@@ -51,9 +53,32 @@ OFDM_Demod::OFDM_Demod(
     tcb::span<const int> _carrier_mapper,
     int nb_desired_threads)
 :   params(_params), 
-    null_power_dip_buffer(_params.nb_null_period),
-    correlation_time_buffer(_params.nb_null_period + _params.nb_symbol_period)
+    null_power_dip_buffer(null_power_dip_buffer_data),
+    correlation_time_buffer(correlation_time_buffer_data),
+    active_buffer(active_buffer_data),
+    inactive_buffer(inactive_buffer_data)
 {
+    joint_data_block = AllocateJoint(
+        carrier_mapper,                 params.nb_data_carriers, 
+        // Fine time correlation and coarse frequency correction
+        null_power_dip_buffer_data,     params.nb_null_period,
+        correlation_time_buffer_data,   params.nb_null_period + params.nb_symbol_period,
+        correlation_prs_fft_reference,  params.nb_fft,
+        correlation_prs_time_reference, params.nb_fft,
+        correlation_impulse_response,   params.nb_fft,
+        correlation_frequency_response, params.nb_fft,
+        correlation_fft_buffer,         params.nb_fft, 
+        // Double buffer ingest so our reader thread isn't blocked and drops samples from rtl_sdr.exe
+        active_buffer_data,             params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
+        inactive_buffer_data,           params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
+        // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
+        pipeline_fft_buffer,            (params.nb_frame_symbols+1)*params.nb_fft,
+        pipeline_dqpsk_buffer,          (params.nb_frame_symbols-1)*params.nb_fft,
+        pipeline_dqpsk_vec_buffer,      (params.nb_frame_symbols-1)*params.nb_fft,
+        pipeline_out_bits,              (params.nb_frame_symbols-1)*params.nb_data_carriers*2,
+        pipeline_fft_mag_buffer,        params.nb_fft
+    );
+
     // NOTE: Using the FFT as an IFFT will cause the result to be reversed in time
     // Separate configurations for FFT and IFFT
     fft_cfg = kiss_fft_alloc((int)params.nb_fft, false, 0, 0);
@@ -71,64 +96,24 @@ OFDM_Demod::OFDM_Demod(
     signal_l1_average = 0;
     is_running = true;
 
-    // Copy over the frequency domain values of our PRS (phase reference symbol) 
-    {
-        const size_t N = params.nb_fft;
-        correlation_prs_fft_reference.resize(N);
-        correlation_prs_time_reference.resize(N);
-        // Fine time synchronisation
-        // Correlation in time domain is the conjugate product in frequency domain
-        for (int i = 0; i < N; i++) {
-            correlation_prs_fft_reference[i] = std::conj(_prs_fft_ref[i]);
-        }
-        // Coarse frequency synchronisation
-        // Correlation in frequency domain is the conjugate product in time domain
-        // We are correlating the phase difference between each carrier
-        // This is done to account for phase shifts caused by imperfect fine time synchronisation
-        CalculateRelativePhase(_prs_fft_ref, correlation_prs_time_reference);
-        kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_prs_time_reference.data(), (kiss_fft_cpx*)correlation_prs_time_reference.data());
-        for (int i = 0; i < N; i++) {
-            correlation_prs_time_reference[i] = std::conj(correlation_prs_time_reference[i]);
-        }
+    // Fine time synchronisation
+    // Correlation in time domain is the conjugate product in frequency domain
+    for (int i = 0; i < params.nb_fft; i++) {
+        correlation_prs_fft_reference[i] = std::conj(_prs_fft_ref[i]);
+    }
+
+    // Coarse frequency synchronisation
+    // Correlation in frequency domain is the conjugate product in time domain
+    CalculateRelativePhase(_prs_fft_ref, correlation_prs_time_reference);
+    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_prs_time_reference.data(), (kiss_fft_cpx*)correlation_prs_time_reference.data());
+    for (int i = 0; i < params.nb_fft; i++) {
+        correlation_prs_time_reference[i] = std::conj(correlation_prs_time_reference[i]);
     }
 
     // DOC: ETSI EN 300 401
     // Referring to clause 14.5 - QPSK symbol mapper
     // Our subcarriers for each symbol are distributed according to a one to one rule
-    {
-        const size_t N = (size_t)params.nb_data_carriers;
-        carrier_mapper.resize(N);
-        std::copy_n(_carrier_mapper.begin(), N, carrier_mapper.begin());
-    }
-
-    // Double buffer ingest so our reader thread isn't blocked and drops samples from rtl_sdr.exe
-    {
-        const size_t N = params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period;
-        active_buffer.Resize(N);
-        inactive_buffer.Resize(N);
-    }
-
-    // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
-    pipeline_fft_buffer.resize(params.nb_fft*(params.nb_frame_symbols+1));
-    {
-        const size_t nb_dqpsk_symbols = params.nb_frame_symbols-1;
-        const size_t N = params.nb_fft*nb_dqpsk_symbols;
-        pipeline_dqpsk_vec_buffer.resize(N);
-        pipeline_dqpsk_buffer.resize(N);
-    }
-    {
-        const size_t nb_dqpsk_symbols = params.nb_frame_symbols-1;
-        const size_t nb_bits = params.nb_data_carriers*nb_dqpsk_symbols*2;
-        pipeline_out_bits.resize(nb_bits);
-    }
-    pipeline_fft_mag_buffer.resize(params.nb_fft);
-
-    // Data structures used in PRS correlation for: 
-    // 1. Fine time synchronisation
-    // 2. Coarse frequency synchronisation
-    correlation_impulse_response.resize(params.nb_fft);
-    correlation_frequency_response.resize(params.nb_fft);
-    correlation_fft_buffer.resize(params.nb_fft);
+    std::copy_n(_carrier_mapper.begin(), params.nb_data_carriers, carrier_mapper.begin());
 
     // Setup our multithreaded processing pipeline
     coordinator_thread = std::make_unique<OFDM_Demod_Coordinator_Thread>();
@@ -354,7 +339,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
         return 0;
     }
 
-    auto corr_time_buf = correlation_time_buffer.GetData();
+    auto corr_time_buf = tcb::span(correlation_time_buffer);
     auto prs_sym = corr_time_buf.subspan(params.nb_null_period, params.nb_symbol_period);
 
     // To find the coarse frequency error correlate the FFT of the received and reference PRS
@@ -429,7 +414,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
 size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     PROFILE_BEGIN_FUNC();
     // Clause 3.12.1 - Symbol timing synchronisation
-    auto corr_time_buf = correlation_time_buffer.GetData();
+    auto corr_time_buf = tcb::span(correlation_time_buffer);
     auto corr_prs_buf = corr_time_buf.subspan(params.nb_null_period, params.nb_symbol_period);
 
     // To synchronise to start of the PRS we calculate the impulse response 
@@ -510,8 +495,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     }
 
     // Copy the null symbol so we can use it in the PRS correlation step
-    auto block = inactive_buffer.GetData();
-    auto null_sym = block.last(params.nb_null_period);
+    auto null_sym = tcb::span(inactive_buffer).last(params.nb_null_period);
     correlation_time_buffer.SetLength(params.nb_null_period);
     for (int i = 0; i < params.nb_null_period; i++) {
         correlation_time_buffer[i] = null_sym[i];
@@ -521,7 +505,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     coordinator_thread->Wait();
     PROFILE_END(coordinator_wait);
     // double buffer
-    std::swap(inactive_buffer, active_buffer);
+    std::swap(inactive_buffer_data, active_buffer_data);
     inactive_buffer.SetLength(0);
     // launch all our worker threads
     PROFILE_BEGIN(coordinator_start);
@@ -617,7 +601,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_BEGIN(data_processing);
 
     PROFILE_BEGIN(apply_pll);
-    auto pipeline_time_buffer = active_buffer.GetData();
+    auto pipeline_time_buffer = tcb::span(active_buffer);
     auto symbols_time_buf = pipeline_time_buffer.subspan(
         symbol_start *params.nb_symbol_period, 
         total_symbols*params.nb_symbol_period);

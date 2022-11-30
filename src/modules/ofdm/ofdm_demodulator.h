@@ -62,7 +62,7 @@ private:
     OFDM_Demod_Config cfg;
     State state;
     const OFDM_Params params;
-    std::vector<int> carrier_mapper;
+    tcb::span<int> carrier_mapper;
     // statistics
     int total_frames_read;
     int total_frames_desync;
@@ -76,23 +76,28 @@ private:
     bool is_null_end_found;
     float signal_l1_average;
     // pipeline and ingest buffer
+    std::unique_ptr<uint8_t[]> joint_data_block;
     ReconstructionBuffer<std::complex<float>> active_buffer;
     ReconstructionBuffer<std::complex<float>> inactive_buffer;
+    tcb::span<std::complex<float>> active_buffer_data;
+    tcb::span<std::complex<float>> inactive_buffer_data;
     // pipeline analysis
-    std::vector<std::complex<float>>    pipeline_fft_buffer;
-    std::vector<std::complex<float>>    pipeline_dqpsk_vec_buffer;
-    std::vector<float>                  pipeline_dqpsk_buffer;
-    std::vector<viterbi_bit_t>          pipeline_out_bits;
-    std::vector<float>                  pipeline_fft_mag_buffer;
+    tcb::span<std::complex<float>>    pipeline_fft_buffer;
+    tcb::span<std::complex<float>>    pipeline_dqpsk_vec_buffer;
+    tcb::span<float>                  pipeline_dqpsk_buffer;
+    tcb::span<viterbi_bit_t>          pipeline_out_bits;
+    tcb::span<float>                  pipeline_fft_mag_buffer;
     // fine time and coarse frequency synchronisation
     // uses the PRS time and frequency correlation
     CircularBuffer<std::complex<float>> null_power_dip_buffer;
     ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
-    std::vector<float>                  correlation_impulse_response;
-    std::vector<float>                  correlation_frequency_response;
-    std::vector<std::complex<float>>    correlation_fft_buffer;
-    std::vector<std::complex<float>>    correlation_prs_fft_reference;
-    std::vector<std::complex<float>>    correlation_prs_time_reference;
+    tcb::span<std::complex<float>>    null_power_dip_buffer_data;
+    tcb::span<std::complex<float>>    correlation_time_buffer_data;
+    tcb::span<float>                  correlation_impulse_response;
+    tcb::span<float>                  correlation_frequency_response;
+    tcb::span<std::complex<float>>    correlation_fft_buffer;
+    tcb::span<std::complex<float>>    correlation_prs_fft_reference;
+    tcb::span<std::complex<float>>    correlation_prs_time_reference;
     // fft
     kiss_fft_cfg fft_cfg;
     kiss_fft_cfg ifft_cfg;
@@ -133,7 +138,7 @@ public:
     tcb::span<float> GetFrameDataPhases() { return pipeline_dqpsk_buffer; }
     tcb::span<float> GetImpulseResponse() { return correlation_impulse_response; }
     tcb::span<float> GetCoarseFrequencyResponse() { return correlation_frequency_response; }
-    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() { return correlation_time_buffer.GetData(); }
+    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() { return correlation_time_buffer; }
     auto& On_OFDM_Frame() { return obs_on_ofdm_frame; }
 private:
     size_t FindNullPowerDip(tcb::span<const std::complex<float>> buf);

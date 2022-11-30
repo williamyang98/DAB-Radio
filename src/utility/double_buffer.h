@@ -3,13 +3,15 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include "span.h"
 
 template <typename T>
 class DoubleBuffer 
 {
 private:
-    std::vector<T> active_buffer;
-    std::vector<T> inactive_buffer;
+    std::vector<T> data_buf;
+    tcb::span<T> active_buffer;
+    tcb::span<T> inactive_buffer;
     size_t length; 
 
     bool is_start_buffer;
@@ -24,8 +26,11 @@ private:
 public:
     DoubleBuffer(const size_t _length)
     : length(_length),
-      active_buffer(_length), inactive_buffer(_length)
+      data_buf(2*_length)
     {
+        auto buf = tcb::span(data_buf);
+        active_buffer = buf.first(length);
+        inactive_buffer = buf.last(length);
         is_start_buffer = false;
         is_end_buffer = false;
         is_send_terminate = false;
