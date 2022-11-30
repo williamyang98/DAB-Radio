@@ -62,7 +62,6 @@ private:
     OFDM_Demod_Config cfg;
     State state;
     const OFDM_Params params;
-    tcb::span<int> carrier_mapper;
     // statistics
     int total_frames_read;
     int total_frames_desync;
@@ -75,29 +74,6 @@ private:
     bool is_null_start_found;
     bool is_null_end_found;
     float signal_l1_average;
-    // pipeline and ingest buffer
-    std::unique_ptr<uint8_t[]> joint_data_block;
-    ReconstructionBuffer<std::complex<float>> active_buffer;
-    ReconstructionBuffer<std::complex<float>> inactive_buffer;
-    tcb::span<std::complex<float>> active_buffer_data;
-    tcb::span<std::complex<float>> inactive_buffer_data;
-    // pipeline analysis
-    tcb::span<std::complex<float>>    pipeline_fft_buffer;
-    tcb::span<std::complex<float>>    pipeline_dqpsk_vec_buffer;
-    tcb::span<float>                  pipeline_dqpsk_buffer;
-    tcb::span<viterbi_bit_t>          pipeline_out_bits;
-    tcb::span<float>                  pipeline_fft_mag_buffer;
-    // fine time and coarse frequency synchronisation
-    // uses the PRS time and frequency correlation
-    CircularBuffer<std::complex<float>> null_power_dip_buffer;
-    ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
-    tcb::span<std::complex<float>>    null_power_dip_buffer_data;
-    tcb::span<std::complex<float>>    correlation_time_buffer_data;
-    tcb::span<float>                  correlation_impulse_response;
-    tcb::span<float>                  correlation_frequency_response;
-    tcb::span<std::complex<float>>    correlation_fft_buffer;
-    tcb::span<std::complex<float>>    correlation_prs_fft_reference;
-    tcb::span<std::complex<float>>    correlation_prs_time_reference;
     // fft
     kiss_fft_cfg fft_cfg;
     kiss_fft_cfg ifft_cfg;
@@ -107,6 +83,31 @@ private:
     std::vector<std::unique_ptr<std::thread>>                threads;
     // callback for when ofdm is completed
     Observable<tcb::span<const viterbi_bit_t>> obs_on_ofdm_frame;
+    // Joint memory allocation block
+    std::unique_ptr<uint8_t[]> joint_data_block;
+    // 1. pipeline reader double buffer
+    ReconstructionBuffer<std::complex<float>> active_buffer;
+    ReconstructionBuffer<std::complex<float>> inactive_buffer;
+    tcb::span<std::complex<float>> active_buffer_data;
+    tcb::span<std::complex<float>> inactive_buffer_data;
+    // 2. fine time and coarse frequency synchronisation using time/frequency correlation
+    CircularBuffer<std::complex<float>> null_power_dip_buffer;
+    ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
+    tcb::span<std::complex<float>>    null_power_dip_buffer_data;
+    tcb::span<std::complex<float>>    correlation_time_buffer_data;
+    tcb::span<float>                  correlation_impulse_response;
+    tcb::span<float>                  correlation_frequency_response;
+    tcb::span<std::complex<float>>    correlation_fft_buffer;
+    tcb::span<std::complex<float>>    correlation_prs_fft_reference;
+    tcb::span<std::complex<float>>    correlation_prs_time_reference;
+    // 3. pipeline demodulation
+    tcb::span<std::complex<float>>    pipeline_fft_buffer;
+    tcb::span<std::complex<float>>    pipeline_dqpsk_vec_buffer;
+    tcb::span<float>                  pipeline_dqpsk_buffer;
+    tcb::span<viterbi_bit_t>          pipeline_out_bits;
+    tcb::span<float>                  pipeline_fft_mag_buffer;
+    // 4. carrier frequency deinterleaving
+    tcb::span<int> carrier_mapper;
 public:
     OFDM_Demod(
         const OFDM_Params _params, 
