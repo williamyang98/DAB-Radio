@@ -38,7 +38,9 @@ void usage() {
         "\t    If no file is provided then stdin is used\n"
         "\t[-o output filename (default: None)]\n"
         "\t    If no file is provided then stdout is used\n"
-        "\t[-Q Disable quantised oscillator\n"
+        "\t[-Q Disable quantised oscillator (default: enabled)]\n"
+        "\t    NOTE: This is extremely poor for cache misses if the frequency resolution is small\n"
+        "\t[-R frequency resolution in Hz (default: 100)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -49,9 +51,10 @@ int main(int argc, char** argv) {
     char* rd_filename = NULL;
     char* wr_filename = NULL;
     bool is_quantised = true;
+    int quantised_freq_resolution = 100;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "f:b:i:o:Qh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "f:b:i:o:QR:h")) != -1) {
         switch (opt) {
         case 'f':
             frequency_shift = (float)(atof(optarg));
@@ -68,6 +71,9 @@ int main(int argc, char** argv) {
         case 'Q':
             is_quantised = false;
             break;
+        case 'R':
+            quantised_freq_resolution = (int)(atof(optarg));
+            break;
         case 'h':
         default:
             usage();
@@ -83,6 +89,11 @@ int main(int argc, char** argv) {
     const float max_frequency_shift = 100e3f;
     if ((frequency_shift < -max_frequency_shift) || (frequency_shift > max_frequency_shift)) {
         fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", frequency_shift, max_frequency_shift);
+        return 1;
+    }
+
+    if (is_quantised && (quantised_freq_resolution <= 0)) {
+        fprintf(stderr, "When using quantised oscillator the frequency resolution must be positive: %d<=0\n", quantised_freq_resolution);
         return 1;
     }
 
@@ -109,6 +120,10 @@ int main(int argc, char** argv) {
     _setmode(_fileno(fp_out), _O_BINARY);
 #endif
 
+    if (is_quantised) {
+        fprintf(stderr, "Running with quantised oscillator with resolution %dHz\n", quantised_freq_resolution);
+    }
+
     auto rx_in = std::vector<std::complex<uint8_t>>(block_size);
     auto rx_float = std::vector<std::complex<float>>(block_size);
     float dt = 0.0f;
@@ -122,11 +137,11 @@ int main(int argc, char** argv) {
 
         ByteToFloat(rx_in, rx_float);
 
-        if (is_quantised) {
-            static auto oscillator = QuantizedOscillator(5, (int)(Fs));
-            dt = ApplyPLLQuantized(oscillator, rx_float, rx_float, frequency_shift, dt);
-        } else {
+        if (!is_quantised) {
             dt = ApplyPLL(rx_float, rx_float, frequency_shift, dt);
+        } else {
+            static auto oscillator = QuantizedOscillator(quantised_freq_resolution, (int)(Fs));
+            dt = ApplyPLLQuantized(oscillator, rx_float, rx_float, frequency_shift, dt);
         }
 
         FloatToByte(rx_float, rx_in);
@@ -146,8 +161,11 @@ float ApplyPLL(
     const float freq_offset, const float dt0) 
 {
     const int N = (int)x.size();
+    const bool is_large_offset = (std::abs(freq_offset) > 1500.0f);
 
     float dt = dt0;
+    dt = std::fmod(dt, 2.0f*(float)M_PI);
+
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
             std::cos(dt),
@@ -155,8 +173,10 @@ float ApplyPLL(
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * freq_offset * Ts;
 
-        // stop precision loss when going to large values
-        dt = std::fmod(dt, 2.0f*(float)M_PI);
+        if (is_large_offset) {
+            // stop precision loss when going to large values
+            dt = std::fmod(dt, 2.0f*(float)M_PI);
+        }
     }
     return dt;
 }
