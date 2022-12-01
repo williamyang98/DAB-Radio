@@ -65,10 +65,17 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
 
         // NOTE: Phil Karn's viterbi decoder api takes the number of decoded bits we want
         //       Therefore for every K depunctured bits, we want 1 decoded bit
-        // TODO: Detect the capabilities of the machine and select the best method
-        // update_viterbi_blk_scalar(vitdec, depunctured_bits.data(), total_decoded_bits);
-        // update_viterbi_blk_sse2(vitdec, depunctured_bits.data(), total_decoded_bits);
+        // NOTE: Detect the capabilities of the machine and select the best method
+        #ifdef __AVX2__
+        #pragma message("Compiling viterbi decoder with AVX2")
         update_viterbi_blk_avx2(vitdec, depunctured_bits.data(), total_decoded_bits);
+        #elif __SSSE3__
+        #pragma message("Compiling viterbi decoder with SSSE3")
+        update_viterbi_blk_ssse3(vitdec, depunctured_bits.data(), total_decoded_bits);
+        #else
+        #pragma message("Compiling viterbi decoder with scalar instructions")
+        update_viterbi_blk_scalar(vitdec, depunctured_bits.data(), total_decoded_bits);
+        #endif
     }
 
     return res;

@@ -298,7 +298,8 @@ void update_viterbi_blk_scalar(vitdec_t* vp, const COMPUTETYPE *syms, const int 
 // NOTE: This sse2 code is tightly coupled to the constraint length (K) and code rate (L)
 //       It is also dependent on the datatype of the metric called COMPUTETYPE
 // The following code was designed for K=7, L=4, COMPUTETYPE=int16_t
-void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits) {
+#ifdef __SSSE3__
+void update_viterbi_blk_ssse3(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits) {
     decision_t *d = &vp->decisions[vp->curr_decoded_bit];
 
     for (int curr_bit = 0; curr_bit < nbits; curr_bit++) {
@@ -406,9 +407,11 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
         vp->new_metrics = tmp;
     }
 }
+#endif
 
 // This is the AVX2 version of the SSE2 code
 // Could run up to 2x faster
+#ifdef __AVX2__
 void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits) {
     decision_t *d = &vp->decisions[vp->curr_decoded_bit];
 
@@ -539,3 +542,4 @@ void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
         vp->new_metrics = tmp;
     }
 }
+#endif

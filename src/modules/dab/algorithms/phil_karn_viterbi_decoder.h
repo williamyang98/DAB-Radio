@@ -30,10 +30,16 @@ void init_viterbi(vitdec_t* vp, int starting_state);
 
 // Scalar code: 1x speed
 void update_viterbi_blk_scalar(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
+
+#ifdef __SSSE3__
 // SSE2 code: 8x speed
-void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
+void update_viterbi_blk_ssse3(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
+#endif
+
+#ifdef __AVX2__
 // AVX2 code: 16x speed
 void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
+#endif
 
 /* Viterbi chainback */
 void chainback_viterbi(

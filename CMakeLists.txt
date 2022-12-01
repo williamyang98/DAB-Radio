@@ -28,10 +28,14 @@ endif()
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
 if(MSVC)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /arch:AVX2")
+# NOTE: If we are on a platform without AVX2
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2 -mavx2 -ffast-math")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -ffast-math")
+# NOTE: If we are compiling the viterbi decoder with ssse3 not avx2
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3 -ffast-math")
 endif()
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
