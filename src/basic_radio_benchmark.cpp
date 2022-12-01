@@ -20,11 +20,16 @@
 
 class App
 {
+public:
+    struct Config {
+        bool is_decode_audio = true;
+        bool is_decode_data = true;
+    };
 private:
     FILE* const fp_in;
-
     std::vector<viterbi_bit_t> frame_bits;
     std::unique_ptr<BasicRadio> radio;
+    Config config;
 public:
     App(const int transmission_mode, FILE* const _fp_in)
     : fp_in(_fp_in)
@@ -34,11 +39,11 @@ public:
         radio = std::make_unique<BasicRadio>(params);
         // Start decoding audio/data for benchmarking
         // We are interested in these code paths for profiling
-        radio->On_DAB_Plus_Channel().Attach([](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+        radio->On_DAB_Plus_Channel().Attach([this](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
             fprintf(stderr, "Processing subchannel %u\n", subchannel_id);
             auto& controls = channel.GetControls();
-            controls.SetIsDecodeAudio(true);
-            controls.SetIsDecodeData(true);
+            controls.SetIsDecodeAudio(config.is_decode_audio);
+            controls.SetIsDecodeData(config.is_decode_data);
         });
     }
     void Run() {
@@ -52,6 +57,7 @@ public:
             radio->Process(frame_bits);
         }
     }
+    auto& GetConfig() { return config; }
 };
 
 void usage() {
@@ -59,8 +65,10 @@ void usage() {
         "basic_radio_benchmark, Decodes soft decision frame bits as a benchmark\n\n"
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
-        "\t[-v Enable logging (default: false)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-D disable decode data (default: true)]\n"
+        "\t[-A disable decode audio (default: true)]\n"
+        "\t[-v Enable logging (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -69,16 +77,24 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     const char* rd_filename = NULL;
     bool is_logging = false;
+    bool is_decode_data = true;
+    bool is_decode_audio = true;
     int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:M:DAvh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 'D':
+            is_decode_data = false;
+            break;
+        case 'A':
+            is_decode_audio = false;
             break;
         case 'v':
             is_logging = true;
@@ -128,6 +144,9 @@ int main(int argc, char** argv) {
     basic_scraper_logger->configure(scraper_conf);
 
     auto app = App(transmission_mode, fp_in);
+    auto& config = app.GetConfig();
+    config.is_decode_audio = is_decode_audio;
+    config.is_decode_data = is_decode_data;
     app.Run();
     return 0;
 }
