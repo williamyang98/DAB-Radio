@@ -14,9 +14,13 @@
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
 
-#define USE_PLL_TABLE 1
+#define USE_PLL_TABLE 0
 #if USE_PLL_TABLE
 #include "quantized_oscillator.h"
+// NOTE: For any decent phase locked loop performance the frequency resolution <= 5Hz
+//       This puts a minimum bound on the table size as 2048000*8/5 = 3.27MB
+//       This ends up being absolutely horrible due to cache misses
+//       Verified by Intel V Profiler memory access analysis - high cache miss count
 // Frequency resolution of table can't be too small otherwise we end up with a large table
 // This could cause inefficient memory access and cache misses
 static auto PLL_TABLE = QuantizedOscillator(5, (int)(Fs));
@@ -530,6 +534,8 @@ void OFDM_Demod::CoordinatorThread() {
         return;
     }
 
+    PROFILE_BEGIN(pipeline_workers);
+
     PROFILE_BEGIN(pipeline_start);
     for (auto& pipeline: pipelines) {
         pipeline->Start();
@@ -621,9 +627,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_BEGIN(calculate_phase_error);
     float total_phase_error = 0.0f;
     for (int i = symbol_start; i < symbol_end_no_null; i++) {
-        auto sym_buf = pipeline_time_buffer.subspan(
-            i*params.nb_symbol_period, 
-              params.nb_symbol_period);
+        auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
         const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
         total_phase_error += cyclic_error;
     }
@@ -653,28 +657,20 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_END(pipeline_signal_fft);
 
     const auto calculate_dqpsk = [this](int start, int end) {
+        const size_t nb_viterbi_bits = params.nb_data_carriers*2;
+
         // Clause 3.15 - Differential demodulator
         // perform our differential qpsk decoding
         for (int i = start; i < end; i++) {
-            auto* fft_buf_0     = &pipeline_fft_buffer[ i   *params.nb_fft];
-            auto* fft_buf_1     = &pipeline_fft_buffer[(i+1)*params.nb_fft];
-            auto* dqpsk_vec_buf = &pipeline_dqpsk_vec_buffer[i*params.nb_data_carriers];
-            auto* dqpsk_buf     = &pipeline_dqpsk_buffer[i*params.nb_data_carriers];
-            CalculateDQPSK(
-                {fft_buf_1,     params.nb_fft}, 
-                {fft_buf_0,     params.nb_fft}, 
-                {dqpsk_vec_buf, params.nb_data_carriers}, 
-                {dqpsk_buf,     params.nb_data_carriers});
-        }
-
-        // Map phase to viterbi bit
-        for (int i = start; i < end; i++) {
-            const size_t nb_viterbi_bits = params.nb_data_carriers*2;
-            auto* dqpsk_buf = &pipeline_dqpsk_buffer[i*params.nb_data_carriers];
-            auto* viterbi_bit_buf = &pipeline_out_bits[i*nb_viterbi_bits];
-            CalculateViterbiBits(
-                {dqpsk_buf,       params.nb_data_carriers}, 
-                {viterbi_bit_buf, nb_viterbi_bits});
+            PROFILE_BEGIN(calculate_dqpsk_symbol);
+            auto fft_buf_0 = pipeline_fft_buffer.subspan((i+0)*params.nb_fft, params.nb_fft);
+            auto fft_buf_1 = pipeline_fft_buffer.subspan((i+1)*params.nb_fft, params.nb_fft);
+            auto dqpsk_vec_buf = pipeline_dqpsk_vec_buffer.subspan(i*params.nb_data_carriers, params.nb_data_carriers);
+            auto dqpsk_phase_buf = pipeline_dqpsk_buffer.subspan(i*params.nb_data_carriers, params.nb_data_carriers);
+            auto viterbi_bit_buf = pipeline_out_bits.subspan(i*nb_viterbi_bits, nb_viterbi_bits);
+            CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_vec_buf);
+            CalculatePhase(dqpsk_vec_buf, dqpsk_phase_buf);
+            CalculateViterbiBits(dqpsk_phase_buf, viterbi_bit_buf);
         }
     };
 
@@ -718,7 +714,7 @@ float OFDM_Demod::ApplyPLL(
     PROFILE_BEGIN_FUNC();
     #if !USE_PLL_TABLE
     const int N = (int)x.size();
-
+    const bool is_large_offset = std::abs(freq_offset) > 1000.0f;
     float dt = dt0;
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
@@ -727,8 +723,10 @@ float OFDM_Demod::ApplyPLL(
         y[i] = x[i] * pll;
         dt += 2.0f * (float)M_PI * freq_offset * Ts;
 
-        // stop precision loss when going to large values
-        dt = std::fmod(dt, 2.0f*(float)M_PI);
+        if (is_large_offset) {
+            // stop precision loss when going to large values
+            dt = std::fmod(dt, 2.0f*(float)M_PI);
+        }
     }
     return dt;
 
@@ -755,8 +753,8 @@ float OFDM_Demod::ApplyPLL(
 float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
     PROFILE_BEGIN_FUNC();
     #if !USE_PLL_TABLE
-    const float j = std::fmod((float)i, 2.0f*(float)M_PI);
-    return 2.0f * (float)M_PI * freq_offset* Ts * j;
+    const float dt = 2.0f * (float)M_PI * freq_offset* Ts * (float)i;
+    return std::fmod(dt, 2.0f*(float)M_PI);
     #else
     const int K = (int)PLL_TABLE.GetFrequencyResolution();
     const int M = (int)PLL_TABLE.GetTableSize();
@@ -847,8 +845,7 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
 void OFDM_Demod::CalculateDQPSK(
     tcb::span<const std::complex<float>> in0, 
     tcb::span<const std::complex<float>> in1, 
-    tcb::span<std::complex<float>> out_vec, 
-    tcb::span<float> out_phase)
+    tcb::span<std::complex<float>> out_vec)
 {
     PROFILE_BEGIN_FUNC();
     const int M = (int)params.nb_data_carriers/2;
@@ -865,10 +862,16 @@ void OFDM_Demod::CalculateDQPSK(
 
         // arg(z1*~z0) = arg(z1)+arg(~z0) = arg(z1)-arg(z0)
         const auto phase_delta_vec = in1[fft_index] * std::conj(in0[fft_index]);
-        const float phase = cargf(phase_delta_vec);
         out_vec[subcarrier_index] = phase_delta_vec;
-        out_phase[subcarrier_index] = phase;
         subcarrier_index++;
+    }
+}
+
+void OFDM_Demod::CalculatePhase(tcb::span<const std::complex<float>> in_vec, tcb::span<float> out_phase) {
+    PROFILE_BEGIN_FUNC();
+    for (int i = 0; i < params.nb_data_carriers; i++) {
+        const float phase = cargf(in_vec[i]);
+        out_phase[i] = phase;
     }
 }
 

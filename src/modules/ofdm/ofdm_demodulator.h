@@ -160,7 +160,8 @@ private:
     void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf);
     void CalculateDQPSK(
         tcb::span<const std::complex<float>> in0, tcb::span<const std::complex<float>> in1, 
-        tcb::span<std::complex<float>> out_vec, tcb::span<float> out_phase);
+        tcb::span<std::complex<float>> out_vec);
+    void CalculatePhase(tcb::span<const std::complex<float>> in_vec, tcb::span<float> out_phase);
     void CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::span<viterbi_bit_t> bit_buf);
     void CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out);
     float CalculateL1Average(tcb::span<const std::complex<float>> block);
