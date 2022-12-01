@@ -11,11 +11,8 @@
 #include <math.h>
 
 #include <memory.h>
-
-#include <pmmintrin.h>
-#include <emmintrin.h>
-#include <xmmintrin.h>
-#include <mmintrin.h>
+// Useful description for which headers include which intrinsics
+// https://stackoverflow.com/questions/11228855/header-files-for-x86-simd-intrinsics
 #include <immintrin.h>
 
 #include "phil_karn_viterbi_decoder.h"
@@ -45,7 +42,8 @@
 #define SUBSHIFT 0
 #endif
 
-#define ALIGN_AMOUNT 32 
+// Bytes to align to for intrinsic
+#define ALIGN_AMOUNT sizeof(__m256i)
 
 uint8_t* CreateParityTable() {
     const int N = 256;
@@ -270,7 +268,7 @@ inline void BFLY(int i, int s, const COMPUTETYPE *syms, vitdec_t *vp, decision_t
     d->buf[curr_buf_index] |= (decisions << curr_buf_bit);
 }
 
-void update_viterbi_blk_GENERIC(vitdec_t* vp, const COMPUTETYPE *syms, const int nbits) {
+void update_viterbi_blk_scalar(vitdec_t* vp, const COMPUTETYPE *syms, const int nbits) {
     decision_t* d = &vp->decisions[vp->curr_decoded_bit];
 
     for (int s = 0; s < nbits; s++) {
@@ -290,7 +288,7 @@ void update_viterbi_blk_GENERIC(vitdec_t* vp, const COMPUTETYPE *syms, const int
 
 // Source: https://github.com/zleffke/libfec
 // Refer to files viterbi27.c, etc...
-// Essentially just an SSE2 version of update_viterbi_blk_GENERIC
+// Essentially just an SSE2 version of update_viterbi_blk_scalar
 // NOTE: This sse2 code is tightly coupled to the constraint length (K) and code rate (L)
 //       It is also dependent on the datatype of the metric called COMPUTETYPE
 // The following code was designed for K=7, L=4, COMPUTETYPE=int16_t
@@ -389,6 +387,139 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
              */
             for (int i = 0; i < 8; i++) {
                 vp->new_metrics->b128[i] = _mm_sub_epi16(vp->new_metrics->b128[i], adjustv);
+            }
+        }
+
+        // Step 3: Move to the next codeword
+        d++;
+        vp->curr_decoded_bit++;
+
+        // Step 4: Swap metrics
+        metric_t* tmp = vp->old_metrics;
+        vp->old_metrics = vp->new_metrics;
+        vp->new_metrics = tmp;
+    }
+}
+
+// This is the AVX2 version of the SSE2 code
+// Could run up to 2x faster
+void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits) {
+    decision_t *d = &vp->decisions[vp->curr_decoded_bit];
+
+    for (int curr_bit = 0; curr_bit < nbits; curr_bit++) {
+        /* Splat the 0th symbol across sym0v, the 1st symbol across sym1v, etc */
+        __m256i sym[CODE_RATE];
+        for (int i = 0; i < CODE_RATE; i++) {
+            sym[i] = _mm256_set1_epi16(syms[i]);
+        }
+        syms += 4;
+
+        // Step 1: Butterfly algorithm
+        for (int i = 0; i < 2; i++) {
+            /* Form branch metrics */
+            __m256i branch_errors[CODE_RATE];
+            for (int j = 0; j < CODE_RATE; j++) {
+                __m256i error = _mm256_subs_epi16(vp->BranchTable[j].b256[i], sym[j]);
+                error = _mm256_abs_epi16(error);
+                branch_errors[j] = error;
+            }
+
+            __m256i metric = _mm256_set1_epi16(0);
+            for (int j = 0; j < CODE_RATE; j++) {
+                metric = _mm256_add_epi16(metric, branch_errors[j]);
+            }
+
+            const COMPUTETYPE max = ((CODE_RATE*(vp->soft_decision_max_error >> METRICSHIFT)) >> PRECISIONSHIFT);
+            __m256i m_metric = _mm256_sub_epi16(_mm256_set1_epi16(max), metric);
+
+            /* Add branch metrics to path metrics */
+            __m256i m0 = _mm256_adds_epi16(vp->old_metrics->b256[i], metric);
+            __m256i m1 = _mm256_adds_epi16(vp->old_metrics->b256[2 + i], m_metric);
+            __m256i m2 = _mm256_adds_epi16(vp->old_metrics->b256[i], m_metric);
+            __m256i m3 = _mm256_adds_epi16(vp->old_metrics->b256[2 + i], metric);
+
+            /* Compare and select */
+            __m256i survivor0 = _mm256_min_epi16(m0, m1);
+            __m256i survivor1 = _mm256_min_epi16(m2, m3);
+            __m256i decision0 = _mm256_cmpeq_epi16(survivor0, m1);
+            __m256i decision1 = _mm256_cmpeq_epi16(survivor1, m3);
+
+            /* Pack each set of decisions into 8 8-bit bytes, then interleave them and compress into 16 bits */
+            // 256bit packs works with 128bit segments
+            // 256bit unpack works with 128bit segments
+            // | = 128bit boundary
+            // packs_16  : d0 .... 0 .... | d0 .... 0 ....
+            // packs_16  : d1 .... 0 .... | d1 .... 0 ....
+            // unpacklo_8: d0 d1 d0 d1 .. | d0 d1 d0 d1 ..
+            // movemask_8: b0 b1 b0 b1 .. (256bit/8bit = 32bitmask)
+            d->buf32[i] = _mm256_movemask_epi8(_mm256_unpacklo_epi8(
+                _mm256_packs_epi16(decision0, _mm256_setzero_si256()), 
+                _mm256_packs_epi16(decision1, _mm256_setzero_si256())));
+
+            /* Store surviving metrics */
+            // 128bit pack/unpack works on entire 128bit segment
+            // | = 128bit boundary, '= lower 64bit boundary
+            // survivor0  : s0 ... s0' ... | 
+            // survivor1  : s1 ... s1' ... |
+            // unpacklo_16: s0' s1'    ... |
+            // unpackhi_16: s0  s1     ... |
+            // new_metrics: s0  s1     ... | s0' s1'    ... |
+            // We effectively interleave survivor0 and survivor1 
+
+            // 256bit pack/unpack works on 128bit segments
+            // | = 128bit boundary, '= lower 64bit boundary
+            // survivor0  : s0 ... s0' ... | s0" ... s0"' ...
+            // survivor1  : s1 ... s1' ... | s1" ... s1"' ...
+            // unpacklo_16: s0' s1'    ... | s0"' s1"'    ...
+            // unpackhi_16: s0  s1     ... | s0"  s1"     ...
+            // new_metrics: s0  s1     ... | s0"  s1"     ... | s0' s1'   ... | s0"' s1"'  ... |
+            // This incorrectly interleaves survivor0 and survivor1 
+            // Therefore we need to do some reshuffling
+
+            // Helper to get 128bit segments from 256bit intrinsic
+            union ALIGNED(ALIGN_AMOUNT) {
+                __m256i b256;
+                __m128i b128[2];
+            } packed_lower, packed_upper;
+
+            packed_lower.b256 = _mm256_unpacklo_epi16(survivor0, survivor1);
+            packed_upper.b256 = _mm256_unpackhi_epi16(survivor0, survivor1);
+
+            // Reshuffle into correct order along 128bit boundaries
+            vp->new_metrics->b128[4*i+0] = packed_lower.b128[0];
+            vp->new_metrics->b128[4*i+1] = packed_upper.b128[0];
+            vp->new_metrics->b128[4*i+2] = packed_lower.b128[1];
+            vp->new_metrics->b128[4*i+3] = packed_upper.b128[1];
+        }
+
+        // Step 2: Renormalisation
+        if (vp->new_metrics->buf[0] >= RENORMALIZE_THRESHOLD) {
+            union ALIGNED(ALIGN_AMOUNT) { 
+                __m256i v; 
+                COMPUTETYPE w[4]; 
+            } reduce_buffer;
+            /* Find smallest metric and set adjustv to bring it down to SHRT_MIN */
+            __m256i adjustv = vp->new_metrics->b256[0];
+            for (int i = 1; i < 4; i++) {
+                adjustv = _mm256_min_epi16(adjustv, vp->new_metrics->b256[i]);
+            }
+
+            // Shift half of the array onto the other half and get the minimum between them
+            // Repeat this until we get the minimum value of all 16bit values
+            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 16));
+            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 8));
+            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 4));
+            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 2));
+
+            reduce_buffer.v = adjustv;
+            COMPUTETYPE adjust = reduce_buffer.w[0] - SHRT_MIN;
+            adjustv = _mm256_set1_epi16(adjust);
+
+            /* We cannot use a saturated subtract, because we often have to adjust by more than SHRT_MAX
+             * This is okay since it can't overflow anyway
+             */
+            for (int i = 0; i < 4; i++) {
+                vp->new_metrics->b256[i] = _mm256_sub_epi16(vp->new_metrics->b256[i], adjustv);
             }
         }
 

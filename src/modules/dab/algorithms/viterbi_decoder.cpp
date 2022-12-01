@@ -47,8 +47,10 @@ ViterbiDecoder::DecodeResult ViterbiDecoder::Update(
 
         // NOTE: Phil Karn's viterbi decoder api takes the number of decoded bits we want
         //       Therefore for every 4 depunctured bits, we want 1 decoded bit
-        // update_viterbi_blk_GENERIC(vitdec, depunctured_bits, 1);
-        update_viterbi_blk_sse2(vitdec, depunctured_bits, 1);
+        // TODO: Detect the capabilities of the machine and select the best method
+        // update_viterbi_blk_scalar(vitdec, depunctured_bits, 1);
+        // update_viterbi_blk_sse2(vitdec, depunctured_bits, 1);
+        update_viterbi_blk_avx2(vitdec, depunctured_bits, 1);
     }
 
     return res;
