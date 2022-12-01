@@ -241,7 +241,13 @@ inline void BFLY(int i, int s, const COMPUTETYPE *syms, vitdec_t *vp, decision_t
     int decision0, decision1;
 
     for (int j = 0; j < CODE_RATE; j++) {
-        metric += (vp->BranchTable[j].buf[i] ^ syms[s*CODE_RATE + j]) >> METRICSHIFT;
+        auto& sym = syms[s*CODE_RATE + j];
+        // XOR difference (only works for positive integers)
+        // COMPUTETYPE error = (vp->BranchTable[j].buf[i] ^ sym) >> METRICSHIFT;
+        // Absolute difference 
+        COMPUTETYPE error = vp->BranchTable[j].buf[i] - sym;
+        error = (error > 0) ? error : -error;
+        metric += error >> METRICSHIFT;
     }
     metric = metric >> PRECISIONSHIFT;
 
@@ -301,7 +307,7 @@ void update_viterbi_blk_sse2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
         for (int i = 0; i < CODE_RATE; i++) {
             sym[i] = _mm_set1_epi16(syms[i]);
         }
-        syms += 4;
+        syms += CODE_RATE;
 
         // Step 1: Butterfly algorithm
         /* SSE2 doesn't support saturated adds on unsigned shorts, so we have to use signed shorts */
@@ -412,7 +418,7 @@ void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
         for (int i = 0; i < CODE_RATE; i++) {
             sym[i] = _mm256_set1_epi16(syms[i]);
         }
-        syms += 4;
+        syms += CODE_RATE;
 
         // Step 1: Butterfly algorithm
         for (int i = 0; i < 2; i++) {
