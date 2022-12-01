@@ -80,9 +80,7 @@ tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
 // Helper macro to run viterbi decoder with parameters
 #define VITDEC_RUN(L, PI)\
 {\
-    res = vitdec->Update(\
-        {&encoded_bits_buf[curr_encoded_bit], (size_t)L},\
-        PI);\
+    res = vitdec->Update(tcb::span(encoded_bits_buf).subspan(curr_encoded_bit), PI, L);\
     curr_encoded_bit += res.nb_encoded_bits;\
     curr_puncture_bit += res.nb_puncture_bits;\
     curr_decoded_bit += res.nb_decoded_bits;\
