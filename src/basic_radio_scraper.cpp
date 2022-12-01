@@ -13,6 +13,7 @@
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_prs_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/ofdm/ofdm_helpers.h"
 #include "modules/basic_radio/basic_radio.h"
 #include "modules/basic_scraper/basic_scraper.h"
 
@@ -23,16 +24,6 @@
 #include "utility/getopt/getopt.h"
 #include "easylogging++.h"
 #include "modules/dab/logging.h"
-
-std::unique_ptr<OFDM_Demod> Init_OFDM_Demodulator(const int transmission_mode) {
-	const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);
-	auto ofdm_prs_ref = std::vector<std::complex<float>>(ofdm_params.nb_fft);
-	get_DAB_PRS_reference(transmission_mode, ofdm_prs_ref);
-	auto ofdm_mapper_ref = std::vector<int>(ofdm_params.nb_data_carriers);
-	get_DAB_mapper_ref(ofdm_mapper_ref, ofdm_params.nb_fft);
-	auto ofdm_demod = std::make_unique<OFDM_Demod>(ofdm_params, ofdm_prs_ref, ofdm_mapper_ref);
-	return std::move(ofdm_demod);
-}
 
 class App
 {
@@ -49,7 +40,7 @@ private:
     std::unique_ptr<std::thread> ofdm_demod_thread;
     std::unique_ptr<std::thread> basic_radio_thread;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, const int _block_size, const char* dir)
+    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const int _block_size, const char* dir)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
@@ -60,7 +51,7 @@ public:
 
         radio = std::make_unique<BasicRadio>(params);
         scraper = std::make_unique<BasicScraper>(*(radio.get()), dir);
-        ofdm_demod = Init_OFDM_Demodulator(transmission_mode);
+        ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
 
         using namespace std::placeholders;
         ofdm_demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1));
@@ -135,6 +126,7 @@ void usage() {
         "\t[-v Enable logging (default: false)]\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-t total ofdm demod threads (default: auto)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -143,12 +135,13 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     const char* output_dir = NULL;
     const char* rd_filename = NULL;
+    int total_demod_threads = 0;
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "o:i:b:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "o:i:b:M:t:vh")) != -1) {
         switch (opt) {
         case 'o':
             output_dir = optarg;
@@ -161,6 +154,9 @@ int main(int argc, char** argv) {
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 't':
+            total_demod_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -221,7 +217,7 @@ int main(int argc, char** argv) {
     basic_scraper_logger->configure(scraper_conf);
 
     fprintf(stderr, "Writing to directory %s\n", output_dir);
-    auto app = App(transmission_mode, fp_in, block_size, output_dir);
+    auto app = App(transmission_mode, total_demod_threads, fp_in, block_size, output_dir);
     return 0;
 }
 

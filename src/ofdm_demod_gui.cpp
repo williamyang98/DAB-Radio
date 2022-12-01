@@ -54,13 +54,13 @@ private:
     bool is_wait_step = false;
     bool is_always_dump_frame = false;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, FILE* const _fp_out, const int _block_size) 
+    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, FILE* const _fp_out, const int _block_size) 
     : fp_in(_fp_in), fp_out(_fp_out)
     {
         buf_rd.resize(_block_size);
         buf_rd_raw.resize(_block_size);
 
-        demod = Create_OFDM_Demodulator(transmission_mode);
+        demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
 
         using namespace std::placeholders;
         demod->On_OFDM_Frame().Attach(std::bind(&App::OnOFDMFrame, this, _1));
@@ -232,14 +232,15 @@ void usage() {
         "\t[-o output filename (default: None)]\n"
         "\t    If no file is provided then stdout is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-t total ofdm demod threads (default: auto)]\n"
         "\t[-S toggle step mode (default: false)]\n"
         "\t[-D toggle frame output (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
 }
 
-int main(int argc, char** argv) 
-{
+int main(int argc, char** argv) {
+    int total_demod_threads = 0;
     int block_size = 8192;
     int transmission_mode = 1;
     bool is_step_mode = false;
@@ -249,7 +250,7 @@ int main(int argc, char** argv)
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "b:i:o:M:SDh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "b:i:o:M:t:SDh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
@@ -262,6 +263,9 @@ int main(int argc, char** argv)
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 't':
+            total_demod_threads = (int)(atof(optarg));
             break;
         case 'S':
             is_step_mode = true;
@@ -309,7 +313,7 @@ int main(int argc, char** argv)
     _setmode(_fileno(fp_out), _O_BINARY);
 #endif
 
-    auto app = App(transmission_mode, fp_in, fp_out, block_size);
+    auto app = App(transmission_mode, total_demod_threads, fp_in, fp_out, block_size);
     auto renderer = Renderer(app);
 
     app.GetIsWaitStep() = is_step_mode;

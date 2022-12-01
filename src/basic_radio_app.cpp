@@ -63,7 +63,7 @@ private:
     PortAudio_Output pa_output;
     std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, const int _block_size)
+    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const int _block_size)
     : fp_in(_fp_in) 
     {
         auto params = get_dab_parameters(transmission_mode);
@@ -72,7 +72,7 @@ public:
         rd_in_float.resize(_block_size);
         frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(params.nb_frame_bits);
 
-        ofdm_demod = Create_OFDM_Demodulator(transmission_mode);
+        ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
         radio = std::make_unique<BasicRadio>(params);
         radio_view_controller = std::make_unique<SimpleViewController>(*(radio.get()));
 
@@ -244,19 +244,21 @@ void usage() {
         "\t[-v Enable logging (default: false)]\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-t total ofdm demod threads (default: auto)]\n"
         "\t[-h (show usage)]\n"
     );
 }
 
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
+    int total_demod_threads = 0;
     char* rd_filename = NULL;
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:b:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:b:M:t:vh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
@@ -266,6 +268,9 @@ int main(int argc, char** argv) {
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 't':
+            total_demod_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -315,7 +320,7 @@ int main(int argc, char** argv) {
     el::Helpers::setThreadName("main-thread");
 
     auto port_audio_handler = ScopedPaHandler();
-    auto app = App(transmission_mode, fp_in, block_size);
+    auto app = App(transmission_mode, total_demod_threads, fp_in, block_size);
     auto renderer = Renderer(app);
     const int rv = RenderImguiSkeleton(&renderer);
     return rv;

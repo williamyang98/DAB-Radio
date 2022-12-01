@@ -126,10 +126,10 @@ private:
     PaDeviceList pa_devices;
     PortAudio_Output pa_output;
 public:
-	App() {
+	App(const int total_demod_threads) {
 		device_selector = std::make_unique<DeviceSelector>();
 		const auto dab_params = get_dab_parameters(transmission_mode);
-		ofdm_demod = Create_OFDM_Demodulator(transmission_mode, 1);
+		ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
 
 		frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits);
 		raw_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(0);
@@ -342,18 +342,22 @@ public:
 void usage() {
     fprintf(stderr, 
         "radio_app, Complete radio app with device selector, demodulator, dab decoding\n\n"
+        "\t[-t total ofdm demod threads (default: 1)]\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
 }
 
 INITIALIZE_EASYLOGGINGPP
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
+    int total_demod_threads = 1;
 	bool is_logging = false;
 	int opt; 
-    while ((opt = getopt_custom(argc, argv, "vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "t:vh")) != -1) {
         switch (opt) {
+        case 't':
+            total_demod_threads = (int)(atof(optarg));
+            break;
         case 'v':
             is_logging = true;
             break;
@@ -380,7 +384,7 @@ int main(int argc, char **argv)
     el::Helpers::setThreadName("main-thread");
 
     auto port_audio_handler = ScopedPaHandler();
-	auto app = App();
+	auto app = App(total_demod_threads);
 	auto renderer = Renderer(app);
 	// Automatically select the first rtlsdr dongle we find
 	auto init_command_thread = std::thread([&app]() {

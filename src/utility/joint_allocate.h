@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 #include <memory>
 #include "span.h"
@@ -18,6 +20,7 @@ std::unique_ptr<uint8_t[]> AllocateJoint(size_t curr_size, tcb::span<T>& buf, si
     return data;
 }
 
+// Recursive template for creating a jointly allocated block 
 template <typename T, typename ... Ts>
 std::unique_ptr<uint8_t[]> AllocateJoint(tcb::span<T>& buf, size_t len, Ts&& ... args) {
     return AllocateJoint(0, buf, len, args...);
