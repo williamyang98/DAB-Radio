@@ -210,6 +210,15 @@ target_link_libraries(basic_radio_scraper_no_demod PRIVATE
     ${EXTRA_LIBS})
 target_compile_definitions(basic_radio_scraper_no_demod PRIVATE ELPP_THREAD_SAFE)
 
+add_executable(basic_radio_benchmark ${SRC_DIR}/basic_radio_benchmark.cpp)
+target_include_directories(basic_radio_benchmark PUBLIC ${SRC_DIR})
+set_target_properties(basic_radio_benchmark PROPERTIES CXX_STANDARD 17)
+target_link_libraries(basic_radio_benchmark PRIVATE 
+    dab_core basic_radio
+    getopt easyloggingpp fmt
+    ${EXTRA_LIBS})
+target_compile_definitions(basic_radio_benchmark PRIVATE ELPP_THREAD_SAFE)
+
 add_executable(simulate_transmitter 
     ${SRC_DIR}/simulate_transmitter.cpp)
 target_include_directories(simulate_transmitter PUBLIC ${SRC_DIR})
@@ -277,6 +286,7 @@ target_compile_options(basic_radio_app_no_demod PRIVATE "/MP")
 target_compile_options(basic_radio_app      PRIVATE "/MP")
 target_compile_options(basic_radio_scraper  PRIVATE "/MP")
 target_compile_options(basic_radio_scraper_no_demod PRIVATE "/MP")
+target_compile_options(basic_radio_benchmark PRIVATE "/MP")
 
 target_compile_options(simulate_transmitter PRIVATE "/MP")
 target_compile_options(convert_viterbi      PRIVATE "/MP")
