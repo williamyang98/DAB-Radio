@@ -250,7 +250,7 @@ target_link_libraries(radio_app PRIVATE
     ${EXTRA_LIBS})
 target_compile_definitions(radio_app PRIVATE ELPP_THREAD_SAFE)
 
-if(MSVC)
+if(WIN32)
     # Copy dlls for prebuilt librtlsdr
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_custom_command(TARGET radio_app 
