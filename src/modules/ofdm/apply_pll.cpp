@@ -19,12 +19,18 @@ const float Ts = 1.0f/2.048e6f;
 //       Only visual studio 2019 onwards has it
 //       This means _mm_cos_ps and _mm256_cos_ps are missing
 #ifndef _MSC_VER
-#pragma message("Using external Intel SVML library for vector cosine")
+#pragma message("Using external Intel SVML library")
+
+#if defined(__SSSE3__)
 #define SSE_MATHFUN_WITH_CODE
 #include "sse_mathfun.h"
+#define _mm_cos_ps(x) cos_ps(x)
+#endif
+
+#if defined(__AVX2__)
 #include "avx_mathfun.h"
 #define _mm256_cos_ps(x) cos256_ps(x)
-#define _mm_cos_ps(x) cos_ps(x)
+#endif
 #endif
 
 // Helper function for using floating point and integer SIMDs
