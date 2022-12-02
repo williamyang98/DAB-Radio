@@ -18,6 +18,7 @@
 #include "modules/ofdm/dab_prs_ref.h"
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
+#include "modules/ofdm/apply_pll.h"
 #include "utility/getopt/getopt.h"
 #include "utility/span.h"
 
@@ -38,23 +39,6 @@ public:
         return v;
     }
 };
-
-void ApplyFrequencyShift(
-    tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
-    const float frequency, const float Ts=1.0f/2.048e6)
-{
-    const size_t N = x.size();
-    float dt = 0.0f;
-    for (int i = 0; i < N; i++) {
-        auto pll = std::complex<float>(
-            std::cos(dt),
-            std::sin(dt));
-        y[i] = x[i] * pll;
-        dt += 2.0f * (float)M_PI * frequency * Ts;
-        // prevent precision errors when we have a large frequency
-        dt = std::fmod(dt, 2.0f*(float)M_PI);
-    }
-}
 
 void usage() {
     fprintf(stderr, 
@@ -152,7 +136,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    ApplyFrequencyShift(frame_out_buf, frame_out_buf, frequency_shift);
+    apply_pll_auto(frame_out_buf, frame_out_buf, frequency_shift);
 
     for (int i = 0; i < frame_size; i++) {
         const float I = frame_out_buf[i].real();

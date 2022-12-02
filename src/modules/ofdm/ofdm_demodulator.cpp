@@ -5,6 +5,7 @@
 #include "ofdm_demodulator.h"
 #include "ofdm_demodulator_threads.h"
 #include <kiss_fft.h>
+#include "apply_pll.h"
 
 #include "utility/joint_allocate.h"
 
@@ -13,18 +14,6 @@
 
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
-
-#define USE_PLL_TABLE 0
-#if USE_PLL_TABLE
-#include "quantized_oscillator.h"
-// NOTE: For any decent phase locked loop performance the frequency resolution <= 5Hz
-//       This puts a minimum bound on the table size as 2048000*8/5 = 3.27MB
-//       This ends up being absolutely horrible due to cache misses
-//       Verified by Intel V Profiler memory access analysis - high cache miss count
-// Frequency resolution of table can't be too small otherwise we end up with a large table
-// This could cause inefficient memory access and cache misses
-static auto PLL_TABLE = QuantizedOscillator(5, (int)(Fs));
-#endif
 
 static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     // DOC: ETSI EN 300 401
@@ -704,60 +693,15 @@ float OFDM_Demod::ApplyPLL(
     const float freq_offset, const float dt0)
 {
     PROFILE_BEGIN_FUNC();
-    #if !USE_PLL_TABLE
-    const int N = (int)x.size();
-    const bool is_large_offset = std::abs(freq_offset) > 1000.0f;
-    const float dt_step = 2.0f * (float)M_PI * freq_offset * Ts;
-
-    float dt = dt0;
-    for (int i = 0; i < N; i++) {
-        const auto pll = std::complex<float>(
-            std::cos(dt),
-            std::sin(dt));
-        y[i] = x[i] * pll;
-        dt += dt_step;
-
-        if (is_large_offset) {
-            // stop precision loss when going to large values
-            dt = std::fmod(dt, 2.0f*(float)M_PI);
-        }
-    }
-    return dt;
-
-    #else
-
-    const int N = (int)x.size();
-    const int K = (int)PLL_TABLE.GetFrequencyResolution();
-    const int M = (int)PLL_TABLE.GetTableSize();
-    const int step = (int)freq_offset / (int)K;
-
-    int dt = (int)(dt0);
-    dt = ((dt % M) + M) % M;
-    for (int i = 0; i < N; i++) {
-        y[i] = x[i] * PLL_TABLE[dt];
-        dt = (dt + step + M) % M;
-    }
-    return (float)(dt);
-
-    #endif
+    return apply_pll_auto(x, y, freq_offset, dt0);
 }
 
 // Since we may be breaking up the PLL calculation over multiple threads
 // We need to make sure that the end of one PLL matches with the start of the next PLL
 float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
     PROFILE_BEGIN_FUNC();
-    #if !USE_PLL_TABLE
     const float dt = 2.0f * (float)M_PI * freq_offset* Ts * (float)i;
     return std::fmod(dt, 2.0f*(float)M_PI);
-    #else
-    const int K = (int)PLL_TABLE.GetFrequencyResolution();
-    const int M = (int)PLL_TABLE.GetTableSize();
-    const int step = (int)freq_offset/ (int)K;
-
-    // (ab)modn = (amodn*bmodn)modn
-    const int j = (int)i % M;
-    return (float)((step*j) % M);
-    #endif
 }
 
 float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym) {
@@ -827,11 +771,7 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
 
     // NOTE: If the fine frequency adjustment is just on the edge of overflowing
     //       We add enough margin to stop this from occuring
-    #if !USE_PLL_TABLE
     const float overflow_margin = 10.0f;
-    #else
-    const float overflow_margin = 2.0f*(float)PLL_TABLE.GetFrequencyResolution();
-    #endif
     freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f + overflow_margin);
 }
 
