@@ -19,10 +19,14 @@
 
 #ifdef _MSC_VER
 #define ALIGNED(x) __declspec(align(x))
+#else
+#define ALIGNED(x) __attribute__ ((aligned(x)))
+#endif
+
+#ifdef _WIN32
 #define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ? 0 : errno)
 #define posix_free(a) _aligned_free(a)
 #else
-#define ALIGNED(x) __attribute__ ((aligned(x)))
 #define posix_free(a) free(a)
 #endif
 
