@@ -115,8 +115,8 @@ Dependencies are:
 - Make OFDM demodulator more performant
     - ~~Replace use of cosf and sinf in phase locked loop for fine freq compensation~~
     - ~~Added multithreading to improve performance~~
-    - Speed up complex multiplication (Karatsuba multiplication needs to be profiled)
-    - Speed up atan2f ([link](https://mazzo.li/posts/vectorized-atan2.html#atan2-primer) needs profiling)
+    - ~~Speed up complex multiplication with manual vectorization~~
+    - ~~Replaced atan2f with L1 norm and component extraction~~
 - ~~Make DAB frame decoder more performant~~
     - ~~Replace inefficient general viterbi decoder with the SPIRAL project's implementation found [here](https://www.spiral.net/software/viterbi.html).~~
 - Profile other parts of the code that are excessively slow
@@ -163,3 +163,5 @@ Dependencies are:
 - [ETSI](https://www.etsi.org/standards) the non-for-profit standardisation organisation for making all of the standards free to access and view. Without their detailed documentation and specifications it would not be possible to build a rtl-sdr DAB radio.
 - [Phil Karn](https://github.com/ka9q) for his Reed Solomon and Viterbi decoding algorithms which can be found [here](https://github.com/ka9q/libfec)
 - [tcbrindle](https://github.com/tcbrindle) for his C++ single header template library implementation of std::span which can be found [here](https://github.com/tcbrindle/span)
+- [reyoung/avx_mathfun](https://github.com/reyoung/avx_mathfun) for their AVX/AVX2 implementations of _mm512_cos_pd
+- [RJVB/sse_mathfun](https://github.com/RJVB/sse_mathfun) for their SSE2 implementations of _mm_cos_pd
