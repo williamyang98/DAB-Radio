@@ -1,22 +1,41 @@
-#pragma once
-
 #include "apply_pll.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <complex>
+#include <string.h> // memcpy
 #include "utility/span.h"
 #include <immintrin.h>
 
 const float Ts = 1.0f/2.048e6f;
 
+#ifdef _MSC_VER
+#define ALIGNED(x) __declspec(align(x))
+#else
+#define ALIGNED(x) __attribute__ ((aligned(x)))
+#endif
+
+// NOTE: On GCC we do not have the Intel SVML library 
+//       Only visual studio 2019 onwards has it
+//       This means _mm_cos_ps and _mm256_cos_ps are missing
+#ifndef _MSC_VER
+#pragma message("Using external Intel SVML library for vector cosine")
+#define SSE_MATHFUN_WITH_CODE
+#include "sse_mathfun.h"
+#include "avx_mathfun.h"
+#define _mm256_cos_ps(x) cos256_ps(x)
+#define _mm_cos_ps(x) cos_ps(x)
+#endif
+
 // Helper function for using floating point and integer SIMDs
-typedef union {
+typedef union ALIGNED(sizeof(__m256)) {
+    float f32[8];
     __m256 ps;
     __m256i i;
 } cpx256_t;
 
-typedef union {
+typedef union ALIGNED(sizeof(__m128)) {
+    float f32[4];
     __m128 ps;
     __m128i i;
 } cpx128_t;
@@ -65,15 +84,15 @@ float apply_pll_avx2(
 
     // Vectorise calculation of cos(dt) + jsin(dt)
     __m256 dt_pack;
-    __m256 dt_step_pack;
+    cpx256_t dt_step_pack;
     const float dt_step_pack_stride = dt_step * K;
     {
         float x = 0.0f;
         for (int i = 0; i < K; i++) {
             // cos(dt)
-            dt_step_pack.m256_f32[2*i+0] = x;
+            dt_step_pack.f32[2*i+0] = x;
             // cos(dt-pi/2) = sin(dt)
-            dt_step_pack.m256_f32[2*i+1] = x - ((float)M_PI / 2.0f);
+            dt_step_pack.f32[2*i+1] = x - ((float)M_PI / 2.0f);
             x += dt_step;
         }
     }
@@ -84,10 +103,8 @@ float apply_pll_avx2(
     // 1. Shifting of the 256bit array
     // 2. Masking of the 256bit array
     cpx256_t real_mask, imag_mask;
-    for (int i = 0; i < K; i++) {
-        real_mask.i.m256i_u64[i] = 0x00000000FFFFFFFF;
-        imag_mask.i.m256i_u64[i] = 0xFFFFFFFF00000000;
-    }
+    real_mask.i = _mm256_set1_epi64x(0x00000000FFFFFFFF);
+    imag_mask.i = _mm256_set1_epi64x(0xFFFFFFFF00000000);
 
     cpx256_t 
         a0, a1,
@@ -102,7 +119,7 @@ float apply_pll_avx2(
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
         dt_pack = _mm256_set1_ps(dt);
-        dt_pack = _mm256_add_ps(dt_pack, dt_step_pack);
+        dt_pack = _mm256_add_ps(dt_pack, dt_step_pack.ps);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);
@@ -110,7 +127,7 @@ float apply_pll_avx2(
         x1_pack.ps = _mm256_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
-        memcpy(x0_pack.ps.m256_f32, &x0[i*K], sizeof(std::complex<float>)*K);
+        memcpy(x0_pack.f32, &x0[i*K], sizeof(std::complex<float>)*K);
 
         // Step 1: Calculate real component
         // [ac bd]
@@ -143,7 +160,7 @@ float apply_pll_avx2(
 
         // Step 3: Combine the real and imaginary components together
         y_pack.i = _mm256_or_si256(real_res.i, imag_res.i);
-        memcpy(&y[i*K], y_pack.ps.m256_f32, sizeof(std::complex<float>)*K);
+        memcpy(&y[i*K], y_pack.f32, sizeof(std::complex<float>)*K);
     }
 
     const size_t N_vector = M*K;
@@ -171,15 +188,15 @@ float apply_pll_ssse3(
 
     // Vectorise calculation of cos(dt) + jsin(dt)
     __m128 dt_pack;
-    __m128 dt_step_pack;
+    cpx128_t dt_step_pack;
     const float dt_step_pack_stride = dt_step * K;
     {
         float x = 0.0f;
         for (int i = 0; i < K; i++) {
             // cos(dt)
-            dt_step_pack.m128_f32[2*i+0] = x;
+            dt_step_pack.f32[2*i+0] = x;
             // cos(dt-pi/2) = sin(dt)
-            dt_step_pack.m128_f32[2*i+1] = x - ((float)M_PI / 2.0f);
+            dt_step_pack.f32[2*i+1] = x - ((float)M_PI / 2.0f);
             x += dt_step;
         }
     }
@@ -190,10 +207,8 @@ float apply_pll_ssse3(
     // 1. Shifting of the 256bit array
     // 2. Masking of the 256bit array
     cpx128_t real_mask, imag_mask;
-    for (int i = 0; i < K; i++) {
-        real_mask.i.m128i_u64[i] = 0x00000000FFFFFFFF;
-        imag_mask.i.m128i_u64[i] = 0xFFFFFFFF00000000;
-    }
+    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
+    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
 
     cpx128_t 
         a0, a1,
@@ -208,7 +223,7 @@ float apply_pll_ssse3(
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
         dt_pack = _mm_set1_ps(dt);
-        dt_pack = _mm_add_ps(dt_pack, dt_step_pack);
+        dt_pack = _mm_add_ps(dt_pack, dt_step_pack.ps);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);
@@ -216,7 +231,7 @@ float apply_pll_ssse3(
         x1_pack.ps = _mm_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
-        memcpy(x0_pack.ps.m128_f32, &x0[i*K], sizeof(std::complex<float>)*K);
+        memcpy(x0_pack.f32, &x0[i*K], sizeof(std::complex<float>)*K);
 
         // Step 1: Calculate real component
         // [ac bd]
@@ -249,7 +264,7 @@ float apply_pll_ssse3(
 
         // Step 3: Combine the real and imaginary components together
         y_pack.i = _mm_or_si128(real_res.i, imag_res.i);
-        memcpy(&y[i*K], y_pack.ps.m128_f32, sizeof(std::complex<float>)*K);
+        memcpy(&y[i*K], y_pack.f32, sizeof(std::complex<float>)*K);
     }
 
     const size_t N_vector = M*K;

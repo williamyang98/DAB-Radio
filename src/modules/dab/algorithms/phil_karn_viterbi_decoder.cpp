@@ -17,7 +17,7 @@
 
 #include "phil_karn_viterbi_decoder.h"
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #define ALIGNED(x) __declspec(align(x))
 #define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ? 0 : errno)
 #define posix_free(a) _aligned_free(a)
