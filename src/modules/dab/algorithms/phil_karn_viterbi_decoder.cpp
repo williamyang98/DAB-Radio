@@ -294,8 +294,8 @@ void update_viterbi_blk_scalar(vitdec_t* vp, const COMPUTETYPE *syms, const int 
 
 // Source: https://github.com/zleffke/libfec
 // Refer to files viterbi27.c, etc...
-// Essentially just an SSE2 version of update_viterbi_blk_scalar
-// NOTE: This sse2 code is tightly coupled to the constraint length (K) and code rate (L)
+// Essentially just an SSSE3 version of update_viterbi_blk_scalar
+// NOTE: This ssse3 code is tightly coupled to the constraint length (K) and code rate (L)
 //       It is also dependent on the datatype of the metric called COMPUTETYPE
 // The following code was designed for K=7, L=4, COMPUTETYPE=int16_t
 #ifdef __SSSE3__

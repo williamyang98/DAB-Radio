@@ -31,15 +31,29 @@ void init_viterbi(vitdec_t* vp, int starting_state);
 // Scalar code: 1x speed
 void update_viterbi_blk_scalar(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
 
-#ifdef __SSSE3__
+#if defined(__SSSE3__)
 // SSE2 code: 8x speed
 void update_viterbi_blk_ssse3(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
 #endif
 
-#ifdef __AVX2__
+#if defined(__AVX2__)
 // AVX2 code: 16x speed
 void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits);
 #endif
+
+// Detect the capabilities of the machine and select the best method
+static void update_viterbi_blk_auto(vitdec_t* vp, const COMPUTETYPE* syms, const int nbits) {
+    #if defined(__AVX2__)
+    #pragma message("Compiling viterbi decoder with AVX2")
+    update_viterbi_blk_avx2(vp, syms, nbits);
+    #elif defined(__SSSE3__)
+    #pragma message("Compiling viterbi decoder with SSSE3")
+    update_viterbi_blk_ssse3(vp, syms, nbits);
+    #else
+    #pragma message("Compiling viterbi decoder with scalar instructions")
+    update_viterbi_blk_scalar(vp, syms, nbits);
+    #endif
+}
 
 /* Viterbi chainback */
 void chainback_viterbi(
