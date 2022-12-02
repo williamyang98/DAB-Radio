@@ -34,57 +34,58 @@ void RenderOFDMDemodulator_Plots(OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
     auto& cfg = demod.GetConfig();
 
-    if (ImGui::Begin("DQPSK data")) {
-        const int total_symbols = (int)params.nb_frame_symbols;
-        static int symbol_index = 0;
+    const int total_symbols = (int)params.nb_frame_symbols;
+    const int total_dqpsk_symbols = total_symbols-1;
+    static int symbol_index = 0;
 
-        ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_symbols-2);
+    if (ImGui::Begin("Raw Signal")) {
+        ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_dqpsk_symbols-1);
 
-        static double dqsk_decision_boundaries[3] = {-3.1415/2, 0, 3.1415/2};
-        auto phase_buf = demod.GetFrameDataPhases();
+        const size_t N = params.nb_data_carriers;
+        auto syms_vec_data = demod.GetFrameDataVec();
+        auto sym_vec = syms_vec_data.subspan(symbol_index*N, N);
 
-        if (ImPlot::BeginPlot("DQPSK data")) {
-            const int total_carriers = (int)params.nb_data_carriers;
-            const int buffer_offset = symbol_index*total_carriers;
+        if (ImPlot::BeginPlot("Raw constellation", ImVec2(-1,0), ImPlotFlags_Equal)) {
+            const double A = 4e6;
+            ImPlot::SetupAxisLimits(ImAxis_X1, -A, A, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -A, A, ImPlotCond_Once);
 
-            ImPlot::SetupAxisLimits(ImAxis_Y1, -4, +4, ImPlotCond_Once);
-            ImPlot::SetupAxis(ImAxis_Y2, NULL, ImPlotAxisFlags_Opposite);
-            ImPlot::SetupAxisLimits(ImAxis_Y2, -1, 4, ImPlotCond_Once);
-            static double y_axis_ticks[4] = {0,1,2,3};
-            ImPlot::SetupAxisTicks(ImAxis_Y2, y_axis_ticks, 4);
-            {
-                auto* buf = &phase_buf[buffer_offset];
-                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
-                ImPlot::PlotScatter("Raw", buf, total_carriers);
-                for (int i = 0; i < 3; i++) {
-                    ImPlot::DragLineY(i, &dqsk_decision_boundaries[i], ImVec4(1,0,0,1), 1.0f, ImPlotDragToolFlags_NoInputs);
-                }
-            }
-
+            auto* buf = reinterpret_cast<float*>(sym_vec.data());
+            const float marker_size = 2.0f;
+            ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, marker_size);
+            ImPlot::PlotScatter("IQ", &buf[0], &buf[1], (int)N, 0, 0, 2*sizeof(buf[0]));
             ImPlot::EndPlot();
         }
     }
     ImGui::End();
 
     if (ImGui::Begin("Constellation")) {
-        static int maximum_points = 3000;
-        constexpr int slider_res = 1000;
-        if (ImGui::SliderInt("Total points", &maximum_points, 0, 20000)) {
-            maximum_points = (maximum_points / slider_res) * slider_res;
-        }
+        ImGui::SliderInt("DQPSK Symbol Index", &symbol_index, 0, total_dqpsk_symbols-1);
 
-        if (ImPlot::BeginPlot("Constellation", ImVec2(-1,0), ImPlotFlags_Equal)) {
-            static float A = 4e6;
+        const size_t nb_data_carriers = params.nb_data_carriers;
+        const size_t nb_sym_bits = nb_data_carriers*2;
+        auto syms_bits_data = demod.GetFrameDataBits();
+        auto sym_bits = syms_bits_data.subspan(symbol_index*nb_sym_bits, nb_sym_bits);
+
+        static const int NB_REFERENCE = 4;
+        static const std::complex<viterbi_bit_t> REFERENCE_CONSTELLATION[NB_REFERENCE] = {
+            { SOFT_DECISION_VITERBI_LOW , SOFT_DECISION_VITERBI_LOW  },
+            { SOFT_DECISION_VITERBI_LOW , SOFT_DECISION_VITERBI_HIGH },
+            { SOFT_DECISION_VITERBI_HIGH, SOFT_DECISION_VITERBI_LOW  },
+            { SOFT_DECISION_VITERBI_HIGH, SOFT_DECISION_VITERBI_HIGH },
+        };
+
+        if (ImPlot::BeginPlot("Viterbi bits constellation", ImVec2(-1,0), ImPlotFlags_Equal)) {
+            const auto A = (double)SOFT_DECISION_VITERBI_HIGH * 4.0f;
             ImPlot::SetupAxisLimits(ImAxis_X1, -A, A, ImPlotCond_Once);
             ImPlot::SetupAxisLimits(ImAxis_Y1, -A, A, ImPlotCond_Once);
 
-            auto points = demod.GetFrameDataVec();
-            const size_t nb_points = points.size();
-            auto* buf = reinterpret_cast<float*>(points.data());
-
-            const float marker_size = 1.5f;
-            ImPlot::SetNextMarkerStyle(0, marker_size);
-            ImPlot::PlotScatter("IQ", &buf[0], &buf[1], std::min((int)nb_points, maximum_points), 0, 0, 2*sizeof(float));
+            auto* buf = sym_bits.data();
+            auto* ref_buf = reinterpret_cast<const viterbi_bit_t*>(REFERENCE_CONSTELLATION);
+            const float marker_size = 2.0f;
+            ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, marker_size);
+            ImPlot::PlotScatter("IQ", &buf[0], &buf[nb_data_carriers], (int)nb_data_carriers, 0, 0, sizeof(buf[0]));
+            ImPlot::PlotScatter("Reference", &ref_buf[0], &ref_buf[1], NB_REFERENCE, 0, 0, 2*sizeof(ref_buf[0]));
             ImPlot::EndPlot();
         }
     }

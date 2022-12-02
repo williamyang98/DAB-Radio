@@ -41,7 +41,8 @@ public:
     OFDM_Demod_Pipeline_Thread& operator=(OFDM_Demod_Pipeline_Thread&&) = delete;
     size_t GetSymbolStart() const { return symbol_start; }
     size_t GetSymbolEnd() const { return symbol_end; }
-    inline float& GetAveragePhaseError() { return average_phase_error; }
+    float GetAveragePhaseError() const { return average_phase_error; }
+    void SetAveragePhaseError(const float error) { average_phase_error = error; }
     void Stop();
     bool IsStopped() const { return is_terminated; }
     // Called from coordinator thread

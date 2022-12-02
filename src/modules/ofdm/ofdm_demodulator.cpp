@@ -26,12 +26,6 @@ static constexpr float Ts = 1.0f/Fs;
 static auto PLL_TABLE = QuantizedOscillator(5, (int)(Fs));
 #endif
 
-// argument of complex number using floating points
-// std::arg promotes the real and imaginary components to float which introduces a performance penalty
-static inline float cargf(const std::complex<float>& x) {
-    return std::atan2(x.imag(), x.real());
-}
-
 static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     // DOC: ETSI EN 300 401
     // Referring to clause 14.5 - QPSK symbol mapper
@@ -77,10 +71,8 @@ OFDM_Demod::OFDM_Demod(
         inactive_buffer_data,           params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
         // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
         pipeline_fft_buffer,            (params.nb_frame_symbols+1)*params.nb_fft,
-        pipeline_dqpsk_buffer,          (params.nb_frame_symbols-1)*params.nb_fft,
         pipeline_dqpsk_vec_buffer,      (params.nb_frame_symbols-1)*params.nb_fft,
-        pipeline_out_bits,              (params.nb_frame_symbols-1)*params.nb_data_carriers*2,
-        pipeline_fft_mag_buffer,        params.nb_fft
+        pipeline_out_bits,              (params.nb_frame_symbols-1)*params.nb_data_carriers*2
     );
 
     // NOTE: Using the FFT as an IFFT will cause the result to be reversed in time
@@ -109,7 +101,7 @@ OFDM_Demod::OFDM_Demod(
     // Coarse frequency synchronisation
     // Correlation in frequency domain is the conjugate product in time domain
     CalculateRelativePhase(_prs_fft_ref, correlation_prs_time_reference);
-    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_prs_time_reference.data(), (kiss_fft_cpx*)correlation_prs_time_reference.data());
+    CalculateIFFT(correlation_prs_time_reference, correlation_prs_time_reference);
     for (int i = 0; i < params.nb_fft; i++) {
         correlation_prs_time_reference[i] = std::conj(correlation_prs_time_reference[i]);
     }
@@ -351,13 +343,13 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     // arg(~z0*z1) = arg(z1)-arg(z0)
 
     // Step 1: Get FFT of received PRS 
-    kiss_fft(fft_cfg, (kiss_fft_cpx*)prs_sym.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateFFT(prs_sym, correlation_fft_buffer);
 
     // Step 2: Get complex difference between consecutive bins
     CalculateRelativePhase(correlation_fft_buffer, correlation_fft_buffer);
 
     // Step 3: Get IFFT so we can do correlation in frequency domain via product in time domain
-    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateIFFT(correlation_fft_buffer, correlation_fft_buffer);
 
     // Step 4: Conjugate product in time domain
     //         NOTE: correlation_prs_time_reference is already the conjugate
@@ -366,7 +358,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     }
 
     // Step 5: Get FFT to get correlation in frequency domain
-    kiss_fft(fft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateFFT(correlation_fft_buffer, correlation_fft_buffer);
 
     // Step 6: Get magnitude spectrum so we can find the correlation peak
     CalculateMagnitude(correlation_fft_buffer, correlation_frequency_response);
@@ -426,13 +418,13 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     std::copy_n(corr_prs_buf.begin(), params.nb_fft, correlation_fft_buffer.begin());
     // Correlation in time domain is done by doing multiplication in frequency domain
     ApplyPLL(correlation_fft_buffer, correlation_fft_buffer, freq_offset);
-    kiss_fft(fft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateFFT(correlation_fft_buffer, correlation_fft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
         correlation_fft_buffer[i] *= correlation_prs_fft_reference[i];
     }
 
     // Get IFFT to get our correlation result
-    kiss_fft(ifft_cfg, (kiss_fft_cpx*)correlation_fft_buffer.data(), (kiss_fft_cpx*)correlation_fft_buffer.data());
+    CalculateIFFT(correlation_fft_buffer, correlation_fft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
         const auto& v = correlation_fft_buffer[i];
         const float A = 20.0f*std::log10(std::abs(v));
@@ -631,7 +623,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
         const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
         total_phase_error += cyclic_error;
     }
-    thread_data.GetAveragePhaseError() = total_phase_error;
+    thread_data.SetAveragePhaseError(total_phase_error);
     PROFILE_END(calculate_phase_error);
     // Signal to coordinator thread that phase errors have been calculated
     PROFILE_BEGIN(pipeline_signal_phase_error);
@@ -642,13 +634,11 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     // Calculate fft (include null symbol)
     PROFILE_BEGIN(calculate_fft);
     for (int i = symbol_start; i < symbol_end; i++) {
-        auto* sym_buf = &pipeline_time_buffer[i*params.nb_symbol_period];
+        auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
         // Clause 3.14.1 - Cyclic prefix removal
-        auto* data_buf = &sym_buf[params.nb_cyclic_prefix];
-        auto* fft_buf = &pipeline_fft_buffer[i*params.nb_fft];
-        kiss_fft(fft_cfg, 
-            (kiss_fft_cpx*)data_buf,
-            (kiss_fft_cpx*)fft_buf);
+        auto data_buf = sym_buf.subspan(params.nb_cyclic_prefix, params.nb_fft);
+        auto fft_buf = pipeline_fft_buffer.subspan(i*params.nb_fft, params.nb_fft);
+        CalculateFFT(data_buf, fft_buf);
     }
     PROFILE_END(calculate_fft);
     // Signal to other pipeline threads which need these FFT results due to DQPSK encoding
@@ -666,11 +656,13 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
             auto fft_buf_0 = pipeline_fft_buffer.subspan((i+0)*params.nb_fft, params.nb_fft);
             auto fft_buf_1 = pipeline_fft_buffer.subspan((i+1)*params.nb_fft, params.nb_fft);
             auto dqpsk_vec_buf = pipeline_dqpsk_vec_buffer.subspan(i*params.nb_data_carriers, params.nb_data_carriers);
-            auto dqpsk_phase_buf = pipeline_dqpsk_buffer.subspan(i*params.nb_data_carriers, params.nb_data_carriers);
             auto viterbi_bit_buf = pipeline_out_bits.subspan(i*nb_viterbi_bits, nb_viterbi_bits);
             CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_vec_buf);
-            CalculatePhase(dqpsk_vec_buf, dqpsk_phase_buf);
-            CalculateViterbiBits(dqpsk_phase_buf, viterbi_bit_buf);
+            CalculateViterbiBits(dqpsk_vec_buf, viterbi_bit_buf);
+
+            PROFILE_BEGIN(calculate_viterbi_bits);
+            const auto N = params.nb_data_carriers;
+            PROFILE_END(calculate_viterbi_bits);
         }
     };
 
@@ -715,13 +707,15 @@ float OFDM_Demod::ApplyPLL(
     #if !USE_PLL_TABLE
     const int N = (int)x.size();
     const bool is_large_offset = std::abs(freq_offset) > 1000.0f;
+    const float dt_step = 2.0f * (float)M_PI * freq_offset * Ts;
+
     float dt = dt0;
     for (int i = 0; i < N; i++) {
         const auto pll = std::complex<float>(
             std::cos(dt),
             std::sin(dt));
         y[i] = x[i] * pll;
-        dt += 2.0f * (float)M_PI * freq_offset * Ts;
+        dt += dt_step;
 
         if (is_large_offset) {
             // stop precision loss when going to large values
@@ -775,7 +769,7 @@ float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>>
     for (int i = 0; i < N; i++) {
         error_vec += std::conj(sym[i]) * sym[M+i];
     }
-    return cargf(error_vec);
+    return std::atan2(error_vec.imag(), error_vec.real());
 }
 
 float OFDM_Demod::CalculateFineFrequencyError(const float cyclic_phase_error) {
@@ -867,15 +861,7 @@ void OFDM_Demod::CalculateDQPSK(
     }
 }
 
-void OFDM_Demod::CalculatePhase(tcb::span<const std::complex<float>> in_vec, tcb::span<float> out_phase) {
-    PROFILE_BEGIN_FUNC();
-    for (int i = 0; i < params.nb_data_carriers; i++) {
-        const float phase = cargf(in_vec[i]);
-        out_phase[i] = phase;
-    }
-}
-
-void OFDM_Demod::CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::span<viterbi_bit_t> bit_buf) {
+void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_buf, tcb::span<viterbi_bit_t> bit_buf) {
     PROFILE_BEGIN_FUNC();
     const size_t N = params.nb_data_carriers;
 
@@ -885,10 +871,31 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::spa
     // For an OFDM symbol with 2K bits, the nth symbol uses bits i and i+K
     for (int i = 0; i < N; i++) {
         const size_t j = carrier_mapper[i];
-        const float phase = phase_buf[j];
-        bit_buf[i]   = convert_to_viterbi_bit(std::cos(phase));
-        bit_buf[N+i] = convert_to_viterbi_bit(-std::sin(phase));
+        const auto& vec = vec_buf[j];
+        // const float A = std::abs(vec);
+        // NOTE: Use the L1 norm since it doesn't truncate like L2 norm
+        //       I.e. When real=imag, then we expect b0=A, b1=A
+        //            But with L2 norm, we get b0=0.707*A, b1=0.707*A
+        //                with L1 norm, we get b0=A, b1=A as expected
+        const float A = std::max(std::abs(vec.real()), std::abs(vec.imag()));
+        const auto norm_vec = vec / A;
+        bit_buf[i]   = convert_to_viterbi_bit(+norm_vec.real());
+        bit_buf[i+N] = convert_to_viterbi_bit(-norm_vec.imag());
     }
+}
+
+void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
+    kiss_fft(
+        fft_cfg, 
+        (const kiss_fft_cpx*)fft_in.data(), 
+        (kiss_fft_cpx*)fft_out.data());
+}
+
+void OFDM_Demod::CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
+    kiss_fft(
+        ifft_cfg, 
+        (const kiss_fft_cpx*)fft_in.data(), 
+        (kiss_fft_cpx*)fft_out.data());
 }
 
 void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out) {

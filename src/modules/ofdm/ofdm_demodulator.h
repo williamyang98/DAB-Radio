@@ -103,9 +103,7 @@ private:
     // 3. pipeline demodulation
     tcb::span<std::complex<float>>    pipeline_fft_buffer;
     tcb::span<std::complex<float>>    pipeline_dqpsk_vec_buffer;
-    tcb::span<float>                  pipeline_dqpsk_buffer;
     tcb::span<viterbi_bit_t>          pipeline_out_bits;
-    tcb::span<float>                  pipeline_fft_mag_buffer;
     // 4. carrier frequency deinterleaving
     tcb::span<int> carrier_mapper;
 public:
@@ -132,11 +130,10 @@ public:
     float GetCoarseFrequencyOffset() const { return freq_coarse_offset; }
     float GetNetFrequencyOffset() const { return freq_fine_offset + freq_coarse_offset; }
     int GetFineTimeOffset() const { return fine_time_offset; }
-    size_t Get_OFDM_Frame_Total_Bits() const { return pipeline_out_bits.size(); }
     int GetTotalFramesRead() const { return total_frames_read; }
     int GetTotalFramesDesync() const { return total_frames_desync; }
-    tcb::span<std::complex<float>> GetFrameDataVec() { return pipeline_dqpsk_vec_buffer; }
-    tcb::span<float> GetFrameDataPhases() { return pipeline_dqpsk_buffer; }
+    auto GetFrameDataVec() { return pipeline_dqpsk_vec_buffer; }
+    auto GetFrameDataBits() { return pipeline_out_bits; }
     tcb::span<float> GetImpulseResponse() { return correlation_impulse_response; }
     tcb::span<float> GetCoarseFrequencyResponse() { return correlation_frequency_response; }
     tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() { return correlation_time_buffer; }
@@ -157,13 +154,14 @@ private:
     float CalculateTimeOffset(const size_t i, const float freq_offset);
     float CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym);
     float CalculateFineFrequencyError(const float cyclic_phase_error);
-    void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf);
     void CalculateDQPSK(
         tcb::span<const std::complex<float>> in0, tcb::span<const std::complex<float>> in1, 
         tcb::span<std::complex<float>> out_vec);
-    void CalculatePhase(tcb::span<const std::complex<float>> in_vec, tcb::span<float> out_phase);
-    void CalculateViterbiBits(tcb::span<const float> phase_buf, tcb::span<viterbi_bit_t> bit_buf);
+    void CalculateViterbiBits(tcb::span<const std::complex<float>> vec_buf, tcb::span<viterbi_bit_t> bit_buf);
+    void CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out);
+    void CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out);
     void CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out);
+    void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf);
     float CalculateL1Average(tcb::span<const std::complex<float>> block);
     void UpdateSignalAverage(tcb::span<const std::complex<float>> block);
     void UpdateFineFrequencyOffset(const float delta);
