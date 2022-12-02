@@ -13,7 +13,8 @@
 #include "utility/getopt/getopt.h"
 #include "utility/span.h"
 
-constexpr float DC_LEVEL = 128.0f;
+constexpr float DC_LEVEL = 127.0f;
+constexpr float SCALE = 128.0f;
 constexpr float Fs = 2.048e6f;
 constexpr float Ts = 1.0f/Fs;
 
@@ -108,7 +109,10 @@ int main(int argc, char** argv) {
 
         ByteToFloat(rx_in, rx_float);
 
-        dt = apply_pll_auto(rx_float, rx_float, frequency_shift, dt);
+        apply_pll_auto(rx_float, rx_float, frequency_shift, dt);
+        // NOTE: Manually compute the next dt since floating point inaccuracies result in 
+        //       a discontinuity
+        dt += 2.0f * (float)M_PI *  frequency_shift * Ts * (float)N;
         dt = std::fmod(dt, 2.0f*(float)M_PI);
 
         FloatToByte(rx_float, rx_in);
@@ -123,37 +127,13 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-float ApplyPLL(
-    tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
-    const float freq_offset, const float dt0) 
-{
-    const int N = (int)x.size();
-    const bool is_large_offset = (std::abs(freq_offset) > 1500.0f);
-
-    float dt = dt0;
-    dt = std::fmod(dt, 2.0f*(float)M_PI);
-
-    for (int i = 0; i < N; i++) {
-        const auto pll = std::complex<float>(
-            std::cos(dt),
-            std::sin(dt));
-        y[i] = x[i] * pll;
-        dt += 2.0f * (float)M_PI * freq_offset * Ts;
-
-        if (is_large_offset) {
-            // stop precision loss when going to large values
-            dt = std::fmod(dt, 2.0f*(float)M_PI);
-        }
-    }
-    return dt;
-}
-
 void ByteToFloat(tcb::span<const std::complex<uint8_t>> x, tcb::span<std::complex<float>> y) {
     const size_t N = x.size();
     for (int i = 0; i < N; i++) {
         y[i] = std::complex<float>(
             (float)(x[i].real()) - DC_LEVEL,
             (float)(x[i].imag()) - DC_LEVEL);
+        y[i] /= SCALE;
     }
 }
 
@@ -161,7 +141,7 @@ void FloatToByte(tcb::span<const std::complex<float>> x, tcb::span<std::complex<
     const size_t N = x.size();
     for (int i = 0; i < N; i++) {
         y[i] = std::complex<uint8_t>(
-            (uint8_t)(x[i].real() + DC_LEVEL),
-            (uint8_t)(x[i].imag() + DC_LEVEL));
+            (uint8_t)(x[i].real()*SCALE + DC_LEVEL),
+            (uint8_t)(x[i].imag()*SCALE + DC_LEVEL));
     }
 }
