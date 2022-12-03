@@ -113,12 +113,10 @@ OFDM_Demod::OFDM_Demod(
         // Automatically determine
         } else {
             nb_threads = std::min(nb_syms, total_system_threads);
-            // NOTE: If we have alot of physical cores, then reducing the number of pipeline threads
-            //       actually improves performance slightly since we reduce thread contention with other threads
-            //       Thread contention causes some pipeline threads to start late or take longer
-            //       Since the coordinator thread has to wait for the slowest pipeline thread
-            //       minimising inter-thread variance by reducing the number of assigned threads actually improves performance
-            if (nb_threads > 8) {
+            // NOTE: If we have a multicore system then
+            //       Let one thread be used for fine time sync, coarse freq sync and data reading 
+            //       The other threads are used for parallel processing of an OFDM frame
+            if (nb_threads > 1) {
                 nb_threads -= 1;
             } 
         }
@@ -588,13 +586,13 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
 
     PROFILE_BEGIN(data_processing);
 
+    // Fine and coarse frequency correction with PLL
     PROFILE_BEGIN(apply_pll);
     auto pipeline_time_buffer = tcb::span(active_buffer);
     auto symbols_time_buf = pipeline_time_buffer.subspan(
         symbol_start *params.nb_symbol_period, 
         total_symbols*params.nb_symbol_period);
 
-    // Correct for frequency offset in our signal
     // NOTE: We create a local copy of the frequency offset since it
     //       can be changed in the reader thread due to coarse frequency correction
     const float frequency_offset = freq_coarse_offset + freq_fine_offset;
@@ -615,32 +613,42 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     }
     thread_data.SetAveragePhaseError(total_phase_error);
     PROFILE_END(calculate_phase_error);
-    // Signal to coordinator thread that phase errors have been calculated
+
+    // Signal to coordinator our phase error
     PROFILE_BEGIN(pipeline_signal_phase_error);
     thread_data.SignalPhaseError();
     PROFILE_END(pipeline_signal_phase_error);
 
     // Clause 3.14.2 - FFT
     // Calculate fft (include null symbol)
-    PROFILE_BEGIN(calculate_fft);
-    for (int i = symbol_start; i < symbol_end; i++) {
-        auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
-        // Clause 3.14.1 - Cyclic prefix removal
-        auto data_buf = sym_buf.subspan(params.nb_cyclic_prefix, params.nb_fft);
-        auto fft_buf = pipeline_fft_buffer.subspan(i*params.nb_fft, params.nb_fft);
-        CalculateFFT(data_buf, fft_buf);
-    }
-    PROFILE_END(calculate_fft);
-    // Signal to other pipeline threads which need these FFT results due to DQPSK encoding
+    const auto calculate_fft = [this, &pipeline_time_buffer](int start, int end) {
+        for (int i = start; i < end; i++) {
+            auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
+            // Clause 3.14.1 - Cyclic prefix removal
+            auto data_buf = sym_buf.subspan(params.nb_cyclic_prefix, params.nb_fft);
+            auto fft_buf = pipeline_fft_buffer.subspan(i*params.nb_fft, params.nb_fft);
+            CalculateFFT(data_buf, fft_buf);
+        }
+    };
+
+    // Calculate FFT and notify threads which need this result for DQPSK
+    PROFILE_BEGIN(calculate_dependent_fft);
+    calculate_fft(symbol_start, symbol_start+1);
+    PROFILE_END(calculate_dependent_fft);
+
     PROFILE_BEGIN(pipeline_signal_fft);
     thread_data.SignalFFT();
     PROFILE_END(pipeline_signal_fft);
 
+    // These FFTs are only used by us for DQPSK 
+    PROFILE_BEGIN(calculate_independent_fft);
+    calculate_fft(symbol_start+1, symbol_end);
+    PROFILE_END(calculate_independent_fft);
+
+    // Clause 3.15 - Differential demodulator
+    // perform our differential qpsk decoding
     const auto calculate_dqpsk = [this](int start, int end) {
         const size_t nb_viterbi_bits = params.nb_data_carriers*2;
-
-        // Clause 3.15 - Differential demodulator
-        // perform our differential qpsk decoding
         for (int i = start; i < end; i++) {
             PROFILE_BEGIN(calculate_dqpsk_symbol);
             auto fft_buf_0 = pipeline_fft_buffer.subspan((i+0)*params.nb_fft, params.nb_fft);
@@ -822,6 +830,7 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_b
 }
 
 void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
+    PROFILE_BEGIN_FUNC();
     fftwf_execute_dft(
         fft_plan,
         (fftwf_complex*)fft_in.data(),
@@ -829,6 +838,7 @@ void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::
 }
 
 void OFDM_Demod::CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
+    PROFILE_BEGIN_FUNC();
     fftwf_execute_dft(
         ifft_plan,
         (fftwf_complex*)fft_in.data(),
