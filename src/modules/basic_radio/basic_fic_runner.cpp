@@ -58,7 +58,7 @@ void BasicFICRunner::Run() {
 
     for (int i = 0; i < params.nb_cifs; i++) {
         const int N = params.nb_fib_cif_bits;
-        const auto* fib_cif_buf = &fic_bits_buf[i*N];
-        fic_decoder->DecodeFIBGroup({fib_cif_buf, (size_t)N}, i);
+        const auto fib_cif_buf = fic_bits_buf.subspan(i*N, N);
+        fic_decoder->DecodeFIBGroup(fib_cif_buf, i);
     }
 }

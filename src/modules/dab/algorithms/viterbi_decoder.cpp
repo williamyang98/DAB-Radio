@@ -6,7 +6,7 @@ ViterbiDecoder::ViterbiDecoder(const uint8_t _poly[4], const int _input_bits, co
   max_depunctured_bits(_max_decoded_bits*CODE_RATE)
 {
     vitdec = create_viterbi(_poly, _input_bits, SOFT_DECISION_VITERBI_HIGH, SOFT_DECISION_VITERBI_LOW);
-    depunctured_bits.reserve(max_depunctured_bits);
+    depunctured_bits.resize(max_depunctured_bits);
 }
 
 ViterbiDecoder::~ViterbiDecoder() {
