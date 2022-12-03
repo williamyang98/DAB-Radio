@@ -126,6 +126,7 @@ void usage() {
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-t total ofdm demod threads (default: auto)]\n"
         "\t[-D (disable output)]\n"
+        "\t[-C (disable coarse frequency correction)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -137,9 +138,10 @@ int main(int argc, char** argv) {
     bool is_output = true;
     char* rd_filename = NULL;
     char* wr_filename = NULL;
+    bool is_coarse_frequency_correction = true;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "b:i:o:M:t:Dh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "b:i:o:M:t:DCh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
@@ -150,14 +152,17 @@ int main(int argc, char** argv) {
         case 'o':
             wr_filename = optarg;
             break;
-        case 'D':
-            is_output = false;
-            break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
             break;
         case 't':
             total_demod_threads = (int)(atof(optarg));
+            break;
+        case 'D':
+            is_output = false;
+            break;
+        case 'C':
+            is_coarse_frequency_correction = false;
             break;
         case 'h':
         default:
@@ -202,6 +207,8 @@ int main(int argc, char** argv) {
 
     auto app = App(transmission_mode, total_demod_threads, fp_in, fp_out, block_size);
     app.GetIsOutput() = is_output;
+    auto& cfg = app.GetDemod()->GetConfig();
+    cfg.sync.is_coarse_freq_correction = is_coarse_frequency_correction;
     app.Run();
 
     return 0;

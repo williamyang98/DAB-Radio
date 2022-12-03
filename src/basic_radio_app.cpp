@@ -245,6 +245,7 @@ void usage() {
         "\t[-b block size (default: 8192)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-t total ofdm demod threads (default: auto)]\n"
+        "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -256,9 +257,10 @@ int main(int argc, char** argv) {
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;
+    bool is_coarse_freq_correction = true;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:b:M:t:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:b:M:t:vCh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
@@ -274,6 +276,9 @@ int main(int argc, char** argv) {
             break;
         case 'v':
             is_logging = true;
+            break;
+        case 'C':
+            is_coarse_freq_correction = false;
             break;
         case 'h':
         default:
@@ -320,7 +325,11 @@ int main(int argc, char** argv) {
     el::Helpers::setThreadName("main-thread");
 
     auto port_audio_handler = ScopedPaHandler();
+
     auto app = App(transmission_mode, total_demod_threads, fp_in, block_size);
+    auto& config = app.GetOFDMDemod().GetConfig();
+    config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
+
     auto renderer = Renderer(app);
     const int rv = RenderImguiSkeleton(&renderer);
     return rv;

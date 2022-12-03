@@ -235,6 +235,7 @@ void usage() {
         "\t[-t total ofdm demod threads (default: auto)]\n"
         "\t[-S toggle step mode (default: false)]\n"
         "\t[-D toggle frame output (default: true)]\n"
+        "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -245,12 +246,13 @@ int main(int argc, char** argv) {
     int transmission_mode = 1;
     bool is_step_mode = false;
     bool is_frame_output = true;
+    bool is_coarse_freq_correction = true;
 
     char* rd_filename = NULL;
     char* wr_filename = NULL;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "b:i:o:M:t:SDh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "b:i:o:M:t:SDCh")) != -1) {
         switch (opt) {
         case 'b':
             block_size = (int)(atof(optarg));
@@ -272,6 +274,9 @@ int main(int argc, char** argv) {
             break;
         case 'D':
             is_frame_output = false;
+            break;
+        case 'C':
+            is_coarse_freq_correction = false;
             break;
         case 'h':
         default:
@@ -318,8 +323,10 @@ int main(int argc, char** argv) {
 
     app.GetIsWaitStep() = is_step_mode;
     app.GetIsDumpFrame() = is_frame_output;
-    app.Start();
+    auto& config = app.GetDemod().GetConfig();
+    config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
 
+    app.Start();
     const int rv = RenderImguiSkeleton(&renderer);
     return rv;
 }

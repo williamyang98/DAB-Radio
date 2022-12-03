@@ -344,6 +344,7 @@ void usage() {
         "radio_app, Complete radio app with device selector, demodulator, dab decoding\n\n"
         "\t[-t total ofdm demod threads (default: 1)]\n"
         "\t[-v Enable logging (default: false)]\n"
+        "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -352,14 +353,19 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char **argv) {
     int total_demod_threads = 1;
 	bool is_logging = false;
+    bool is_coarse_freq_correction = true;
+
 	int opt; 
-    while ((opt = getopt_custom(argc, argv, "t:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "t:vCh")) != -1) {
         switch (opt) {
         case 't':
             total_demod_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
+            break;
+        case 'C':
+            is_coarse_freq_correction = false;
             break;
         case 'h':
         default:
@@ -385,6 +391,9 @@ int main(int argc, char **argv) {
 
     auto port_audio_handler = ScopedPaHandler();
 	auto app = App(total_demod_threads);
+    auto& config = app.GetOFDMDemodulator().GetConfig();
+    config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
+
 	auto renderer = Renderer(app);
 	// Automatically select the first rtlsdr dongle we find
 	auto init_command_thread = std::thread([&app]() {
