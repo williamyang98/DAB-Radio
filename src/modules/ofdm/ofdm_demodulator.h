@@ -14,7 +14,7 @@
 #include "utility/span.h"
 #include "viterbi_config.h"
 
-typedef struct kiss_fft_state* kiss_fft_cfg;
+typedef struct fftwf_plan_s* fftwf_plan;                                      \
 
 class OFDM_Demod_Pipeline_Thread;
 class OFDM_Demod_Coordinator_Thread;
@@ -75,8 +75,8 @@ private:
     bool is_null_end_found;
     float signal_l1_average;
     // fft
-    kiss_fft_cfg fft_cfg;
-    kiss_fft_cfg ifft_cfg;
+    fftwf_plan fft_plan;
+    fftwf_plan ifft_plan;
     // threads
     std::unique_ptr<OFDM_Demod_Coordinator_Thread>           coordinator_thread;
     std::vector<std::unique_ptr<OFDM_Demod_Pipeline_Thread>> pipelines;
@@ -98,6 +98,7 @@ private:
     tcb::span<float>                  correlation_impulse_response;
     tcb::span<float>                  correlation_frequency_response;
     tcb::span<std::complex<float>>    correlation_fft_buffer;
+    tcb::span<std::complex<float>>    correlation_ifft_buffer;
     tcb::span<std::complex<float>>    correlation_prs_fft_reference;
     tcb::span<std::complex<float>>    correlation_prs_time_reference;
     // 3. pipeline demodulation

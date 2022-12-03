@@ -4,7 +4,7 @@
 
 #include "ofdm_demodulator.h"
 #include "ofdm_demodulator_threads.h"
-#include <kiss_fft.h>
+#include <fftw3.h>
 #include "apply_pll.h"
 
 #include "utility/joint_allocate.h"
@@ -55,6 +55,7 @@ OFDM_Demod::OFDM_Demod(
         correlation_impulse_response,   params.nb_fft,
         correlation_frequency_response, params.nb_fft,
         correlation_fft_buffer,         params.nb_fft, 
+        correlation_ifft_buffer,        params.nb_fft, 
         // Double buffer ingest so our reader thread isn't blocked and drops samples from rtl_sdr.exe
         active_buffer_data,             params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
         inactive_buffer_data,           params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
@@ -66,8 +67,8 @@ OFDM_Demod::OFDM_Demod(
 
     // NOTE: Using the FFT as an IFFT will cause the result to be reversed in time
     // Separate configurations for FFT and IFFT
-    fft_cfg = kiss_fft_alloc((int)params.nb_fft, false, 0, 0);
-    ifft_cfg = kiss_fft_alloc((int)params.nb_fft, true, 0, 0);
+    fft_plan = fftwf_plan_dft_1d((int)params.nb_fft, NULL, NULL, FFTW_FORWARD, FFTW_ESTIMATE);
+    ifft_plan = fftwf_plan_dft_1d((int)params.nb_fft, NULL, NULL, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     // Initial state of demodulator
     state = State::FINDING_NULL_POWER_DIP;
@@ -182,8 +183,8 @@ OFDM_Demod::~OFDM_Demod() {
     }
 
     // fft/ifft buffers
-    kiss_fft_free(fft_cfg);
-    kiss_fft_free(ifft_cfg);
+    fftwf_destroy_plan(fft_plan);
+    fftwf_destroy_plan(ifft_plan);
 }
 
 // Thread 1: Read frame data at start of frame
@@ -338,16 +339,16 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     CalculateRelativePhase(correlation_fft_buffer, correlation_fft_buffer);
 
     // Step 3: Get IFFT so we can do correlation in frequency domain via product in time domain
-    CalculateIFFT(correlation_fft_buffer, correlation_fft_buffer);
+    CalculateIFFT(correlation_fft_buffer, correlation_ifft_buffer);
 
     // Step 4: Conjugate product in time domain
     //         NOTE: correlation_prs_time_reference is already the conjugate
     for (int i = 0; i < params.nb_fft; i++) {
-        correlation_fft_buffer[i] *= correlation_prs_time_reference[i];
+        correlation_ifft_buffer[i] *= correlation_prs_time_reference[i];
     }
 
     // Step 5: Get FFT to get correlation in frequency domain
-    CalculateFFT(correlation_fft_buffer, correlation_fft_buffer);
+    CalculateFFT(correlation_ifft_buffer, correlation_fft_buffer);
 
     // Step 6: Get magnitude spectrum so we can find the correlation peak
     CalculateMagnitude(correlation_fft_buffer, correlation_frequency_response);
@@ -404,18 +405,18 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
 
     // To synchronise to start of the PRS we calculate the impulse response 
     const float freq_offset = freq_coarse_offset + freq_fine_offset;
-    std::copy_n(corr_prs_buf.begin(), params.nb_fft, correlation_fft_buffer.begin());
+    std::copy_n(corr_prs_buf.begin(), params.nb_fft, correlation_ifft_buffer.begin());
     // Correlation in time domain is done by doing multiplication in frequency domain
-    ApplyPLL(correlation_fft_buffer, correlation_fft_buffer, freq_offset);
-    CalculateFFT(correlation_fft_buffer, correlation_fft_buffer);
+    ApplyPLL(correlation_ifft_buffer, correlation_ifft_buffer, freq_offset);
+    CalculateFFT(correlation_ifft_buffer, correlation_fft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
         correlation_fft_buffer[i] *= correlation_prs_fft_reference[i];
     }
 
     // Get IFFT to get our correlation result
-    CalculateIFFT(correlation_fft_buffer, correlation_fft_buffer);
+    CalculateIFFT(correlation_fft_buffer, correlation_ifft_buffer);
     for (int i = 0; i < params.nb_fft; i++) {
-        const auto& v = correlation_fft_buffer[i];
+        const auto& v = correlation_ifft_buffer[i];
         const float A = 20.0f*std::log10(std::abs(v));
         correlation_impulse_response[i] = A;
     }
@@ -648,10 +649,6 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
             auto viterbi_bit_buf = pipeline_out_bits.subspan(i*nb_viterbi_bits, nb_viterbi_bits);
             CalculateDQPSK(fft_buf_1, fft_buf_0, dqpsk_vec_buf);
             CalculateViterbiBits(dqpsk_vec_buf, viterbi_bit_buf);
-
-            PROFILE_BEGIN(calculate_viterbi_bits);
-            const auto N = params.nb_data_carriers;
-            PROFILE_END(calculate_viterbi_bits);
         }
     };
 
@@ -825,17 +822,17 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_b
 }
 
 void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
-    kiss_fft(
-        fft_cfg, 
-        (const kiss_fft_cpx*)fft_in.data(), 
-        (kiss_fft_cpx*)fft_out.data());
+    fftwf_execute_dft(
+        fft_plan,
+        (fftwf_complex*)fft_in.data(),
+        (fftwf_complex*)fft_out.data());
 }
 
 void OFDM_Demod::CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
-    kiss_fft(
-        ifft_cfg, 
-        (const kiss_fft_cpx*)fft_in.data(), 
-        (kiss_fft_cpx*)fft_out.data());
+    fftwf_execute_dft(
+        ifft_plan,
+        (fftwf_complex*)fft_in.data(),
+        (fftwf_complex*)fft_out.data());
 }
 
 void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out) {

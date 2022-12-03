@@ -4,14 +4,14 @@
 #include "ofdm_params.h"
 #include "utility/span.h"
 
-typedef struct kiss_fft_state* kiss_fft_cfg;
+typedef struct fftwf_plan_s* fftwf_plan;                                      \
 
 // simulate a OFDM transmitter using one of the DAB transmission modes
 // this will have a sampling rate of 2.048MHz
 class OFDM_Modulator 
 {
 private:
-    kiss_fft_cfg ifft_cfg;
+    fftwf_plan ifft_plan;
     const OFDM_Params params;
 
     const size_t frame_out_size;
@@ -35,4 +35,7 @@ private:
     void CreateDataSymbol(
         tcb::span<const uint8_t> sym_data_in, 
         tcb::span<std::complex<float>> sym_out);
+    void CalculateIFFT(
+        tcb::span<const std::complex<float>> fft_in, 
+        tcb::span<std::complex<float>> fft_out);
 };

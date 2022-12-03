@@ -1,5 +1,5 @@
 #include "ofdm_modulator.h"
-#include <kiss_fft.h>
+#include <fftw3.h>
 #include <algorithm>
 
 OFDM_Modulator::OFDM_Modulator(
@@ -9,7 +9,7 @@ OFDM_Modulator::OFDM_Modulator(
     frame_out_size(_params.nb_null_period + _params.nb_symbol_period*_params.nb_frame_symbols),
     data_in_size((_params.nb_frame_symbols-1)*_params.nb_data_carriers*2/8)
 {
-    ifft_cfg = kiss_fft_alloc((int)params.nb_fft, true, NULL, NULL);
+    ifft_plan = fftwf_plan_dft_1d((int)params.nb_fft, NULL, NULL, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     // interleave the bits for a OFDM symbol containing N data carriers
     prs_fft_ref.resize(params.nb_fft);
@@ -19,8 +19,8 @@ OFDM_Modulator::OFDM_Modulator(
 
     // create our time domain prs symbol with the cyclic prefix
     {
-        auto* buf = &prs_time_ref[params.nb_cyclic_prefix];
-        kiss_fft(ifft_cfg, (kiss_fft_cpx*)prs_fft_ref.data(), (kiss_fft_cpx*)buf);
+        auto buf = tcb::span(prs_time_ref).subspan(params.nb_cyclic_prefix, params.nb_fft);
+        CalculateIFFT(prs_fft_ref, buf);
         for (int i = 0; i < params.nb_cyclic_prefix; i++) {
             prs_time_ref[i] = prs_time_ref[params.nb_fft+i];
         }
@@ -37,7 +37,7 @@ OFDM_Modulator::OFDM_Modulator(
 
 OFDM_Modulator::~OFDM_Modulator() 
 {
-    kiss_fft_free(ifft_cfg);
+    fftwf_destroy_plan(ifft_plan);
 }
 
 bool OFDM_Modulator::ProcessBlock(
@@ -141,8 +141,8 @@ void OFDM_Modulator::CreateDataSymbol(
 
     // get ifft of symbol
     {
-        auto* buf = &sym_out[params.nb_cyclic_prefix];
-        kiss_fft(ifft_cfg, (kiss_fft_cpx*)curr_sym_fft.data(), (kiss_fft_cpx*)buf);
+        auto buf = sym_out.subspan(params.nb_cyclic_prefix, params.nb_fft);
+        CalculateIFFT(curr_sym_fft, buf);
     }
 
     // create cyclic prefix
@@ -152,4 +152,14 @@ void OFDM_Modulator::CreateDataSymbol(
 
     // swap fft buffers
     std::swap(last_sym_fft, curr_sym_fft);
+}
+
+void OFDM_Modulator::CalculateIFFT(
+    tcb::span<const std::complex<float>> fft_in, 
+    tcb::span<std::complex<float>> fft_out)
+{
+    fftwf_execute_dft(
+        ifft_plan, 
+        (fftwf_complex*)fft_in.data(),
+        (fftwf_complex*)fft_out.data());
 }
