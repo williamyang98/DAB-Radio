@@ -3,6 +3,8 @@ An implementation of a DAB (digital audio broadcasting) radio using software def
 
 For a description of what software defined radio is refer to this [link](https://www.rtl-sdr.com/about-rtl-sdr/). 
 
+[![Decoding DAB radio using SDR](http://img.youtube.com/vi/4bb0FQFrgE8/0.jpg)](http://youtu.be/4bb0FQFrgE8 "Decoding DAB radio using SDR")
+
 This repository contains applications that:
 1. Demodulate the OFDM (orthogonal frequency division multiplexed) raw IQ signals into a digital frame
 2. Decode DAB digital OFDM frames for use into a radio application
@@ -43,25 +45,46 @@ Clone the repository using the command
 
 <code>git clone https://github.com/FiendChain/DAB-Radio.git --recurse-submodules -j8</code>
 
-Build the applications using cmake. 
+#### 1. Windows (cmd)
+Install Visual Studio 2022 and install the C++ developer kit.
 
-<code>cmake . -B build -DCMAKE_BUILD_TYPE=Release</code>
+Install [vcpkg](https://vcpkg.io/en/getting-started.html)
 
-The core algorithsm for OFDM demodulation and DAB digital decoding are platform independent. The GUI code and audio player is windows specific, but should be easily portable to other platforms.
+<code>fx cmake-conf</code>
+
+<code>fx build release build\ALL_BUILD.vcxproj</code>
+
+***NOTE***: Modify the fx.bat helper batch file to point at your vcpkg install directory. 
+
+#### 2. Ubuntu 22.04
+<code>./install_ubuntu_packages.sh</code>
+
+<code>cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release</code>
+
+<code>ninja -C build -j8</code>
+
+#### Build notes
+The core algorithms for OFDM demodulation and DAB digital decoding are platform independent. The GUI code uses imgui which works on Windows and Ubuntu. 
+
+AVX2 and SSE4 instructions are used to speed up OFDM demodulation dsp and the viterbi decoder. You can change the compiler options in CMakeLists.txt to disable AVX2 or SSE4 if your cpu or compiler doesn't support it. If you are building this on other platforms other changes may need to be made.
 
 Built on Windows 10 with:
 - msbuild 17.2.1 + 52cd2da31
 - cl 19.32.31332 for x64
 - Visual Studio 2022 Community Edition (Which installs msbuild, cl and cmake)
 
-Dependencies are:
+Dependencies are (refer to vcpkg.json or install_ubuntu_packages.sh):
 - glfw3
 - opengl
+- portaudio
+- fftw3
+
+The continuous integration (CI) scripts are in .github/workflows if you want to replicate the build on your system.
 
 ## Application list
 | Name | Description |
 | --- | --- |
-| radio_app | The complete radio app with controls for the tuner |
+| **radio_app** | **The complete radio app with controls for the tuner** |
 | bin/rtl_sdr | Reads raw 8bit IQ values from your rtl-sdr dongle to stdout |
 | basic_radio_app | Complete app that reads raw 8bit IQ stream and demodulates and decodes it into a basic radio |
 | basic_radio_app_no_demod | Reads in a digital OFDM frame from ofdm_demod_gui or ofdm_demod_cli and decodes it for a basic radio |
@@ -74,7 +97,7 @@ Dependencies are:
 | apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
 | read_wav | Reads in a wav file which can be 8bit or 16bit PCM and dumps raw data to output as 8bit |
 
-## Example usage scenarios
+## Example usage scenarios (using git-bash on Windows)
 ### 1. Run the complete radio app with rtlsdr tuner controls
 <code>./radio_app.exe</code>
 
