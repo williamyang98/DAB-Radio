@@ -146,6 +146,7 @@ private:
     size_t RunFineTimeSync(tcb::span<const std::complex<float>> buf);
     size_t ReadSymbols(tcb::span<const std::complex<float>> buf);
 private:
+    void CreateThreads(int nb_desired_threads);
     void CoordinatorThread();
     void PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data);
 private:
