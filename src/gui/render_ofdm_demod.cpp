@@ -7,7 +7,6 @@
 #include <vector>
 
 void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
-void AddMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
 
 void RenderControls(OFDM_Demod& demod);
 void RenderState(OFDM_Demod& demod);
@@ -15,7 +14,7 @@ void RenderState(OFDM_Demod& demod);
 void RenderPlots(OFDM_Demod& demod);
 void RenderMagnitudeSpectrum(OFDM_Demod& demod);
 void RenderDemodulatedSymbols(OFDM_Demod& demod);
-void RenderSychronisation(OFDM_Demod& demod);
+void RenderSynchronisation(OFDM_Demod& demod);
 
 void RenderOFDMDemodulator(OFDM_Demod& demod) {
     RenderState(demod);
@@ -25,7 +24,7 @@ void RenderOFDMDemodulator(OFDM_Demod& demod) {
 
 void RenderPlots(OFDM_Demod& demod) {
     RenderMagnitudeSpectrum(demod);
-    RenderSychronisation(demod);
+    RenderSynchronisation(demod);
     RenderDemodulatedSymbols(demod);
 }
 
@@ -229,7 +228,7 @@ void RenderDemodulatedSymbols(OFDM_Demod& demod) {
     ImGui::End();
 }
 
-void RenderSychronisation(OFDM_Demod& demod) {
+void RenderSynchronisation(OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
     auto& cfg = demod.GetConfig();
 
@@ -333,6 +332,12 @@ void RenderMagnitudeSpectrum(OFDM_Demod& demod) {
     // NOTE: We are calculating the magnitude spectrum in the GUI thread because
     //       the ofdm demodulation process doesn't need this
     if (ImGui::Begin("Data symbol spectrum")) {
+        const auto params = demod.GetOFDMParams();
+        const int total_symbols = (int)params.nb_frame_symbols;
+
+        static int symbol_index = 0;
+        ImGui::SliderInt("Data Symbol Index", &symbol_index, 0, total_symbols-1);
+
         if (ImPlot::BeginPlot("Data symbol spectrum")) {
             const int N = (int)params.nb_fft;
             auto fft_buf = demod.GetFrameFFT();
@@ -340,15 +345,9 @@ void RenderMagnitudeSpectrum(OFDM_Demod& demod) {
 
             static auto mag_buf = std::vector<float>();
             mag_buf.resize(N);
-            for (int i = 0; i < N; i++) {
-                mag_buf[i] = 0.0f;
-            }
 
-            const float scale = 20.0f / (float)(params.nb_frame_symbols);
-            for (int i = 0; i < params.nb_frame_symbols; i++) {
-                auto sym_fft_buf = syms_fft_buf.subspan(i*N, N);
-                AddMagnitude(sym_fft_buf, mag_buf, scale);
-            }
+            auto sym_fft_buf = syms_fft_buf.subspan(symbol_index*N, N);
+            CalculateMagnitude(sym_fft_buf, mag_buf);
 
             ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
             ImPlot::PlotLine("Data symbol", mag_buf.data(), N);
@@ -368,18 +367,5 @@ void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<
     // 0 <= f < F/2 
     for (int i = 0; i < M; i++) {
         mag_buf[i+M] = scale*std::log10(std::abs(fft_buf[i]));
-    }
-}
-
-void AddMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale) {
-    const size_t N = fft_buf.size();
-    const size_t M = N/2;
-    // F/2 <= f < 0 
-    for (int i = 0; i < M; i++) {
-        mag_buf[i] += scale*std::log10(std::abs(fft_buf[i+M]));
-    }
-    // 0 <= f < F/2 
-    for (int i = 0; i < M; i++) {
-        mag_buf[i+M] += scale*std::log10(std::abs(fft_buf[i]));
     }
 }
