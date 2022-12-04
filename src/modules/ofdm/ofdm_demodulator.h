@@ -133,11 +133,12 @@ public:
     int GetFineTimeOffset() const { return fine_time_offset; }
     int GetTotalFramesRead() const { return total_frames_read; }
     int GetTotalFramesDesync() const { return total_frames_desync; }
-    auto GetFrameDataVec() { return pipeline_dqpsk_vec_buffer; }
-    auto GetFrameDataBits() { return pipeline_out_bits; }
-    tcb::span<float> GetImpulseResponse() { return correlation_impulse_response; }
-    tcb::span<float> GetCoarseFrequencyResponse() { return correlation_frequency_response; }
-    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() { return correlation_time_buffer; }
+    tcb::span<const std::complex<float>> GetFrameFFT() const { return pipeline_fft_buffer; }
+    tcb::span<const std::complex<float>> GetFrameDataVec() const { return pipeline_dqpsk_vec_buffer; }
+    tcb::span<const viterbi_bit_t> GetFrameDataBits() const { return pipeline_out_bits; }
+    tcb::span<const float> GetImpulseResponse() const { return correlation_impulse_response; }
+    tcb::span<const float> GetCoarseFrequencyResponse() const { return correlation_frequency_response; }
+    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() const { return correlation_time_buffer; }
     auto& On_OFDM_Frame() { return obs_on_ofdm_frame; }
 private:
     size_t FindNullPowerDip(tcb::span<const std::complex<float>> buf);
