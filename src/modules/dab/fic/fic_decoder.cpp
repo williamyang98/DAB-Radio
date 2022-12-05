@@ -83,7 +83,8 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
     //       Perhaps these other modes also use the same puncture codes??? 
     //       Refer to DOC: docs/DAB_parameters.pdf, Clause A1.1: System parameters
     //       for the number of bits per fib group for each transmission mode
-    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/4 - 6;
+    const int nb_tail_bits = 6;
+    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/CODE_RATE - nb_tail_bits;
     if (nb_decoded_bits != nb_decoded_bits_mode_I) {
         LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
         LOG_ERROR("ETSI EN 300 401 standard only gives the puncture codes used in transmission mode I");
@@ -113,21 +114,22 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
 
     // crc16 check
     const int nb_fib_bytes = nb_decoded_bytes/nb_fibs_per_group;
-    const int nb_data_bytes = nb_fib_bytes-2;
+    const int nb_crc16_bytes = 2;
+    const int nb_data_bytes = nb_fib_bytes-nb_crc16_bytes;
+
     for (int i = 0; i < nb_fibs_per_group; i++) {
-        auto* fib_buf = &decoded_bytes[i*nb_fib_bytes];
+        auto fib_buf = tcb::span(decoded_bytes).subspan(i*nb_fib_bytes, nb_fib_bytes);
+        auto data_buf = fib_buf.first(nb_data_bytes);
+        auto crc_buf = fib_buf.last(nb_crc16_bytes);
 
-        uint16_t crc16_rx = 0u;
-        crc16_rx |= static_cast<uint16_t>(fib_buf[nb_data_bytes]) << 8;
-        crc16_rx |= fib_buf[nb_data_bytes+1];
-
-        const uint16_t crc16_pred = CRC16_CALC->Process({fib_buf, (size_t)nb_data_bytes});
+        const uint16_t crc16_rx = (crc_buf[0] << 8) | crc_buf[1];
+        const uint16_t crc16_pred = CRC16_CALC->Process(data_buf);
         const bool is_valid = crc16_rx == crc16_pred;
         LOG_MESSAGE("[crc16] fib={}/{} is_match={} pred={:04X} got={:04X}", 
             i, nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
         
         if (is_valid) {
-            obs_on_fib.Notify({fib_buf, (size_t)nb_fib_bytes});
+            obs_on_fib.Notify(data_buf);
         }
     }
 }

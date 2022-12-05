@@ -31,6 +31,9 @@ MOT_Processor::MOT_Processor(const int max_transport_objects)
 }
 
 void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf) {
+    // DOC: ETSI EN 301 234
+    // Clause 5.1.1: Segmentation header 
+    // Figure 7: Segmentation header
     const int N = (int)buf.size();
     const int MIN_SEGMENT_HEADER_BYTES = 2;
     if (N < MIN_SEGMENT_HEADER_BYTES) {

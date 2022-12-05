@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "../database/dab_database_entities.h"
 
 // DOC: ETSI EN 300 401
 // The following tables and constants were taken from the above doc

@@ -62,12 +62,17 @@ void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
         return;
     }
 
-    const int N = 30;
+    const int N = (int)buf.size();
 
     int curr_byte = 0;
     int curr_fig = 0;
     while (curr_byte < N) {
         const int nb_remain_bytes = N-curr_byte;
+
+        // DOC: ETSI EN 300 401
+        // Clause 5.2.2.0: Introduction 
+        // Figure 6: Structure of the FIB 
+        // Table 2: List of FIG types 
 
         const uint8_t header = buf[curr_byte];
         // delimiter byte
@@ -116,88 +121,98 @@ void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
 }
 
 void FIG_Processor::ProcessFIG_Type_0(tcb::span<const uint8_t> buf) {
-    const size_t N = buf.size();
+    if (buf.empty()) {
+        LOG_ERROR("Received an empty fig 0/x buffer");
+        return;
+    }
+
+    // DOC: ETSI EN 300 401
+    // Clause 5.2.2.1: MCI and SI: FIG type 0 data field 
+    // Figure 7: Structure of the FIG type 0 data field 
     const uint8_t descriptor = buf[0];
-
     FIG_Header_Type_0 header;
-
     header.cn               = (descriptor & 0b10000000) >> 7;
     header.oe               = (descriptor & 0b01000000) >> 6;
     header.pd               = (descriptor & 0b00100000) >> 5;
     const uint8_t extension = (descriptor & 0b00011111) >> 0;
 
-    const uint8_t* field_buf = &buf[1];
-    const size_t nb_field_bytes = N-1;
+    auto field_buf = buf.subspan(1);
 
     switch (extension) {
-    case 0 : ProcessFIG_Type_0_Ext_0 (header, {field_buf, nb_field_bytes}); break;
-    case 1 : ProcessFIG_Type_0_Ext_1 (header, {field_buf, nb_field_bytes}); break;
-    case 2 : ProcessFIG_Type_0_Ext_2 (header, {field_buf, nb_field_bytes}); break;
-    case 3 : ProcessFIG_Type_0_Ext_3 (header, {field_buf, nb_field_bytes}); break;
-    case 4 : ProcessFIG_Type_0_Ext_4 (header, {field_buf, nb_field_bytes}); break;
-    case 5 : ProcessFIG_Type_0_Ext_5 (header, {field_buf, nb_field_bytes}); break;
-    case 6 : ProcessFIG_Type_0_Ext_6 (header, {field_buf, nb_field_bytes}); break;
-    case 7 : ProcessFIG_Type_0_Ext_7 (header, {field_buf, nb_field_bytes}); break;
-    case 8 : ProcessFIG_Type_0_Ext_8 (header, {field_buf, nb_field_bytes}); break;
-    case 9 : ProcessFIG_Type_0_Ext_9 (header, {field_buf, nb_field_bytes}); break;
-    case 10: ProcessFIG_Type_0_Ext_10(header, {field_buf, nb_field_bytes}); break;
-    case 13: ProcessFIG_Type_0_Ext_13(header, {field_buf, nb_field_bytes}); break;
-    case 14: ProcessFIG_Type_0_Ext_14(header, {field_buf, nb_field_bytes}); break;
-    case 17: ProcessFIG_Type_0_Ext_17(header, {field_buf, nb_field_bytes}); break;
-    case 21: ProcessFIG_Type_0_Ext_21(header, {field_buf, nb_field_bytes}); break;
-    case 24: ProcessFIG_Type_0_Ext_24(header, {field_buf, nb_field_bytes}); break;
+    case 0 : ProcessFIG_Type_0_Ext_0 (header, field_buf); break;
+    case 1 : ProcessFIG_Type_0_Ext_1 (header, field_buf); break;
+    case 2 : ProcessFIG_Type_0_Ext_2 (header, field_buf); break;
+    case 3 : ProcessFIG_Type_0_Ext_3 (header, field_buf); break;
+    case 4 : ProcessFIG_Type_0_Ext_4 (header, field_buf); break;
+    case 5 : ProcessFIG_Type_0_Ext_5 (header, field_buf); break;
+    case 6 : ProcessFIG_Type_0_Ext_6 (header, field_buf); break;
+    case 7 : ProcessFIG_Type_0_Ext_7 (header, field_buf); break;
+    case 8 : ProcessFIG_Type_0_Ext_8 (header, field_buf); break;
+    case 9 : ProcessFIG_Type_0_Ext_9 (header, field_buf); break;
+    case 10: ProcessFIG_Type_0_Ext_10(header, field_buf); break;
+    case 13: ProcessFIG_Type_0_Ext_13(header, field_buf); break;
+    case 14: ProcessFIG_Type_0_Ext_14(header, field_buf); break;
+    case 17: ProcessFIG_Type_0_Ext_17(header, field_buf); break;
+    case 21: ProcessFIG_Type_0_Ext_21(header, field_buf); break;
+    case 24: ProcessFIG_Type_0_Ext_24(header, field_buf); break;
     default:
-        LOG_MESSAGE("fig 0/{} Unsupported", 
-            extension);
+        LOG_MESSAGE("fig 0/{} Unsupported", extension);
         break;
     }
 }
 
 void FIG_Processor::ProcessFIG_Type_1(tcb::span<const uint8_t> buf) {
-    const size_t N = buf.size();
-    const uint8_t descriptor = buf[0];
+    if (buf.empty()) {
+        LOG_ERROR("Received an empty fig 1/x buffer");
+        return;
+    }
 
+    // DOC: ETSI EN 300 401
+    // Clause 5.2.2.2: Labels: FIG type 1 data field 
+    // Figure 8: Structure of the FIG type 1 data field 
+    const uint8_t descriptor = buf[0];
     FIG_Header_Type_1 header;
     header.charset          = (descriptor & 0b11110000) >> 4;
     header.rfu              = (descriptor & 0b00001000) >> 3;
     const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
-    const uint8_t* field_buf = &buf[1];
-    const size_t nb_field_bytes = N-1;
+    auto field_buf = buf.subspan(1);
 
     switch (extension) {
-    case 0: ProcessFIG_Type_1_Ext_0(header, {field_buf, nb_field_bytes}); break;
-    case 1: ProcessFIG_Type_1_Ext_1(header, {field_buf, nb_field_bytes}); break;
-    case 4: ProcessFIG_Type_1_Ext_4(header, {field_buf, nb_field_bytes}); break;
-    case 5: ProcessFIG_Type_1_Ext_5(header, {field_buf, nb_field_bytes}); break;
+    case 0: ProcessFIG_Type_1_Ext_0(header, field_buf); break;
+    case 1: ProcessFIG_Type_1_Ext_1(header, field_buf); break;
+    case 4: ProcessFIG_Type_1_Ext_4(header, field_buf); break;
+    case 5: ProcessFIG_Type_1_Ext_5(header, field_buf); break;
     default:
-        LOG_MESSAGE("fig 1/{} L={} Unsupported", extension, nb_field_bytes);
+        LOG_MESSAGE("fig 1/{} L={} Unsupported", extension, field_buf.size());
         break;
     }
 }
 
-void FIG_Processor::ProcessFIG_Type_2(tcb::span<const uint8_t> buf)
-{
-    const int N = (int)buf.size();
-    const uint8_t descriptor = buf[0];
+void FIG_Processor::ProcessFIG_Type_2(tcb::span<const uint8_t> buf) {
+    if (buf.empty()) {
+        LOG_ERROR("Received an empty fig 2/x buffer");
+        return;
+    }
 
+    const uint8_t descriptor = buf[0];
     FIG_Header_Type_2 header;
     header.toggle_flag      = (descriptor & 0b10000000) >> 7;
     header.segment_index    = (descriptor & 0b01110000) >> 4;
     header.rfu              = (descriptor & 0b00001000) >> 3;
     const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
-    const uint8_t* field_buf = &buf[1];
-    const uint8_t nb_field_bytes = N-1;
-
-    LOG_MESSAGE("fig 2/{} L={} Unsupported", extension, nb_field_bytes);
+    auto field_buf = buf.subspan(1);
+    LOG_MESSAGE("fig 2/{} L={} Unsupported", extension, field_buf.size());
 }
 
-void FIG_Processor::ProcessFIG_Type_6(tcb::span<const uint8_t> buf)
-{
-    const int N = (int)buf.size();
-    const uint8_t descriptor = buf[0];
+void FIG_Processor::ProcessFIG_Type_6(tcb::span<const uint8_t> buf) {
+    if (buf.empty()) {
+        LOG_ERROR("Received an empty fig 6/x buffer");
+        return;
+    }
 
+    const uint8_t descriptor = buf[0];
     const uint8_t rfu               = (descriptor & 0b10000000) >> 7;
     const uint8_t cn                = (descriptor & 0b01000000) >> 6;
     const uint8_t oe                = (descriptor & 0b00100000) >> 5;
@@ -205,7 +220,8 @@ void FIG_Processor::ProcessFIG_Type_6(tcb::span<const uint8_t> buf)
     const uint8_t lef               = (descriptor & 0b00001000) >> 3;
     const uint8_t short_CA_sys_id   = (descriptor & 0b00000111) >> 0;
 
-    LOG_MESSAGE("fig 6 L={} Unsupported", N);
+    auto field_buf = buf.subspan(1);
+    LOG_MESSAGE("fig 6 L={} Unsupported", field_buf.size());
 }
 
 // Ensemble information

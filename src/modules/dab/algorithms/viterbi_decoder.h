@@ -5,6 +5,8 @@
 #include "utility/span.h"
 #include "viterbi_config.h"
 
+#define CODE_RATE 4
+
 // Phil Karn's implementation
 struct vitdec_t;
 
@@ -25,8 +27,10 @@ private:
     const int max_decoded_bits;
     const int max_depunctured_bits;
 public:
+    // We are only handling a fixed code rate of 1/4
+    // Refer to phil_karn_viterbi_decoder.cpp for the 1/4 decoder implementation
     // _input_bits = minimum number of bits in the resulting decoded message
-    ViterbiDecoder(const uint8_t _poly[4], const int _input_bits, const int _max_decoded_bits=1024);
+    ViterbiDecoder(const uint8_t _poly[CODE_RATE], const int _input_bits);
     ~ViterbiDecoder();
     ViterbiDecoder(ViterbiDecoder&) = delete;
     ViterbiDecoder(ViterbiDecoder&&) = delete;

@@ -36,7 +36,7 @@ MSC_Decoder::MSC_Decoder(const Subchannel _subchannel)
         //     171    | 001 111 001 |    100 111 1    |       79     |
         //     145    | 001 100 101 |    101 001 1    |       83     |
         //     133    | 001 011 011 |    110 110 1    |      109     |
-        const uint8_t POLYS[4] = { 109, 79, 83, 109 };
+        const uint8_t POLYS[CODE_RATE] = { 109, 79, 83, 109 };
         vitdec = std::make_unique<ViterbiDecoder>(POLYS, nb_encoded_bits);
     }
 
@@ -113,7 +113,7 @@ int MSC_Decoder::DecodeEEP() {
     LOG_MESSAGE("puncture: {}", curr_puncture_bit);
     LOG_MESSAGE("error:    {}", error);
 
-    const int nb_tail_bits = 24/4;
+    const int nb_tail_bits = 24/CODE_RATE;
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
     vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
@@ -156,8 +156,9 @@ int MSC_Decoder::DecodeUEP() {
     LOG_MESSAGE("error:    {}", error);
 
     // TODO: How to we deal with padding bits?
-    const int nb_tail_bits = 24/4;
-    const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
+    const int nb_tail_bits = 24/CODE_RATE;
+    const int nb_padding_bits = (int)descriptor.total_padding_bits;
+    const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits-nb_padding_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
     vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
 
