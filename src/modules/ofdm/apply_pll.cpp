@@ -104,22 +104,13 @@ float apply_pll_avx2(
     }
 
     // Vectorise complex multiplication
-    // We need to do component wise multiplication
-    // This is done using:
-    // 1. Shifting of the 256bit array
-    // 2. Masking of the 256bit array
-    cpx256_t real_mask, imag_mask;
-    real_mask.i = _mm256_set1_epi64x(0x00000000FFFFFFFF);
-    imag_mask.i = _mm256_set1_epi64x(0xFFFFFFFF00000000);
-
-    cpx256_t 
-        a0, a1,
-        b0, b1, b2, b3, b4, 
-        real_res, imag_res;
-
+    cpx256_t a0, a1, b0, b1;
     cpx256_t x1_pack;
     cpx256_t x0_pack;
     cpx256_t y_pack;
+
+    // [3 2 1 0] -> [2 3 0 1]
+    const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
@@ -133,40 +124,29 @@ float apply_pll_avx2(
         x1_pack.ps = _mm256_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
-        memcpy(x0_pack.f32, &x0[i*K], sizeof(std::complex<float>)*K);
+        x0_pack.ps = _mm256_load_ps(reinterpret_cast<const float*>(&x0[i*K]));
 
-        // Step 1: Calculate real component
         // [ac bd]
         a0.ps = _mm256_mul_ps(x0_pack.ps, x1_pack.ps);
-        // [bd ..]
-        a1.i = _mm256_bsrli_epi128(a0.i, 4);
-        // [ac-bd 0]
-        real_res.ps = _mm256_sub_ps(a0.ps, a1.ps);
-        real_res.i = _mm256_and_si256(real_res.i, real_mask.i);
 
-        // Step 2: Calculate imaginary component
-        // Step 2.1: Swap c and d components
-        // [d 0]
-        b0.i = _mm256_bsrli_epi128(x1_pack.i, 4);
-        b0.i = _mm256_and_si256(b0.i, real_mask.i);
-        // [0 c]
-        b1.i = _mm256_bslli_epi128(x1_pack.i, 4);
-        b1.i = _mm256_and_si256(b1.i, imag_mask.i);
-        // [d c]
-        b2.i = _mm256_or_si256(b0.i, b1.i);
+        // [b a]
+        a1.ps = _mm256_permute_ps(x0_pack.ps, SWAP_COMPONENT_MASK);
+        // [bc ad]
+        a1.ps = _mm256_mul_ps(x1_pack.ps, a1.ps);
 
-        // Step 2.2: Compute imaginary component
-        // [ad bc]
-        b3.ps = _mm256_mul_ps(x0_pack.ps, b2.ps);
-        // [.. ad]
-        b4.i = _mm256_bslli_epi128(b3.i, 4);
-        // [0 bc+ad]
-        imag_res.ps = _mm256_add_ps(b3.ps, b4.ps);
-        imag_res.i = _mm256_and_si256(imag_res.i, imag_mask.i);
+        // [ac ad]
+        b0.ps = _mm256_blend_ps(a0.ps, a1.ps, 0b01010101);
+        // [ad ac]
+        b0.ps = _mm256_permute_ps(b0.ps, SWAP_COMPONENT_MASK);
+        // [bc bd]
+        b1.ps = _mm256_blend_ps(a0.ps, a1.ps, 0b10101010);
 
-        // Step 3: Combine the real and imaginary components together
-        y_pack.i = _mm256_or_si256(real_res.i, imag_res.i);
-        memcpy(&y[i*K], y_pack.f32, sizeof(std::complex<float>)*K);
+        // [ad+bc ac-bd]
+        y_pack.ps = _mm256_addsub_ps(b0.ps, b1.ps);
+        // [ac-bd ad+bc]
+        y_pack.ps = _mm256_permute_ps(y_pack.ps, SWAP_COMPONENT_MASK);
+
+        _mm256_store_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
     }
 
     const size_t N_vector = M*K;
@@ -208,22 +188,15 @@ float apply_pll_ssse3(
     }
 
     // Vectorise complex multiplication
-    // We need to do component wise multiplication
-    // This is done using:
-    // 1. Shifting of the 256bit array
-    // 2. Masking of the 256bit array
-    cpx128_t real_mask, imag_mask;
-    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
-    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
-
-    cpx128_t 
-        a0, a1,
-        b0, b1, b2, b3, b4, 
-        real_res, imag_res;
-
+    cpx128_t a0, a1, b0, b1;
     cpx128_t x1_pack;
     cpx128_t x0_pack;
     cpx128_t y_pack;
+
+    // [3 2 1 0] -> [2 3 0 1]
+    const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
+    // NOTE: For SSE3 we use _mm_shuffle_ps(a, a, MASK) instead of _mm_permute_ps(a, MASK)
+    //       This is because _mm_permute_ps is a AVX intrinsic
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
@@ -237,40 +210,29 @@ float apply_pll_ssse3(
         x1_pack.ps = _mm_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
-        memcpy(x0_pack.f32, &x0[i*K], sizeof(std::complex<float>)*K);
+        x0_pack.ps = _mm_load_ps(reinterpret_cast<const float*>(&x0[i*K]));
 
-        // Step 1: Calculate real component
         // [ac bd]
         a0.ps = _mm_mul_ps(x0_pack.ps, x1_pack.ps);
-        // [bd ..]
-        a1.i = _mm_bsrli_si128(a0.i, 4);
-        // [ac-bd 0]
-        real_res.ps = _mm_sub_ps(a0.ps, a1.ps);
-        real_res.i = _mm_and_si128(real_res.i, real_mask.i);
 
-        // Step 2: Calculate imaginary component
-        // Step 2.1: Swap c and d components
-        // [d 0]
-        b0.i = _mm_bsrli_si128(x1_pack.i, 4);
-        b0.i = _mm_and_si128(b0.i, real_mask.i);
-        // [0 c]
-        b1.i = _mm_bslli_si128(x1_pack.i, 4);
-        b1.i = _mm_and_si128(b1.i, imag_mask.i);
-        // [d c]
-        b2.i = _mm_or_si128(b0.i, b1.i);
+        // [b a]
+        a1.ps = _mm_shuffle_ps(x0_pack.ps, x0_pack.ps, SWAP_COMPONENT_MASK);
+        // [bc ad]
+        a1.ps = _mm_mul_ps(x1_pack.ps, a1.ps);
 
-        // Step 2.2: Compute imaginary component
-        // [ad bc]
-        b3.ps = _mm_mul_ps(x0_pack.ps, b2.ps);
-        // [.. ad]
-        b4.i = _mm_bslli_si128(b3.i, 4);
-        // [0 bc+ad]
-        imag_res.ps = _mm_add_ps(b3.ps, b4.ps);
-        imag_res.i = _mm_and_si128(imag_res.i, imag_mask.i);
+        // [ac ad]
+        b0.ps = _mm_blend_ps(a0.ps, a1.ps, 0b01010101);
+        // [ad ac]
+        b0.ps = _mm_shuffle_ps(b0.ps, b0.ps, SWAP_COMPONENT_MASK);
+        // [bc bd]
+        b1.ps = _mm_blend_ps(a0.ps, a1.ps, 0b10101010);
 
-        // Step 3: Combine the real and imaginary components together
-        y_pack.i = _mm_or_si128(real_res.i, imag_res.i);
-        memcpy(&y[i*K], y_pack.f32, sizeof(std::complex<float>)*K);
+        // [ad+bc ac-bd]
+        y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
+        // [ac-bd ad+bc]
+        y_pack.ps = _mm_shuffle_ps(y_pack.ps, y_pack.ps, SWAP_COMPONENT_MASK);
+
+        _mm_store_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
     }
 
     const size_t N_vector = M*K;
