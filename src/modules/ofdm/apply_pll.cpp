@@ -198,6 +198,12 @@ float apply_pll_ssse3(
     // NOTE: For SSE3 we use _mm_shuffle_ps(a, a, MASK) instead of _mm_permute_ps(a, MASK)
     //       This is because _mm_permute_ps is a AVX intrinsic
 
+    // _mm_blend_ps is a SSE4.1 instruction and not accessible to SSSE3
+    // We manually implement it by masking and ORing data
+    cpx128_t real_mask, imag_mask;
+    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
+    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
+
     float dt = dt0;
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
@@ -221,11 +227,11 @@ float apply_pll_ssse3(
         a1.ps = _mm_mul_ps(x1_pack.ps, a1.ps);
 
         // [ac ad]
-        b0.ps = _mm_blend_ps(a0.ps, a1.ps, 0b01010101);
+        b0.ps = _mm_or_ps(_mm_and_ps(a0.ps, real_mask.ps), _mm_and_ps(a1.ps, imag_mask.ps));
         // [ad ac]
         b0.ps = _mm_shuffle_ps(b0.ps, b0.ps, SWAP_COMPONENT_MASK);
         // [bc bd]
-        b1.ps = _mm_blend_ps(a0.ps, a1.ps, 0b10101010);
+        b1.ps = _mm_or_ps(_mm_and_ps(a0.ps, imag_mask.ps), _mm_and_ps(a1.ps, real_mask.ps));
 
         // [ad+bc ac-bd]
         y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
