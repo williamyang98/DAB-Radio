@@ -7,10 +7,12 @@
 #include <fftw3.h>
 #include "apply_pll.h"
 
-#include "utility/joint_allocate.h"
-
 #define PROFILE_ENABLE 1
 #include "utility/profiler.h"
+
+// In debug check that our joint allocated block has correct alignment
+#include "utility/joint_allocate.h"
+#include <assert.h>
 
 static constexpr float Fs = 2.048e6;
 static constexpr float Ts = 1.0f/Fs;
@@ -40,6 +42,17 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     return (viterbi_bit_t)(v);
 }
 
+#if defined(__AVX2__)
+// 256bit intrinsics
+constexpr size_t ALIGN_AMOUNT = 32;
+#elif defined(__SSSE3__)
+// 128bit intrinsics
+constexpr size_t ALIGN_AMOUNT = 16;
+#else
+// scalar code
+constexpr size_t ALIGN_AMOUNT = 8;
+#endif
+
 OFDM_Demod::OFDM_Demod(
     const OFDM_Params _params, 
     tcb::span<const std::complex<float>> _prs_fft_ref, 
@@ -48,28 +61,29 @@ OFDM_Demod::OFDM_Demod(
 :   params(_params), 
     null_power_dip_buffer(null_power_dip_buffer_data),
     correlation_time_buffer(correlation_time_buffer_data),
-    active_buffer(active_buffer_data),
-    inactive_buffer(inactive_buffer_data)
+    active_buffer(_params, active_buffer_data, ALIGN_AMOUNT),
+    inactive_buffer(_params, inactive_buffer_data, ALIGN_AMOUNT)
 {
-    // NOTE: Allocate data in a contiguous block for better memory access
+    // NOTE: Allocating joint block for better memory locality as well as alignment requirements
+    //       Alignment is required for FFTW3 to use SIMD instructions which increases performance
     joint_data_block = AllocateJoint(
-        carrier_mapper,                 params.nb_data_carriers, 
+        carrier_mapper,                 BufferParameters{ params.nb_data_carriers }, 
         // Fine time correlation and coarse frequency correction
-        null_power_dip_buffer_data,     params.nb_null_period,
-        correlation_time_buffer_data,   params.nb_null_period + params.nb_symbol_period,
-        correlation_prs_fft_reference,  params.nb_fft,
-        correlation_prs_time_reference, params.nb_fft,
-        correlation_impulse_response,   params.nb_fft,
-        correlation_frequency_response, params.nb_fft,
-        correlation_fft_buffer,         params.nb_fft, 
-        correlation_ifft_buffer,        params.nb_fft, 
+        null_power_dip_buffer_data,     BufferParameters{ params.nb_null_period },
+        correlation_time_buffer_data,   BufferParameters{ params.nb_null_period + params.nb_symbol_period },
+        correlation_prs_fft_reference,  BufferParameters{ params.nb_fft, ALIGN_AMOUNT },
+        correlation_prs_time_reference, BufferParameters{ params.nb_fft, ALIGN_AMOUNT },
+        correlation_impulse_response,   BufferParameters{ params.nb_fft, ALIGN_AMOUNT },
+        correlation_frequency_response, BufferParameters{ params.nb_fft, ALIGN_AMOUNT },
+        correlation_fft_buffer,         BufferParameters{ params.nb_fft, ALIGN_AMOUNT }, 
+        correlation_ifft_buffer,        BufferParameters{ params.nb_fft, ALIGN_AMOUNT }, 
         // Double buffer ingest so our reader thread isn't blocked and drops samples from rtl_sdr.exe
-        active_buffer_data,             params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
-        inactive_buffer_data,           params.nb_frame_symbols*params.nb_symbol_period + params.nb_null_period,
+        active_buffer_data,             BufferParameters{ active_buffer.GetTotalBufferBytes(), active_buffer.GetAlignment() },
+        inactive_buffer_data,           BufferParameters{ inactive_buffer.GetTotalBufferBytes(), inactive_buffer.GetAlignment() },
         // Data structures to read all 76 symbols + NULL symbol and perform demodulation 
-        pipeline_fft_buffer,            (params.nb_frame_symbols+1)*params.nb_fft,
-        pipeline_dqpsk_vec_buffer,      (params.nb_frame_symbols-1)*params.nb_fft,
-        pipeline_out_bits,              (params.nb_frame_symbols-1)*params.nb_data_carriers*2
+        pipeline_fft_buffer,            BufferParameters{ (params.nb_frame_symbols+1)*params.nb_fft, ALIGN_AMOUNT },
+        pipeline_dqpsk_vec_buffer,      BufferParameters{ (params.nb_frame_symbols-1)*params.nb_fft, ALIGN_AMOUNT },
+        pipeline_out_bits,              BufferParameters{ (params.nb_frame_symbols-1)*params.nb_data_carriers*2 }
     );
 
     fft_plan = fftwf_plan_dft_1d((int)params.nb_fft, NULL, NULL, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -472,12 +486,10 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     const int offset = impulse_max_index - (int)params.nb_cyclic_prefix;
     const int prs_start_index = (int)params.nb_null_period + offset;
     const int prs_length = (int)params.nb_symbol_period - offset;
-
-    inactive_buffer.SetLength((size_t)prs_length);
-    for (int i = 0; i < prs_length; i++) {
-        const int j = prs_start_index+i;
-        inactive_buffer[i] = correlation_time_buffer[j];
-    }
+    auto prs_buf = corr_time_buf.subspan(prs_start_index, prs_length);
+    
+    inactive_buffer.Reset();
+    inactive_buffer.ConsumeBuffer(prs_buf);
 
     correlation_time_buffer.SetLength(0);
     fine_time_offset = offset;
@@ -493,7 +505,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     }
 
     // Copy the null symbol so we can use it in the PRS correlation step
-    auto null_sym = tcb::span(inactive_buffer).last(params.nb_null_period);
+    auto null_sym = inactive_buffer.GetNullSymbol();
     correlation_time_buffer.SetLength(params.nb_null_period);
     for (int i = 0; i < params.nb_null_period; i++) {
         correlation_time_buffer[i] = null_sym[i];
@@ -504,7 +516,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     PROFILE_END(coordinator_wait);
     // double buffer
     std::swap(inactive_buffer_data, active_buffer_data);
-    inactive_buffer.SetLength(0);
+    inactive_buffer.Reset();
     // launch all our worker threads
     PROFILE_BEGIN(coordinator_start);
     coordinator_thread->Start();
@@ -602,17 +614,15 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
 
     // Fine and coarse frequency correction with PLL
     PROFILE_BEGIN(apply_pll);
-    auto pipeline_time_buffer = tcb::span(active_buffer);
-    auto symbols_time_buf = pipeline_time_buffer.subspan(
-        symbol_start *params.nb_symbol_period, 
-        total_symbols*params.nb_symbol_period);
-
     // NOTE: We create a local copy of the frequency offset since it
     //       can be changed in the reader thread due to coarse frequency correction
     const float frequency_offset = freq_coarse_offset + freq_fine_offset;
-    const int sample_offset = symbol_start*(int)params.nb_symbol_period;
-    const float dt_start = CalculateTimeOffset(sample_offset, frequency_offset);
-    ApplyPLL(symbols_time_buf, symbols_time_buf, frequency_offset, dt_start); 
+    for (int i = symbol_start; i < symbol_end; i++) {
+        auto sym_buf = active_buffer.GetDataSymbol(i);
+        const int sample_offset = i*(int)params.nb_symbol_period;
+        const float dt_start = CalculateTimeOffset(sample_offset, frequency_offset);
+        ApplyPLL(sym_buf, sym_buf, frequency_offset, dt_start); 
+    }
     PROFILE_END(apply_pll);
 
     // Clause 3.13: Frequency offset estimation and correction
@@ -621,7 +631,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_BEGIN(calculate_phase_error);
     float total_phase_error = 0.0f;
     for (int i = symbol_start; i < symbol_end_no_null; i++) {
-        auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
+        auto sym_buf = active_buffer.GetDataSymbol(i);
         const float cyclic_error = CalculateCyclicPhaseError(sym_buf);
         total_phase_error += cyclic_error;
     }
@@ -635,9 +645,9 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
 
     // Clause 3.14.2 - FFT
     // Calculate fft (include null symbol)
-    const auto calculate_fft = [this, &pipeline_time_buffer](int start, int end) {
+    const auto calculate_fft = [this](int start, int end) {
         for (int i = start; i < end; i++) {
-            auto sym_buf = pipeline_time_buffer.subspan(i*params.nb_symbol_period, params.nb_symbol_period);
+            auto sym_buf = active_buffer.GetDataSymbol(i);
             // Clause 3.14.1 - Cyclic prefix removal
             auto data_buf = sym_buf.subspan(params.nb_cyclic_prefix, params.nb_fft);
             auto fft_buf = pipeline_fft_buffer.subspan(i*params.nb_fft, params.nb_fft);
@@ -849,6 +859,11 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_b
 
 void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
     PROFILE_BEGIN_FUNC();
+    // Guarantee alignment for FFTW3 SIMD
+    // For all DAB transmission modes we have a power of 2 FFT so this should ideally be true 
+    assert((uintptr_t)fft_in.data() % ALIGN_AMOUNT == 0);
+    assert((uintptr_t)fft_out.data() % ALIGN_AMOUNT == 0);
+
     fftwf_execute_dft(
         fft_plan,
         (fftwf_complex*)fft_in.data(),
@@ -857,6 +872,11 @@ void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::
 
 void OFDM_Demod::CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
     PROFILE_BEGIN_FUNC();
+    // Guarantee alignment for FFTW3 SIMD
+    // For all DAB transmission modes we have a power of 2 FFT so this should ideally be true 
+    assert((uintptr_t)fft_in.data() % ALIGN_AMOUNT == 0);
+    assert((uintptr_t)fft_out.data() % ALIGN_AMOUNT == 0);
+
     fftwf_execute_dft(
         ifft_plan,
         (fftwf_complex*)fft_in.data(),

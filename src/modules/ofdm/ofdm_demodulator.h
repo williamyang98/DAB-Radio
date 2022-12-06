@@ -8,10 +8,12 @@
 #include <memory>
 
 #include "ofdm_params.h"
+#include "ofdm_frame_buffer.h"
 #include "utility/reconstruction_buffer.h"
 #include "utility/circular_buffer.h"
 #include "utility/observable.h"
 #include "utility/span.h"
+#include "utility/joint_allocate.h"
 #include "viterbi_config.h"
 
 typedef struct fftwf_plan_s* fftwf_plan;                                      \
@@ -84,12 +86,12 @@ private:
     // callback for when ofdm is completed
     Observable<tcb::span<const viterbi_bit_t>> obs_on_ofdm_frame;
     // Joint memory allocation block
-    std::unique_ptr<uint8_t[]> joint_data_block;
+    AlignedBlock joint_data_block;
     // 1. pipeline reader double buffer
-    ReconstructionBuffer<std::complex<float>> active_buffer;
-    ReconstructionBuffer<std::complex<float>> inactive_buffer;
-    tcb::span<std::complex<float>> active_buffer_data;
-    tcb::span<std::complex<float>> inactive_buffer_data;
+    OFDM_Frame_Buffer<std::complex<float>> active_buffer;
+    OFDM_Frame_Buffer<std::complex<float>> inactive_buffer;
+    tcb::span<uint8_t> active_buffer_data;
+    tcb::span<uint8_t> inactive_buffer_data;
     // 2. fine time and coarse frequency synchronisation using time/frequency correlation
     CircularBuffer<std::complex<float>> null_power_dip_buffer;
     ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
