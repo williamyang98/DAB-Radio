@@ -201,8 +201,8 @@ float apply_pll_ssse3(
     // _mm_blend_ps is a SSE4.1 instruction and not accessible to SSSE3
     // We manually implement it by masking and ORing data
     cpx128_t real_mask, imag_mask;
-    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
-    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
+    real_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
+    imag_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
