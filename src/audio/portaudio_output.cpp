@@ -41,7 +41,7 @@ bool PortAudio_Output::Open(PaDeviceIndex index) {
 
     LOG_MESSAGE("Output device name: '%s'", pInfo->name);
     output_params.channelCount = total_channels;       
-    output_params.sampleFormat = paInt16;
+    output_params.sampleFormat = paFloat32;
     output_params.suggestedLatency = Pa_GetDeviceInfo(output_params.device)->defaultLowOutputLatency;
     output_params.hostApiSpecificStreamInfo = NULL;
 
@@ -88,8 +88,8 @@ int PortAudio_Output::paCallbackMethod(
         return paAbort;
     }
 
-    tcb::span<Frame<int16_t>> wr_buf = { 
-        reinterpret_cast<Frame<int16_t>*>(output_buffer), 
+    tcb::span<Frame<float>> wr_buf = { 
+        reinterpret_cast<Frame<float>*>(output_buffer), 
         (size_t)frames_per_block
     };
     std::copy_n(rd_buf.begin(), frames_per_block, wr_buf.begin());
