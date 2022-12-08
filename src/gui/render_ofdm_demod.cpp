@@ -258,7 +258,7 @@ void RenderSynchronisation(OFDM_Demod& demod) {
             ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
 
             // Plot useful markers for coarse freq sync using freq correlation
-            const int coarse_freq_offset = (int)demod.GetCoarseFrequencyOffset();
+            const int coarse_freq_offset = (int)std::round(demod.GetCoarseFrequencyOffset());
             const int max_coarse_freq_offset = cfg.sync.max_coarse_freq_correction;
             const int freq_fft_bin = (int)params.freq_carrier_spacing;
             const int peak_offset_x = -coarse_freq_offset / freq_fft_bin;

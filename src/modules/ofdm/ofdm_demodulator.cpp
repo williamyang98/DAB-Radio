@@ -93,6 +93,7 @@ OFDM_Demod::OFDM_Demod(
     state = State::FINDING_NULL_POWER_DIP;
     total_frames_desync = 0;
     total_frames_read = 0;
+    is_found_coarse_freq_offset = false;
     freq_coarse_offset = 0;
     freq_fine_offset = 0;
     fine_time_offset = 0;
@@ -264,6 +265,7 @@ void OFDM_Demod::Reset() {
 
     // NOTE: We also reset fine frequency synchronisation since an incorrect value
     // can reduce performance of fine time synchronisation using the impulse response
+    is_found_coarse_freq_offset = false;
     freq_coarse_offset = 0;
     freq_fine_offset = 0;
     fine_time_offset = 0;
@@ -405,11 +407,18 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     //         This can cause the coarse frequency correction to oscillate between those two adjacent bins
     //         We can reduce the update rate so the coarse frequency correction doesn't fluctuate too much
     const bool is_large_correction = std::abs(error) > ofdm_freq_spacing*1.5f;
-    const float beta = is_large_correction ? 1.0f : cfg.sync.coarse_freq_slow_beta;
+
+    // NOTE: We only do this gradual update if the coarse frequency offset was already found
+    //       If we are getting the initial estimate we need the update to be instant
+    //       otherwise the PRS fine time correlation step won't find a big enough impulse peak
+    //       causing the entire process to reset
+    const bool is_fast_update = is_large_correction || !is_found_coarse_freq_offset;
+    const float beta = is_fast_update ? 1.0f : cfg.sync.coarse_freq_slow_beta;
     const float delta = beta*error;
 
     // Step 10: Update the coarse frequency offset
     freq_coarse_offset += delta;
+    is_found_coarse_freq_offset = true;
 
     // Step 11: Counter adjust the fine frequency offset
     // In a near locked state the coarse frequency offset may fluctuate alot if it lies between two FFT bins

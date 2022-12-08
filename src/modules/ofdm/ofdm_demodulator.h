@@ -69,6 +69,7 @@ private:
     int total_frames_desync;
     // time and frequency correction
     std::mutex mutex_freq_fine_offset;
+    bool is_found_coarse_freq_offset;
     float freq_coarse_offset;
     float freq_fine_offset;
     int fine_time_offset;
