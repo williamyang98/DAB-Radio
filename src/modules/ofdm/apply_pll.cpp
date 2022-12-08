@@ -112,6 +112,12 @@ float apply_pll_avx2(
     // [3 2 1 0] -> [2 3 0 1]
     const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
 
+    // c = _mm_blend(a, b, BLEND_MASK)
+    // bit[0:7] = 0   , 1   , 0   , 1   , 0   , 1   , 0,    1
+    // c  [0:7] = a[0], b[1], a[2], b[3], a[4], b[5], a[6], b[7]
+    const uint8_t A_B_BLEND_MASK =  0b10101010;
+    const uint8_t B_A_BLEND_MASK = ~0b10101010;
+
     float dt = dt0;
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
@@ -128,23 +134,24 @@ float apply_pll_avx2(
 
         // [ac bd]
         a0.ps = _mm256_mul_ps(x0_pack.ps, x1_pack.ps);
+        // [bd ac]
+        a0.ps = _mm256_permute_ps(a0.ps, SWAP_COMPONENT_MASK);
 
-        // [b a]
-        a1.ps = _mm256_permute_ps(x0_pack.ps, SWAP_COMPONENT_MASK);
-        // [bc ad]
-        a1.ps = _mm256_mul_ps(x1_pack.ps, a1.ps);
+        // [d c]
+        a1.ps = _mm256_permute_ps(x1_pack.ps, SWAP_COMPONENT_MASK);
+        // [ad bc]
+        a1.ps = _mm256_mul_ps(x0_pack.ps, a1.ps);
 
-        // [ac ad]
-        b0.ps = _mm256_blend_ps(a0.ps, a1.ps, 0b01010101);
         // [ad ac]
+        b0.ps = _mm256_blend_ps(a0.ps, a1.ps, B_A_BLEND_MASK);
+        // [ac ad]
         b0.ps = _mm256_permute_ps(b0.ps, SWAP_COMPONENT_MASK);
-        // [bc bd]
-        b1.ps = _mm256_blend_ps(a0.ps, a1.ps, 0b10101010);
 
-        // [ad+bc ac-bd]
-        y_pack.ps = _mm256_addsub_ps(b0.ps, b1.ps);
+        // [bd bc]
+        b1.ps = _mm256_blend_ps(a0.ps, a1.ps, A_B_BLEND_MASK);
+
         // [ac-bd ad+bc]
-        y_pack.ps = _mm256_permute_ps(y_pack.ps, SWAP_COMPONENT_MASK);
+        y_pack.ps = _mm256_addsub_ps(b0.ps, b1.ps);
 
         _mm256_store_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
     }
@@ -152,7 +159,7 @@ float apply_pll_avx2(
     const size_t N_vector = M*K;
     dt = apply_pll_scalar(x0.subspan(N_vector), y.subspan(N_vector), freq_offset, dt);
 
-    return dt0;
+    return dt;
 }
 #endif
 
@@ -201,8 +208,8 @@ float apply_pll_ssse3(
     // _mm_blend_ps is a SSE4.1 instruction and not accessible to SSSE3
     // We manually implement it by masking and ORing data
     cpx128_t real_mask, imag_mask;
-    real_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
-    imag_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
+    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
+    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
@@ -220,23 +227,23 @@ float apply_pll_ssse3(
 
         // [ac bd]
         a0.ps = _mm_mul_ps(x0_pack.ps, x1_pack.ps);
+        // [bd ac]
+        a0.ps = _mm_shuffle_ps(a0.ps, a0.ps, SWAP_COMPONENT_MASK);
 
-        // [b a]
-        a1.ps = _mm_shuffle_ps(x0_pack.ps, x0_pack.ps, SWAP_COMPONENT_MASK);
-        // [bc ad]
-        a1.ps = _mm_mul_ps(x1_pack.ps, a1.ps);
+        // [d c]
+        a1.ps = _mm_shuffle_ps(x1_pack.ps, x1_pack.ps, SWAP_COMPONENT_MASK);
+        // [ad bc]
+        a1.ps = _mm_mul_ps(x0_pack.ps, a1.ps);
 
-        // [ac ad]
-        b0.ps = _mm_or_ps(_mm_and_ps(a0.ps, real_mask.ps), _mm_and_ps(a1.ps, imag_mask.ps));
         // [ad ac]
+        b0.ps = _mm_or_ps(_mm_and_ps(a0.ps, imag_mask.ps), _mm_and_ps(a1.ps, real_mask.ps));
+        // [ac ad]
         b0.ps = _mm_shuffle_ps(b0.ps, b0.ps, SWAP_COMPONENT_MASK);
-        // [bc bd]
-        b1.ps = _mm_or_ps(_mm_and_ps(a0.ps, imag_mask.ps), _mm_and_ps(a1.ps, real_mask.ps));
+        // [bd bc]
+        b1.ps = _mm_or_ps(_mm_and_ps(a0.ps, real_mask.ps), _mm_and_ps(a1.ps, imag_mask.ps));
 
-        // [ad+bc ac-bd]
-        y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
         // [ac-bd ad+bc]
-        y_pack.ps = _mm_shuffle_ps(y_pack.ps, y_pack.ps, SWAP_COMPONENT_MASK);
+        y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
 
         _mm_store_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
     }
@@ -244,6 +251,6 @@ float apply_pll_ssse3(
     const size_t N_vector = M*K;
     dt = apply_pll_scalar(x0.subspan(N_vector), y.subspan(N_vector), freq_offset, dt);
 
-    return dt0;
+    return dt;
 }
 #endif
