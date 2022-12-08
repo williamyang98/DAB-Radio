@@ -45,8 +45,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /arch:AVX2")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -ffast-math")
-# NOTE: If we are compiling the viterbi decoder with ssse3 not avx2
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma -ffast-math")
+# NOTE: If we are compiling with ssse3 not avx2+fma (affects pll and viterbi decoder)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3 -ffast-math")
 endif()
 
