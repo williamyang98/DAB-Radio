@@ -43,12 +43,15 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
 }
 
 #if defined(__AVX2__)
+#pragma message("Compiling OFDM demod so FFT buffers are aligned to 256bits for FFTW3 AVX SIMD")
 // 256bit intrinsics
 constexpr size_t ALIGN_AMOUNT = 32;
 #elif defined(__SSSE3__)
+#pragma message("Compiling OFDM demod so FFT buffers are aligned to 128bits for FFTW3 SSE SIMD")
 // 128bit intrinsics
 constexpr size_t ALIGN_AMOUNT = 16;
 #else
+#pragma message("Compiling OFDM demod so FFT buffers are unaligned and will not use FFTW3 SIMD")
 // scalar code
 constexpr size_t ALIGN_AMOUNT = 8;
 #endif

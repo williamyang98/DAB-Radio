@@ -32,13 +32,13 @@ static float apply_pll_auto(
     const float dt0=0.0f) 
 {
     #if defined(__AVX2__)
-    #pragma message("PLL is using AVX2 code")
+    #pragma message("Compiling PLL using AVX2 code")
     return apply_pll_avx2(x0, y, freq_offset, dt0);
     #elif defined(__SSSE3__)
-    #pragma message("PLL is using SSSE3 code")
+    #pragma message("Compiling PLL using SSSE3 code")
     return apply_pll_ssse3(x0, y, freq_offset, dt0);
     #else
-    #pragma message("PLL is using scalar code")
+    #pragma message("Compiling PLL using scalar code")
     return apply_pll_scalar(x0, y, freq_offset, dt0);
     #endif
 }
