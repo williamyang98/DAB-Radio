@@ -130,6 +130,12 @@ float apply_pll_avx2(
         x1_pack.ps = _mm256_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
+        // NOTE: We can use load_ps and store_ps for AVX2
+        //       This is because they don't throw an exception when there is a misalignment
+        //       Instead there will just be a performance penalty due cache line misalignment
+        //       Source: https://blog.ngzhian.com/sse-avx-memory-alignment.html
+        //       The intel intrinsics guide mistakenly says that AVX2 misalignment will throw a general exception
+        //       The disassembly shows it uses an unaligned movups instead of aligned movaps
         x0_pack.ps = _mm256_load_ps(reinterpret_cast<const float*>(&x0[i*K]));
 
         // [ac bd]
@@ -223,7 +229,10 @@ float apply_pll_ssse3(
         x1_pack.ps = _mm_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
-        x0_pack.ps = _mm_load_ps(reinterpret_cast<const float*>(&x0[i*K]));
+        // NOTE: SSE alignment requirements are strict unlike AVX
+        //       If there is a misalignment an exception will be thrown
+        //       Therefore use memcpy instead of load_ps or store_ps
+        memcpy(&x0_pack.f32[0], &x0[i*K], K*sizeof(std::complex<float>));
 
         // [ac bd]
         a0.ps = _mm_mul_ps(x0_pack.ps, x1_pack.ps);
@@ -245,7 +254,7 @@ float apply_pll_ssse3(
         // [ac-bd ad+bc]
         y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
 
-        _mm_store_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
+        memcpy(&y[i*K], &y_pack.f32[0], K*sizeof(std::complex<float>));
     }
 
     const size_t N_vector = M*K;
