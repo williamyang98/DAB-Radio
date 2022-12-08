@@ -50,6 +50,14 @@ void usage() {
     );
 }
 
+template <typename T>
+T clamp(T x, const T min, const T max) {
+    T y = x;
+    y = (y > min) ? y : min;
+    y = (y > max) ? max : y;
+    return y;
+}
+
 int main(int argc, char** argv) 
 {
 
@@ -141,10 +149,12 @@ int main(int argc, char** argv)
     for (int i = 0; i < frame_size; i++) {
         const float I = frame_out_buf[i].real();
         const float Q = frame_out_buf[i].imag();
-        const float A = 1.0f/(float)params.nb_data_carriers * 200.0f * 4.0f;
-        const uint8_t I0 = static_cast<uint8_t>(I*A + 128.0f);
-        const uint8_t Q0 = static_cast<uint8_t>(Q*A + 128.0f);
-        frame_tx_buf[i] = std::complex<uint8_t>(I0, Q0);
+        const float A = 1.0f/(float)params.nb_data_carriers * 200.0f * 2.0f;
+        const float I0 = clamp(I*A + 128.0f, 0.0f, 255.0f);
+        const float Q0 = clamp(Q*A + 128.0f, 0.0f, 255.0f);
+        const uint8_t I1 = static_cast<uint8_t>(I0);
+        const uint8_t Q1 = static_cast<uint8_t>(Q0);
+        frame_tx_buf[i] = std::complex<uint8_t>(I1, Q1);
     }
 
     while (true) {
