@@ -115,8 +115,8 @@ float apply_pll_avx2(
     // c = _mm_blend(a, b, BLEND_MASK)
     // bit[0:7] = 0   , 1   , 0   , 1   , 0   , 1   , 0,    1
     // c  [0:7] = a[0], b[1], a[2], b[3], a[4], b[5], a[6], b[7]
-    const uint8_t A_B_BLEND_MASK =  0b10101010;
-    const uint8_t B_A_BLEND_MASK = ~0b10101010;
+    const uint8_t A_B_BLEND_MASK = 0b10101010;
+    const uint8_t B_A_BLEND_MASK = ~A_B_BLEND_MASK;
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
