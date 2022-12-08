@@ -33,6 +33,16 @@ const float Ts = 1.0f/2.048e6f;
 #endif
 #endif
 
+// On MSVC if __AVX2__ is defined then we have FMA
+// On GCC __FMA__ is a given define
+#if !defined(__FMA__) && defined(__AVX2__)
+#define __FMA__ 1
+#endif
+
+#if defined(__FMA__)
+#pragma message("Compiling PLL with FMA instructions")
+#endif
+
 // Helper function for using floating point and integer SIMDs
 typedef union ALIGNED(sizeof(__m256)) {
     float f32[8];
@@ -89,7 +99,6 @@ float apply_pll_avx2(
     const auto M = N/K;
 
     // Vectorise calculation of cos(dt) + jsin(dt)
-    __m256 dt_pack;
     cpx256_t dt_step_pack;
     const float dt_step_pack_stride = dt_step * K;
     {
@@ -104,58 +113,49 @@ float apply_pll_avx2(
     }
 
     // Vectorise complex multiplication
-    cpx256_t a0, a1, b0, b1;
-    cpx256_t x1_pack;
-    cpx256_t x0_pack;
-    cpx256_t y_pack;
-
     // [3 2 1 0] -> [2 3 0 1]
     const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
-
-    // c = _mm_blend(a, b, BLEND_MASK)
-    // bit[0:7] = 0   , 1   , 0   , 1   , 0   , 1   , 0,    1
-    // c  [0:7] = a[0], b[1], a[2], b[3], a[4], b[5], a[6], b[7]
-    const uint8_t A_B_BLEND_MASK = 0b10101010;
-    const uint8_t B_A_BLEND_MASK = 0b01010101;
+    // [3 2 1 0] -> [2 2 0 0]
+    const uint8_t GET_REAL_MASK = 0b10100000;
+    // [3 2 1 0] -> [3 3 1 1]
+    const uint8_t GET_IMAG_MASK = 0b11110101;
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
-        dt_pack = _mm256_set1_ps(dt);
+        __m256 dt_pack = _mm256_set1_ps(dt);
         dt_pack = _mm256_add_ps(dt_pack, dt_step_pack.ps);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);
         }
-        x1_pack.ps = _mm256_cos_ps(dt_pack);
+        __m256 pll = _mm256_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
         // NOTE: Use unaligned load
-        x0_pack.ps = _mm256_loadu_ps(reinterpret_cast<const float*>(&x0[i*K]));
-
-        // [ac bd]
-        a0.ps = _mm256_mul_ps(x0_pack.ps, x1_pack.ps);
-        // [bd ac]
-        a0.ps = _mm256_permute_ps(a0.ps, SWAP_COMPONENT_MASK);
+        __m256 X = _mm256_loadu_ps(reinterpret_cast<const float*>(&x0[i*K]));
 
         // [d c]
-        a1.ps = _mm256_permute_ps(x1_pack.ps, SWAP_COMPONENT_MASK);
-        // [ad bc]
-        a1.ps = _mm256_mul_ps(x0_pack.ps, a1.ps);
-
-        // [ad ac]
-        b0.ps = _mm256_blend_ps(a0.ps, a1.ps, B_A_BLEND_MASK);
-        // [ac ad]
-        b0.ps = _mm256_permute_ps(b0.ps, SWAP_COMPONENT_MASK);
-
+        __m256 a0 = _mm256_permute_ps(pll, SWAP_COMPONENT_MASK);
+        // [a a]
+        __m256 a1 = _mm256_permute_ps(X, GET_REAL_MASK);
+        // [b b]
+        __m256 a2 = _mm256_permute_ps(X, GET_IMAG_MASK);
         // [bd bc]
-        b1.ps = _mm256_blend_ps(a0.ps, a1.ps, A_B_BLEND_MASK);
+        __m256 b0 = _mm256_mul_ps(a2, a0);
 
+        #if !defined(__FMA__)
+        // [ac ad]
+        __m256 b1 = _mm256_mul_ps(a1, pll);
         // [ac-bd ad+bc]
-        y_pack.ps = _mm256_addsub_ps(b0.ps, b1.ps);
+        __m256 Y = _mm256_addsub_ps(b1, b0);
+        #else
+        // [ac-bd ad+bc]
+        __m256 Y = _mm256_fmaddsub_ps(a1, pll, b0);
+        #endif
 
         // NOTE: Use unaligned store
-        _mm256_storeu_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
+        _mm256_storeu_ps(reinterpret_cast<float*>(&y[i*K]), Y);
     }
 
     const size_t N_vector = M*K;
@@ -197,59 +197,51 @@ float apply_pll_ssse3(
     }
 
     // Vectorise complex multiplication
-    cpx128_t a0, a1, b0, b1;
-    cpx128_t x1_pack;
-    cpx128_t x0_pack;
-    cpx128_t y_pack;
-
-    // [3 2 1 0] -> [2 3 0 1]
-    const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
     // NOTE: For SSE3 we use _mm_shuffle_ps(a, a, MASK) instead of _mm_permute_ps(a, MASK)
     //       This is because _mm_permute_ps is a AVX intrinsic
-
-    // _mm_blend_ps is a SSE4.1 instruction and not accessible to SSSE3
-    // We manually implement it by masking and ORing data
-    cpx128_t real_mask, imag_mask;
-    real_mask.i = _mm_set1_epi64x(0x00000000FFFFFFFF);
-    imag_mask.i = _mm_set1_epi64x(0xFFFFFFFF00000000);
+    // [3 2 1 0] -> [2 3 0 1]
+    const uint8_t SWAP_COMPONENT_MASK = 0b10110001;
+    // [3 2 1 0] -> [2 2 0 0]
+    const uint8_t GET_REAL_MASK = 0b10100000;
+    // [3 2 1 0] -> [3 3 1 1]
+    const uint8_t GET_IMAG_MASK = 0b11110101;
 
     float dt = dt0;
     for (int i = 0; i < M; i++) {
         // Vectorised cos(dt) + jsin(dt)
-        dt_pack = _mm_set1_ps(dt);
+        __m128 dt_pack = _mm_set1_ps(dt);
         dt_pack = _mm_add_ps(dt_pack, dt_step_pack.ps);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);
         }
-        x1_pack.ps = _mm_cos_ps(dt_pack);
+        __m128 pll = _mm_cos_ps(dt_pack);
 
         // Perform vectorised complex multiplication
         // NOTE: Use unaligned load
-        x0_pack.ps = _mm_loadu_ps(reinterpret_cast<const float*>(&x0[i*K]));
-
-        // [ac bd]
-        a0.ps = _mm_mul_ps(x0_pack.ps, x1_pack.ps);
-        // [bd ac]
-        a0.ps = _mm_shuffle_ps(a0.ps, a0.ps, SWAP_COMPONENT_MASK);
+        __m128 X = _mm_loadu_ps(reinterpret_cast<const float*>(&x0[i*K]));
 
         // [d c]
-        a1.ps = _mm_shuffle_ps(x1_pack.ps, x1_pack.ps, SWAP_COMPONENT_MASK);
-        // [ad bc]
-        a1.ps = _mm_mul_ps(x0_pack.ps, a1.ps);
-
-        // [ad ac]
-        b0.ps = _mm_or_ps(_mm_and_ps(a0.ps, imag_mask.ps), _mm_and_ps(a1.ps, real_mask.ps));
-        // [ac ad]
-        b0.ps = _mm_shuffle_ps(b0.ps, b0.ps, SWAP_COMPONENT_MASK);
+        __m128 a0 = _mm_shuffle_ps(pll, pll, SWAP_COMPONENT_MASK);
+        // [a a]
+        __m128 a1 = _mm_shuffle_ps(X, X, GET_REAL_MASK);
+        // [b b]
+        __m128 a2 = _mm_shuffle_ps(X, X, GET_IMAG_MASK);
         // [bd bc]
-        b1.ps = _mm_or_ps(_mm_and_ps(a0.ps, real_mask.ps), _mm_and_ps(a1.ps, imag_mask.ps));
+        __m128 b0 = _mm_mul_ps(a2, a0);
 
+        #if !defined(__FMA__)
+        // [ac ad]
+        __m128 b1 = _mm_mul_ps(a1, pll);
         // [ac-bd ad+bc]
-        y_pack.ps = _mm_addsub_ps(b0.ps, b1.ps);
+        __m128 Y = _mm_addsub_ps(b1, b0);
+        #else
+        // [ac-bd ad+bc]
+        __m128 Y = _mm_fmaddsub_ps(a1, pll, b0);
+        #endif
 
         // NOTE: Use unaligned store
-        _mm_storeu_ps(reinterpret_cast<float*>(&y[i*K]), y_pack.ps);
+        _mm_storeu_ps(reinterpret_cast<float*>(&y[i*K]), Y);
     }
 
     const size_t N_vector = M*K;
