@@ -34,7 +34,6 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
         }
         break;
     case 3:
-        break;
         {
             p.nb_frame_symbols = 153;
             p.nb_symbol_period = 319;
@@ -44,6 +43,7 @@ OFDM_Params get_DAB_OFDM_params(const int transmission_mode) {
             p.nb_data_carriers = 192;
             p.freq_carrier_spacing = 8000;
         }
+        break;
     case 4:
         {
             p.nb_frame_symbols = 76;
