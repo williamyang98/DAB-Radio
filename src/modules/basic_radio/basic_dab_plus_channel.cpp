@@ -22,24 +22,10 @@ Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters _params, con
     SetupCallbacks();
 }
 
-Basic_DAB_Plus_Channel::~Basic_DAB_Plus_Channel() {
-    Stop();
-    Join();
-}
+Basic_DAB_Plus_Channel::~Basic_DAB_Plus_Channel() = default;
 
-void Basic_DAB_Plus_Channel::SetBuffer(tcb::span<const viterbi_bit_t> _buf) {
-    msc_bits_buf = _buf;
-}
-
-void Basic_DAB_Plus_Channel::BeforeRun() {
+void Basic_DAB_Plus_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
     el::Helpers::setThreadName(fmt::format("MSC-subchannel-{}", subchannel.id));
-}
-
-void Basic_DAB_Plus_Channel::Run() {
-    if (msc_bits_buf.empty()) {
-        LOG_ERROR("Got NULL for msc bits buffer");
-        return;
-    }
 
     const int nb_msc_bits = (int)msc_bits_buf.size();
     if (nb_msc_bits != params.nb_msc_bits) {

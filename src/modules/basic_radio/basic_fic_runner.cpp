@@ -30,24 +30,10 @@ BasicFICRunner::BasicFICRunner(const DAB_Parameters _params)
     });
 }
 
-BasicFICRunner::~BasicFICRunner() {
-    Stop();
-    Join();
-}
+BasicFICRunner::~BasicFICRunner() = default;
 
-void BasicFICRunner::SetBuffer(tcb::span<const viterbi_bit_t> _buf) {
-    fic_bits_buf = _buf;
-}
-
-void BasicFICRunner::BeforeRun() {
+void BasicFICRunner::Process(tcb::span<const viterbi_bit_t> fic_bits_buf) {
     el::Helpers::setThreadName("FIC");
-}
-
-void BasicFICRunner::Run() {
-    if (fic_bits_buf.empty()) {
-        LOG_ERROR("Got NULL fic bits buffer");
-        return;
-    }
 
     const int nb_fic_bits = (int)fic_bits_buf.size(); 
     if (nb_fic_bits != params.nb_fic_bits) {

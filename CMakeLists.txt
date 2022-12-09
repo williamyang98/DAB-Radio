@@ -99,7 +99,6 @@ target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 set(BASIC_RADIO_DIR ${SRC_DIR}/modules/basic_radio)
 add_library(basic_radio STATIC
     ${BASIC_RADIO_DIR}/basic_radio.cpp
-    ${BASIC_RADIO_DIR}/basic_threaded_channel.cpp
     ${BASIC_RADIO_DIR}/basic_fic_runner.cpp
     ${BASIC_RADIO_DIR}/basic_dab_plus_channel.cpp
     ${BASIC_RADIO_DIR}/basic_slideshow.cpp

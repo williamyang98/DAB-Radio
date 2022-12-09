@@ -9,15 +9,13 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
 
-BasicRadio::BasicRadio(const DAB_Parameters _params)
-: params(_params), fic_runner(_params) 
+BasicRadio::BasicRadio(const DAB_Parameters _params, const size_t nb_threads)
+: params(_params), fic_runner(_params), thread_pool(nb_threads) 
 {
 
 }
 
-BasicRadio::~BasicRadio() {
-    dab_plus_channels.clear();
-}
+BasicRadio::~BasicRadio() = default;
 
 void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
     const int N = (int)buf.size();
@@ -29,22 +27,18 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
     auto fic_buf = buf.subspan(0,                  params.nb_fic_bits);
     auto msc_buf = buf.subspan(params.nb_fic_bits, params.nb_msc_bits);
 
-    fic_runner.SetBuffer(fic_buf);
+    thread_pool.PushTask([this, &fic_buf] {
+        fic_runner.Process(fic_buf);
+    });
+
     for (auto& [_, channel]: dab_plus_channels) {
-        channel->SetBuffer(msc_buf);
+        auto& dab_plus_channel = *(channel.get());
+        thread_pool.PushTask([&dab_plus_channel, &msc_buf] {
+            dab_plus_channel.Process(msc_buf);
+        });
     }
 
-    // Launch all channel threads
-    fic_runner.Start();
-    for (auto& [_, channel]: dab_plus_channels) {
-        channel->Start();
-    }
-
-    // Join them all now
-    fic_runner.Join();
-    for (auto& [_, channel]: dab_plus_channels) {
-        channel->Join();
-    }
+    thread_pool.WaitAll();
 
     UpdateDatabase();
 }

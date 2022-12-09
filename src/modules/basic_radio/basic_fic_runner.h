@@ -2,7 +2,6 @@
 
 #include <memory>
 
-#include "basic_threaded_channel.h"
 #include "modules/dab/constants/dab_parameters.h"
 #include "modules/dab/dab_misc_info.h"
 #include "utility/span.h"
@@ -14,7 +13,7 @@ class FIC_Decoder;
 class FIG_Processor;
 class Radio_FIG_Handler;
 
-class BasicFICRunner: public BasicThreadedChannel
+class BasicFICRunner
 {
 private:
     const DAB_Parameters params;
@@ -29,15 +28,8 @@ private:
 public:
     BasicFICRunner(const DAB_Parameters _params);
     ~BasicFICRunner();
-    BasicFICRunner(BasicFICRunner&) = delete;
-    BasicFICRunner(BasicFICRunner&&) = delete;
-    BasicFICRunner& operator=(BasicFICRunner&) = delete;
-    BasicFICRunner& operator=(BasicFICRunner&&) = delete;
-    void SetBuffer(tcb::span<const viterbi_bit_t> _buf);
+    void Process(tcb::span<const viterbi_bit_t> fic_bits_buf);
     auto& GetLiveDatabase(void) { return *(dab_db.get()); }
     auto& GetDatabaseUpdater(void) { return *(dab_db_updater.get()); }
     const auto& GetMiscInfo(void) { return misc_info; }
-protected:
-    virtual void BeforeRun();
-    virtual void Run();
 };

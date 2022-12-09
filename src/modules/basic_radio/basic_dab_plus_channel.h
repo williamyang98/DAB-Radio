@@ -5,7 +5,6 @@
 #include <vector>
 #include <memory>
 
-#include "basic_threaded_channel.h"
 #include "basic_audio_params.h"
 #include "modules/dab/audio/aac_frame_processor.h"
 #include "modules/dab/constants/dab_parameters.h"
@@ -46,7 +45,7 @@ private:
 };
 
 // Audio channel player for DAB+
-class Basic_DAB_Plus_Channel: public BasicThreadedChannel
+class Basic_DAB_Plus_Channel
 {
 private:
     const DAB_Parameters params;
@@ -57,8 +56,6 @@ private:
     std::unique_ptr<AAC_Frame_Processor> aac_frame_processor;
     std::unique_ptr<AAC_Audio_Decoder> aac_audio_decoder;
     std::unique_ptr<AAC_Data_Decoder> aac_data_decoder;
-    // Set buffer to operate on
-    tcb::span<const viterbi_bit_t> msc_bits_buf;
     // Programme associated data
     std::string dynamic_label;
     std::unique_ptr<Basic_Slideshow_Manager> slideshow_manager;
@@ -84,10 +81,12 @@ public:
     Basic_DAB_Plus_Channel& operator=(Basic_DAB_Plus_Channel&) = delete;
     Basic_DAB_Plus_Channel& operator=(Basic_DAB_Plus_Channel&&) = delete;
 
-    void SetBuffer(tcb::span<const viterbi_bit_t> _buf);
+    void Process(tcb::span<const viterbi_bit_t> msc_bits_buf);
+
     auto& GetControls(void) { return controls; }
     const auto& GetDynamicLabel(void) const { return dynamic_label; }
     auto& GetSlideshowManager(void) { return *slideshow_manager; }
+
     auto& OnAudioData(void) { return obs_audio_data; }
     auto& OnDynamicLabel(void) { return obs_dynamic_label; }
     auto& OnSlideshow(void) { return obs_slideshow; }
@@ -98,9 +97,6 @@ public:
     bool IsRSError() const { return is_rs_error; }
     bool IsAUError() const { return is_au_error; }
     bool IsCodecError() const { return is_codec_error; }
-protected:
-    virtual void BeforeRun();
-    virtual void Run();
 private:
     void SetupCallbacks(void);
 };
