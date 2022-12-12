@@ -507,32 +507,34 @@ void update_viterbi_blk_avx2(vitdec_t* vp, const COMPUTETYPE* syms, const int nb
 
         // Step 2: Renormalisation
         if (vp->new_metrics->buf[0] >= RENORMALIZE_THRESHOLD) {
-            union ALIGNED(ALIGN_AMOUNT) { 
-                __m256i v; 
-                COMPUTETYPE w[4]; 
+            union ALIGNED(ALIGN_AMOUNT) {
+                __m256i m256;
+                __m128i m128[2];
+                COMPUTETYPE w[16]; 
             } reduce_buffer;
             /* Find smallest metric and set adjustv to bring it down to SHRT_MIN */
-            __m256i adjustv = vp->new_metrics->b256[0];
+            reduce_buffer.m256 = vp->new_metrics->b256[0];
             for (int i = 1; i < 4; i++) {
-                adjustv = _mm256_min_epi16(adjustv, vp->new_metrics->b256[i]);
+                reduce_buffer.m256 = _mm256_min_epi16(reduce_buffer.m256, vp->new_metrics->b256[i]);
             }
 
             // Shift half of the array onto the other half and get the minimum between them
             // Repeat this until we get the minimum value of all 16bit values
-            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 16));
-            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 8));
-            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 4));
-            adjustv = _mm256_min_epi16(adjustv, _mm256_srli_si256(adjustv, 2));
+            // NOTE: srli performs shift on 128bit lanes
+            __m128i adjustv = _mm_min_epi16(reduce_buffer.m128[0], reduce_buffer.m128[1]);
+            adjustv = _mm_min_epi16(adjustv, _mm_srli_si128(adjustv, 8));
+            adjustv = _mm_min_epi16(adjustv, _mm_srli_si128(adjustv, 4));
+            adjustv = _mm_min_epi16(adjustv, _mm_srli_si128(adjustv, 2));
+            reduce_buffer.m128[0] = adjustv;
 
-            reduce_buffer.v = adjustv;
             COMPUTETYPE adjust = reduce_buffer.w[0] - SHRT_MIN;
-            adjustv = _mm256_set1_epi16(adjust);
+            reduce_buffer.m256 = _mm256_set1_epi16(adjust);
 
             /* We cannot use a saturated subtract, because we often have to adjust by more than SHRT_MAX
              * This is okay since it can't overflow anyway
              */
             for (int i = 0; i < 4; i++) {
-                vp->new_metrics->b256[i] = _mm256_sub_epi16(vp->new_metrics->b256[i], adjustv);
+                vp->new_metrics->b256[i] = _mm256_sub_epi16(vp->new_metrics->b256[i], reduce_buffer.m256);
             }
         }
 
