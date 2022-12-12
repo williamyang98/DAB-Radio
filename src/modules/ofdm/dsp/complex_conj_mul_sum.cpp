@@ -180,7 +180,7 @@ std::complex<float> complex_conj_mul_sum_ssse3(
 
         // [bd+ac bc-ad]
         cpx128_t c1;
-        c1.ps = _mm_permute_ps(c0, SWAP_COMPONENT_MASK);
+        c1.ps = _mm_shuffle_ps(c0, c0, SWAP_COMPONENT_MASK);
 
         // Perform vectorised cumulative sum
         // Shift half of vector and add. Repeat until we get the final sum
