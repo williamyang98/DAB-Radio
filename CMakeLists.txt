@@ -58,7 +58,8 @@ add_library(ofdm_core STATIC
     ${OFDM_CORE_DIR}/ofdm_demodulator.cpp
     ${OFDM_CORE_DIR}/ofdm_demodulator_threads.cpp
     ${OFDM_CORE_DIR}/ofdm_modulator.cpp
-    ${OFDM_CORE_DIR}/apply_pll.cpp
+    ${OFDM_CORE_DIR}/dsp/apply_pll.cpp
+    ${OFDM_CORE_DIR}/dsp/complex_conj_mul_sum.cpp
     ${OFDM_CORE_DIR}/dab_prs_ref.cpp
     ${OFDM_CORE_DIR}/dab_ofdm_params_ref.cpp
     ${OFDM_CORE_DIR}/dab_mapper_ref.cpp)
@@ -248,7 +249,7 @@ target_link_libraries(convert_viterbi PRIVATE getopt)
 
 add_executable(apply_frequency_shift 
     ${SRC_DIR}/apply_frequency_shift.cpp
-    ${OFDM_CORE_DIR}/apply_pll.cpp)
+    ${OFDM_CORE_DIR}/dsp/apply_pll.cpp)
 target_include_directories(apply_frequency_shift PUBLIC ${SRC_DIR} ${OFDM_CORE_DIR})
 set_target_properties(apply_frequency_shift PROPERTIES CXX_STANDARD 17)
 target_link_libraries(apply_frequency_shift PRIVATE getopt)

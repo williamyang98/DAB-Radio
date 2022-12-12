@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #endif
 
-#include "modules/ofdm/apply_pll.h"
+#include "modules/ofdm/dsp/apply_pll.h"
 #include "utility/getopt/getopt.h"
 #include "utility/span.h"
 

@@ -18,7 +18,7 @@
 #include "modules/ofdm/dab_prs_ref.h"
 #include "modules/ofdm/dab_ofdm_params_ref.h"
 #include "modules/ofdm/dab_mapper_ref.h"
-#include "modules/ofdm/apply_pll.h"
+#include "modules/ofdm/dsp/apply_pll.h"
 #include "utility/getopt/getopt.h"
 #include "utility/span.h"
 

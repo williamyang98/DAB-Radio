@@ -3,66 +3,18 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <complex>
-#include <string.h> // memcpy
-#include "utility/span.h"
-#include <immintrin.h>
+#include <assert.h>
 
+// NOTE: Fixed rate sample rate for OFDM
 const float Ts = 1.0f/2.048e6f;
 
-#ifdef _MSC_VER
-#define ALIGNED(x) __declspec(align(x))
-#else
-#define ALIGNED(x) __attribute__ ((aligned(x)))
-#endif
-
-// NOTE: On GCC we do not have the Intel SVML library 
-//       Only visual studio 2019 onwards has it
-//       This means _mm_cos_ps and _mm256_cos_ps are missing
-#ifndef _MSC_VER
-#pragma message("Compiling PLL with external Intel SVML library")
-
-#if defined(__SSSE3__)
-#define SSE_MATHFUN_WITH_CODE
-#include "sse_mathfun.h"
-#define _mm_cos_ps(x) cos_ps(x)
-#endif
-
-#if defined(__AVX2__)
-#include "avx_mathfun.h"
-#define _mm256_cos_ps(x) cos256_ps(x)
-#endif
-#endif
-
-// On MSVC if __AVX2__ is defined then we have FMA
-// On GCC __FMA__ is a given define
-#if !defined(__FMA__) && defined(__AVX2__)
-#define __FMA__ 1
-#endif
-
-#if defined(__FMA__)
-#pragma message("Compiling PLL with FMA instructions")
-#endif
-
-// Helper function for using floating point and integer SIMDs
-typedef union ALIGNED(sizeof(__m256)) {
-    float f32[8];
-    __m256 ps;
-    __m256i i;
-} cpx256_t;
-
-typedef union ALIGNED(sizeof(__m128)) {
-    float f32[4];
-    __m128 ps;
-    __m128i i;
-} cpx128_t;
-
-// Generally the compiler will use SSE4 to vectorise sincos
 float apply_pll_scalar(
     tcb::span<const std::complex<float>> x0, 
     tcb::span<std::complex<float>> y, 
     const float freq_offset,
     const float dt0)
 {
+    assert(x0.size() == y.size());
     const auto N = x0.size();
     const float dt_step = 2.0f * (float)M_PI * freq_offset * Ts;
     const bool is_large_offset = std::abs(freq_offset) > 1500.0f;
@@ -82,14 +34,64 @@ float apply_pll_scalar(
     return dt;
 }
 
+// TODO: Modify code to support ARM platforms like Raspberry PI using NEON
+#include <immintrin.h>
+
+#ifdef _MSC_VER
+#define ALIGNED(x) __declspec(align(x))
+#else
+#define ALIGNED(x) __attribute__ ((aligned(x)))
+#endif
+
+// NOTE: On GCC we do not have the Intel SVML library 
+//       Only visual studio 2019 onwards has it
+//       This means _mm_cos_ps and _mm256_cos_ps are missing
+#ifndef _MSC_VER
+#pragma message("Compiling PLL with external Intel SVML library")
+
+#if defined(_OFDM_DSP_SSSE3)
+#define SSE_MATHFUN_WITH_CODE
+#include "sse_mathfun.h"
+#define _mm_cos_ps(x) cos_ps(x)
+#endif
+
+#if defined(_OFDM_DSP_AVX2)
+#include "avx_mathfun.h"
+#define _mm256_cos_ps(x) cos256_ps(x)
+#endif
+#endif
+
+// Helper unions for using floating point and integer SIMDs
+#if defined(_OFDM_DSP_AVX2)
+typedef union ALIGNED(sizeof(__m256)) cpx256_t {
+    float f32[8];
+    std::complex<float> c32[4];
+    __m128 m128[2];
+    __m256 ps;
+    __m256i i;
+    cpx256_t() {}
+} cpx256_t;
+#endif
+
+#if defined(_OFDM_DSP_SSSE3)
+typedef union ALIGNED(sizeof(__m128)) cpx128_t {
+    float f32[4];
+    std::complex<float> c32[2];
+    __m128 ps;
+    __m128i i;
+    cpx128_t() {}
+} cpx128_t;
+#endif
+
 // Manual AVX2 code which is up to 4x faster
-#if defined(__AVX2__)
+#if defined(_OFDM_DSP_AVX2)
 float apply_pll_avx2(
     tcb::span<const std::complex<float>> x0, 
     tcb::span<std::complex<float>> y, 
     const float freq_offset,
     const float dt0) 
 {
+    assert(x0.size() == y.size());
     const auto N = x0.size();
     const float dt_step = 2.0f * (float)M_PI * freq_offset * Ts;
     const bool is_large_offset = std::abs(freq_offset) > 1500.0f;
@@ -144,7 +146,7 @@ float apply_pll_avx2(
         // [bd bc]
         __m256 b0 = _mm256_mul_ps(a2, a0);
 
-        #if !defined(__FMA__)
+        #if !defined(_OFDM_DSP_FMA)
         // [ac ad]
         __m256 b1 = _mm256_mul_ps(a1, pll);
         // [ac-bd ad+bc]
@@ -166,13 +168,14 @@ float apply_pll_avx2(
 #endif
 
 // Manual SSSE3 code which is up to 2x 
-#if defined(__SSSE3__)
+#if defined(_OFDM_DSP_SSSE3)
 float apply_pll_ssse3(
     tcb::span<const std::complex<float>> x0, 
     tcb::span<std::complex<float>> y, 
     const float freq_offset,
     const float dt0) 
 {
+    assert(x0.size() == y.size());
     const auto N = x0.size();
     const float dt_step = 2.0f * (float)M_PI * freq_offset * Ts;
     const bool is_large_offset = std::abs(freq_offset) > 1500.0f;
@@ -182,7 +185,6 @@ float apply_pll_ssse3(
     const auto M = N/K;
 
     // Vectorise calculation of cos(dt) + jsin(dt)
-    __m128 dt_pack;
     cpx128_t dt_step_pack;
     const float dt_step_pack_stride = dt_step * K;
     {
@@ -230,7 +232,7 @@ float apply_pll_ssse3(
         // [bd bc]
         __m128 b0 = _mm_mul_ps(a2, a0);
 
-        #if !defined(__FMA__)
+        #if !defined(_OFDM_DSP_FMA)
         // [ac ad]
         __m128 b1 = _mm_mul_ps(a1, pll);
         // [ac-bd ad+bc]

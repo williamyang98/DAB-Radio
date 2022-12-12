@@ -5,7 +5,8 @@
 #include "ofdm_demodulator.h"
 #include "ofdm_demodulator_threads.h"
 #include <fftw3.h>
-#include "apply_pll.h"
+#include "dsp/apply_pll.h"
+#include "dsp/complex_conj_mul_sum.h"
 
 #define PROFILE_ENABLE 1
 #include "utility/profiler.h"
@@ -750,10 +751,9 @@ float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>>
     // Clause 3.13.1 - Fraction frequency offset estimation
     const size_t N = params.nb_cyclic_prefix;
     const size_t M = params.nb_fft;
-    auto error_vec = std::complex<float>(0,0);
-    for (int i = 0; i < N; i++) {
-        error_vec += std::conj(sym[i]) * sym[M+i];
-    }
+    auto x0 = sym.subspan(M, N);
+    auto x1 = sym.subspan(0, N);
+    auto error_vec = complex_conj_mul_sum_auto(x0, x1);
     return std::atan2(error_vec.imag(), error_vec.real());
 }
 

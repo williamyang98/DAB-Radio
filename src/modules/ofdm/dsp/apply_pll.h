@@ -2,6 +2,7 @@
 
 #include <complex>
 #include "utility/span.h"
+#include "dsp_config.h"
 
 float apply_pll_scalar(
     tcb::span<const std::complex<float>> x0, 
@@ -9,7 +10,7 @@ float apply_pll_scalar(
     const float freq_offset,
     const float dt0=0.0f);
 
-#if defined(__AVX2__)
+#if defined(_OFDM_DSP_AVX2)
 float apply_pll_avx2(
     tcb::span<const std::complex<float>> x0, 
     tcb::span<std::complex<float>> y, 
@@ -17,7 +18,7 @@ float apply_pll_avx2(
     const float dt0=0.0f);
 #endif
 
-#if defined(__SSSE3__)
+#if defined(_OFDM_DSP_SSSE3)
 float apply_pll_ssse3(
     tcb::span<const std::complex<float>> x0, 
     tcb::span<std::complex<float>> y, 
@@ -31,14 +32,11 @@ static float apply_pll_auto(
     const float freq_offset,
     const float dt0=0.0f) 
 {
-    #if defined(__AVX2__)
-    #pragma message("Compiling PLL using AVX2 code")
+    #if defined(_OFDM_DSP_AVX2)
     return apply_pll_avx2(x0, y, freq_offset, dt0);
-    #elif defined(__SSSE3__)
-    #pragma message("Compiling PLL using SSSE3 code")
+    #elif defined(_OFDM_DSP_SSSE3)
     return apply_pll_ssse3(x0, y, freq_offset, dt0);
     #else
-    #pragma message("Compiling PLL using scalar code")
     return apply_pll_scalar(x0, y, freq_offset, dt0);
     #endif
 }
