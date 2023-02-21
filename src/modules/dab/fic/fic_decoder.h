@@ -7,14 +7,14 @@
 #include "utility/span.h"
 #include "viterbi_config.h"
 
-class ViterbiDecoder;
+class DAB_Viterbi_Decoder;
 class AdditiveScrambler;
 
 // Decodes the convolutionally encoded, scrambled and CRC16 group of FIGs
 class FIC_Decoder 
 {
 private:
-    std::unique_ptr<ViterbiDecoder> vitdec;
+    std::unique_ptr<DAB_Viterbi_Decoder> vitdec;
     std::unique_ptr<AdditiveScrambler> scrambler;
     std::vector<uint8_t> decoded_bytes;
 

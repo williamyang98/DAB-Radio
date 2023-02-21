@@ -2,7 +2,7 @@
 
 #include "cif_deinterleaver.h"
 #include "database/dab_database_entities.h"
-#include "algorithms/viterbi_decoder.h"
+#include "algorithms/dab_viterbi_decoder.h"
 #include "algorithms/additive_scrambler.h"
 #include "constants/puncture_codes.h"
 #include "constants/subchannel_protection_tables.h"
@@ -27,18 +27,10 @@ MSC_Decoder::MSC_Decoder(const Subchannel _subchannel)
 
     deinterleaver = std::make_unique<CIF_Deinterleaver>(nb_encoded_bytes);
 
-    {
-        // DOC: ETSI EN 300 401
-        // Clause 11.1 - Convolutional code
-        // Clause 11.1.1 - Mother code
-        // Octal form | Binary form | Reversed binary | Decimal form |
-        //     133    | 001 011 011 |    110 110 1    |      109     |
-        //     171    | 001 111 001 |    100 111 1    |       79     |
-        //     145    | 001 100 101 |    101 001 1    |       83     |
-        //     133    | 001 011 011 |    110 110 1    |      109     |
-        const uint8_t POLYS[CODE_RATE] = { 109, 79, 83, 109 };
-        vitdec = std::make_unique<ViterbiDecoder>(POLYS, nb_encoded_bits);
-    }
+    vitdec = std::make_unique<DAB_Viterbi_Decoder>();
+    // NOTE: The number of encoded symbols is always greater than the number of input bits
+    // TODO: Can we set this to a more conservative number to save memory?
+    vitdec->set_traceback_length(nb_encoded_bits);
 
     scrambler = std::make_unique<AdditiveScrambler>();
     scrambler->SetSyncword(0xFFFF);
@@ -77,46 +69,45 @@ tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
     return { decoded_bytes_buf.data(), (size_t)nb_decoded_bytes };
 }
 
-// Helper macro to run viterbi decoder with parameters
-#define VITDEC_RUN(L, PI)\
-{\
-    res = vitdec->Update(tcb::span(encoded_bits_buf).subspan(curr_encoded_bit), PI, L);\
-    curr_encoded_bit += res.nb_encoded_bits;\
-    curr_puncture_bit += res.nb_puncture_bits;\
-    curr_decoded_bit += res.nb_decoded_bits;\
-}
+// // Helper macro to run viterbi decoder with parameters
+// #define VITDEC_RUN(L, PI)\
+// {\
+//     res = vitdec->Update(tcb::span(encoded_bits_buf).subspan(curr_encoded_bit), PI, L);\
+//     curr_encoded_bit += res.nb_encoded_bits;\
+//     curr_puncture_bit += res.nb_puncture_bits;\
+//     curr_decoded_bit += res.nb_decoded_bits;\
+// }
 
 int MSC_Decoder::DecodeEEP() {
     const auto descriptor = GetEEPDescriptor(subchannel);
 
     const int n = subchannel.length / descriptor.capacity_unit_multiple;
-    int curr_encoded_bit = 0;
-    int curr_puncture_bit = 0;
-    int curr_decoded_bit = 0;
-    ViterbiDecoder::DecodeResult res;
 
     // DOC: ETSI EN 300 401
     // Clause 11.3.2 - Equal Error Protection (EEP) coding  
-    vitdec->Reset();
-    const int TOTAL_PUNCTURE_CODES = 2;
-    for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
-        const int Lx = descriptor.Lx[i].GetLx(n);
-        const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
-        VITDEC_RUN(128*Lx, puncture_code);
+    vitdec->reset();
+    {
+        size_t N;
+        auto symbols_buf = tcb::span(encoded_bits_buf);
+        const int TOTAL_PUNCTURE_CODES = 2;
+        for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
+            const int Lx = descriptor.Lx[i].GetLx(n);
+            const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
+            N = vitdec->update(symbols_buf, puncture_code, 128*Lx);
+            symbols_buf = symbols_buf.subspan(N);
+        }
+        N = vitdec->update(symbols_buf, PI_X, 24);
+        symbols_buf = symbols_buf.subspan(N);
+        assert(symbols_buf.size() == 0);
     }
-    VITDEC_RUN(24, PI_X);
 
-    const auto error = vitdec->GetPathError();
 
-    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
-    LOG_MESSAGE("error:    {}", error);
-
-    const int nb_tail_bits = 24/CODE_RATE;
+    const int curr_decoded_bit = int(vitdec->get_current_decoded_bit());
+    const int nb_tail_bits = 24/int(DAB_Viterbi_Decoder::code_rate);
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
-    vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
+    const uint64_t error = vitdec->chainback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
+    LOG_MESSAGE("error:    {}", error);
 
     // descrambler
     scrambler->Reset();
@@ -132,35 +123,32 @@ int MSC_Decoder::DecodeEEP() {
 int MSC_Decoder::DecodeUEP() {
     const auto descriptor = GetUEPDescriptor(subchannel);
 
-    int curr_encoded_bit = 0;
-    int curr_puncture_bit = 0;
-    int curr_decoded_bit = 0;
-    ViterbiDecoder::DecodeResult res;
-
     // DOC: ETSI EN 300 401
     // Clause 11.3.1 - Unequal Error Protection (UEP) coding 
-    vitdec->Reset();
-    const int TOTAL_PUNCTURE_CODES = 4;
-    for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
-        const int Lx = descriptor.Lx[i];
-        const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
-        VITDEC_RUN(128*Lx, puncture_code);
+    vitdec->reset();
+    {
+        size_t N = 0u;
+        auto symbols_buf = tcb::span(encoded_bits_buf);
+        const int TOTAL_PUNCTURE_CODES = 4;
+        for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
+            const int Lx = descriptor.Lx[i];
+            const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
+            N = vitdec->update(symbols_buf, puncture_code, 128*Lx);
+            symbols_buf = symbols_buf.subspan(N);
+        }
+        N = vitdec->update(symbols_buf, PI_X, 24);
+        symbols_buf = symbols_buf.subspan(N);
     }
-    VITDEC_RUN(24, PI_X);
 
-    const auto error = vitdec->GetPathError();
-
-    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
-    LOG_MESSAGE("error:    {}", error);
 
     // TODO: How to we deal with padding bits?
-    const int nb_tail_bits = 24/CODE_RATE;
+    const int curr_decoded_bit = int(vitdec->get_current_decoded_bit());
+    const int nb_tail_bits = 24/int(DAB_Viterbi_Decoder::code_rate);
     const int nb_padding_bits = (int)descriptor.total_padding_bits;
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits-nb_padding_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
-    vitdec->GetTraceback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
+    const uint64_t error = vitdec->chainback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
+    LOG_MESSAGE("error:    {}", error);
 
     // descrambler
     scrambler->Reset();

@@ -8,7 +8,7 @@
 #include "viterbi_config.h"
 
 class CIF_Deinterleaver;
-class ViterbiDecoder;
+class DAB_Viterbi_Decoder;
 class AdditiveScrambler;
 
 // Is associated with a subchannel residing inside the CIF (common interleaved frame)
@@ -24,7 +24,7 @@ private:
     std::vector<uint8_t> decoded_bytes_buf;
     // Decoders and deinterleavers
     std::unique_ptr<CIF_Deinterleaver> deinterleaver;
-    std::unique_ptr<ViterbiDecoder> vitdec;
+    std::unique_ptr<DAB_Viterbi_Decoder> vitdec;
     std::unique_ptr<AdditiveScrambler> scrambler;
 public:
     MSC_Decoder(const Subchannel _subchannel);

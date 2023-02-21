@@ -4,7 +4,7 @@ project(faad2)
 set(FAAD_SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/libfaad)
 set(FAAD_HEADER_DIR ${CMAKE_SOURCE_DIR}/vendor/faad2/include)
 
-add_library(faad2 SHARED
+add_library(faad2 STATIC
     ${FAAD_SRC_DIR}/bits.c 
     ${FAAD_SRC_DIR}/cfft.c 
     ${FAAD_SRC_DIR}/decoder.c 

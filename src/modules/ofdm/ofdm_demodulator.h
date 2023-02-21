@@ -87,7 +87,7 @@ private:
     // callback for when ofdm is completed
     Observable<tcb::span<const viterbi_bit_t>> obs_on_ofdm_frame;
     // Joint memory allocation block
-    AlignedBlock joint_data_block;
+    AlignedVector<uint8_t> joint_data_block;
     // 1. pipeline reader double buffer
     OFDM_Frame_Buffer<std::complex<float>> active_buffer;
     OFDM_Frame_Buffer<std::complex<float>> inactive_buffer;

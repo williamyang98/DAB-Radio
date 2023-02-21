@@ -1,6 +1,6 @@
 #include "fic_decoder.h"
 
-#include "../algorithms/viterbi_decoder.h"
+#include "../algorithms/dab_viterbi_decoder.h"
 #include "../algorithms/additive_scrambler.h"
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
@@ -35,35 +35,14 @@ FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_grou
   nb_decoded_bytes(_nb_encoded_bits/(8*3)),
   nb_fibs_per_group(_nb_fibs_per_group)
 {
-    {
-        // DOC: ETSI EN 300 401
-        // Clause 11.1 - Convolutional code
-        // Clause 11.1.1 - Mother code
-        // Octal form | Binary form | Reversed binary | Decimal form |
-        //     133    | 001 011 011 |    110 110 1    |      109     |
-        //     171    | 001 111 001 |    100 111 1    |       79     |
-        //     145    | 001 100 101 |    101 001 1    |       83     |
-        //     133    | 001 011 011 |    110 110 1    |      109     |
-        const uint8_t POLYS[4] = { 109, 79, 83, 109 };
-        vitdec = std::make_unique<ViterbiDecoder>(POLYS, nb_encoded_bits);
-    }
-
+    vitdec = std::make_unique<DAB_Viterbi_Decoder>();
+    vitdec->set_traceback_length(nb_decoded_bits);
+    decoded_bytes.resize(nb_decoded_bytes);
     scrambler = std::make_unique<AdditiveScrambler>();
     scrambler->SetSyncword(0xFFFF);
-
-    decoded_bytes.resize(nb_decoded_bytes);
 }
 
 FIC_Decoder::~FIC_Decoder() = default;
-
-// Helper macro to run viterbi decoder with parameters
-#define VITDEC_RUN(L, PI)\
-{\
-    res = vitdec->Update(tcb::span(encoded_bits).subspan(curr_encoded_bit), PI, L);\
-    curr_encoded_bit += res.nb_encoded_bits;\
-    curr_puncture_bit += res.nb_puncture_bits;\
-    curr_decoded_bit += res.nb_decoded_bits;\
-}
 
 // Each group contains 3 fibs (fast information blocks) in mode I
 void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, const int cif_index) {
@@ -84,25 +63,27 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
     //       Refer to DOC: docs/DAB_parameters.pdf, Clause A1.1: System parameters
     //       for the number of bits per fib group for each transmission mode
     const int nb_tail_bits = 6;
-    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/CODE_RATE - nb_tail_bits;
+    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/int(DAB_Viterbi_Decoder::code_rate) - nb_tail_bits;
     if (nb_decoded_bits != nb_decoded_bits_mode_I) {
         LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
         LOG_ERROR("ETSI EN 300 401 standard only gives the puncture codes used in transmission mode I");
         return;
     }
 
-    ViterbiDecoder::DecodeResult res;
-    vitdec->Reset();
-    VITDEC_RUN(128*21, PI_16);
-    VITDEC_RUN(128*3,  PI_15);
-    VITDEC_RUN(24,     PI_X);
+    vitdec->reset();
+    {
+        size_t N;
+        auto encoded_bits_buf = encoded_bits;
+        N = vitdec->update(encoded_bits_buf, PI_16, 128*21);
+        encoded_bits_buf = encoded_bits_buf.subspan(N);
+        N = vitdec->update(encoded_bits_buf, PI_15, 128*3);
+        encoded_bits_buf = encoded_bits_buf.subspan(N);
+        N = vitdec->update(encoded_bits_buf, PI_X, 24);
+        encoded_bits_buf = encoded_bits_buf.subspan(N);
+        assert(encoded_bits_buf.size() == 0);
+    }
 
-    const auto error = vitdec->GetPathError();
-    vitdec->GetTraceback(decoded_bytes);
-
-    LOG_MESSAGE("encoded:  {}/{}", curr_encoded_bit, nb_encoded_bits);
-    LOG_MESSAGE("decoded:  {}/{}", curr_decoded_bit, nb_decoded_bits);
-    LOG_MESSAGE("puncture: {}", curr_puncture_bit);
+    const uint64_t error = vitdec->chainback(decoded_bytes);
     LOG_MESSAGE("error:    {}", error);
 
     // descrambler

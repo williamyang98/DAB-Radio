@@ -4,6 +4,7 @@
 #include "pad_MOT_processor.h"
 #include "mot/MOT_processor.h"
 
+#include <stddef.h>
 #include "easylogging++.h"
 #include "fmt/core.h"
 
@@ -149,11 +150,11 @@ void PAD_Processor::Process_Short_XPAD(tcb::span<const uint8_t> xpad, const bool
 
     // Each short XPAD field is 4 bytes long
     // It is either 1byte CI and 3 bytes data, or 4 bytes data
-    const int DATA_BYTES_WITH_CI = 3;
-    const int DATA_BYTES_WITHOUT_CI = 4;
+    const size_t DATA_BYTES_WITH_CI = 3;
+    const size_t DATA_BYTES_WITHOUT_CI = 4;
 
-    const int N = (int)xpad.size();
-    int curr_byte = 0;
+    const size_t N = xpad.size();
+    size_t curr_byte = 0;
     if (has_indicator_list) {
         if (N < 1)  {
             LOG_ERROR("[short-xpad] Insufficient length for indicator list {}/{}", 1, N);
@@ -182,9 +183,7 @@ void PAD_Processor::Process_Short_XPAD(tcb::span<const uint8_t> xpad, const bool
         return;
     }
 
-    const int nb_remain = N-curr_byte;
-    auto* data_field = &xpad[curr_byte];
-    ProcessDataField({data_field, (size_t)nb_remain});
+    ProcessDataField(xpad.subspan(curr_byte));
     // Proceding data fields don't include the content indicator
     ci_list[0].length = DATA_BYTES_WITHOUT_CI;
 }
@@ -193,11 +192,11 @@ void PAD_Processor::Process_Variable_XPAD(tcb::span<const uint8_t> xpad, const b
     // DOC: ETSI EN 300 401
     // Clause 7.4.2: Structure of X-PAD 
     // Figure 31: Three X-PAD data groups carried in one X-PAD field
-    const int N = (int)xpad.size();
-    int curr_byte = 0;
+    const size_t N = xpad.size();
+    size_t curr_byte = 0;
     if (has_indicator_list) {
         ci_list.resize(0);
-        for (int i = 0; i < MAX_CI_LENGTH; i++) {
+        for (size_t i = 0; i < MAX_CI_LENGTH; i++) {
             const uint8_t CI = xpad[curr_byte++];
 
             // DOC: ETSI EN 300 401
@@ -222,9 +221,7 @@ void PAD_Processor::Process_Variable_XPAD(tcb::span<const uint8_t> xpad, const b
         LOG_ERROR("[var-xpad] No CI list L={}", N);
     }
 
-    const int nb_remain = N-curr_byte;
-    auto* data_field = &xpad[curr_byte];
-    ProcessDataField({data_field, (size_t)nb_remain});
+    ProcessDataField(xpad.subspan(curr_byte));
 }
 
 void PAD_Processor::ProcessDataField(tcb::span<const uint8_t> data_field) {

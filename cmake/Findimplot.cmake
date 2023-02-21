@@ -10,4 +10,4 @@ add_library(implot STATIC
     "${SRC_DIR}/implot_items.cpp")
 
 target_include_directories(implot PUBLIC ${SRC_DIR})
-target_link_libraries(implot PUBLIC imgui)
+target_link_libraries(implot PRIVATE imgui)

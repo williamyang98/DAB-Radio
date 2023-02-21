@@ -69,8 +69,7 @@ target_link_libraries(ofdm_core PRIVATE ${FFTW3_LIBS} fmt)
 
 set(DAB_CORE_DIR ${SRC_DIR}/modules/dab)
 add_library(dab_core STATIC
-    ${DAB_CORE_DIR}/algorithms/viterbi_decoder.cpp
-    ${DAB_CORE_DIR}/algorithms/phil_karn_viterbi_decoder.cpp
+    ${DAB_CORE_DIR}/algorithms/dab_viterbi_decoder.cpp
     ${DAB_CORE_DIR}/algorithms/reed_solomon_decoder.cpp
     ${DAB_CORE_DIR}/fic/fic_decoder.cpp
     ${DAB_CORE_DIR}/fic/fig_processor.cpp
@@ -150,14 +149,14 @@ add_library(audio_lib STATIC
     ${AUDIO_DIR}/portaudio_utility.cpp)
 set_target_properties(audio_lib PROPERTIES CXX_STANDARD 17)
 target_include_directories(audio_lib PUBLIC ${AUDIO_DIR} ${SRC_DIR})
-target_link_libraries(audio_lib PRIVATE ${PORTAUDIO_LIBS})
+target_link_libraries(audio_lib PUBLIC ${PORTAUDIO_LIBS})
 
 set(AUDIO_LIB_GUI ${SRC_DIR}/gui)
 add_library(audio_lib_gui STATIC 
     ${AUDIO_LIB_GUI}/render_portaudio_controls.cpp)
 set_target_properties(audio_lib_gui PROPERTIES CXX_STANDARD 17)
 target_include_directories(audio_lib_gui PUBLIC ${AUDIO_LIB_GUI} ${SRC_DIR})
-target_link_libraries(audio_lib_gui PRIVATE imgui)
+target_link_libraries(audio_lib_gui PRIVATE imgui audio_lib)
 
 # Our applications
 add_executable(ofdm_demod_gui 
