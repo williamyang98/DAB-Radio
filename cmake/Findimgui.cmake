@@ -54,7 +54,7 @@ endif()
 target_include_directories(imgui PUBLIC "${SRC_DIR}")
 target_include_directories(imgui PUBLIC "${SRC_DIR}/backends")
 target_include_directories(imgui PUBLIC "${SRC_DIR}/misc/cpp")
-target_link_libraries(imgui PRIVATE ${IMGUI_DXLIBS})
+target_link_libraries(imgui PUBLIC ${IMGUI_DXLIBS})
 
 # Disable multiprocessing since this break debug builds for msbuild
 # target_compile_definitions(imgui PUBLIC "/MP")
