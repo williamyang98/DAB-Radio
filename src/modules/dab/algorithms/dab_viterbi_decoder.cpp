@@ -69,7 +69,7 @@ public:
 
 
 DAB_Viterbi_Decoder::DAB_Viterbi_Decoder()
-: depunctured_symbols(code_rate) 
+: depunctured_symbols() 
 {
     decoder = std::make_unique<DAB_Viterbi_Decoder_Internal>(
         decoder_branch_table,
@@ -102,36 +102,36 @@ size_t DAB_Viterbi_Decoder::update(
     tcb::span<const uint8_t> puncture_code,
     const size_t requested_output_symbols
 ) {
+    assert(requested_output_symbols % code_rate == 0);
+
     const size_t total_symbols = punctured_symbols.size();
-    auto& decoder_ref = *(decoder.get());
+    if (requested_output_symbols > depunctured_symbols.size()) {
+        depunctured_symbols.resize(requested_output_symbols);
+    }
 
     size_t index_punctured_symbol = 0;
     size_t index_puncture_code = 0;
     size_t index_output_symbol = 0;
-    while (index_output_symbol < requested_output_symbols) {
-        for (size_t i = 0u; i < code_rate; i++) {
-            int16_t& v = depunctured_symbols[i];
-            const bool is_punctured = puncture_code[index_puncture_code];
-            if (is_punctured) {
-                // NOTE: If our puncture code is invalid or we request too many symbols
-                //       we may expect a punctured symbol when there isn't one
-                //       Ideally this is caught during development but as a failsafe we exit early
-                assert(index_punctured_symbol < total_symbols);
-                if (index_punctured_symbol >= total_symbols) { 
-                    return index_punctured_symbol;
-                }
-                v = int16_t(punctured_symbols[index_punctured_symbol]);
-                index_punctured_symbol++;
-            } else {
-                v = soft_decision_unpunctured;
+    for (size_t i = 0u; i < requested_output_symbols; i++) {
+        int16_t& v = depunctured_symbols[i];
+        const bool is_punctured = puncture_code[index_puncture_code];
+        if (is_punctured) {
+            // NOTE: If our puncture code is invalid or we request too many symbols
+            //       we may expect a punctured symbol when there isn't one
+            //       Ideally this is caught during development but as a failsafe we exit early
+            assert(index_punctured_symbol < total_symbols);
+            if (index_punctured_symbol >= total_symbols) { 
+                return 0;
             }
-            index_puncture_code = (index_puncture_code+1) % puncture_code.size();
-            index_output_symbol++;
+            v = int16_t(punctured_symbols[index_punctured_symbol]);
+            index_punctured_symbol++;
+        } else {
+            v = soft_decision_unpunctured;
         }
-
-        decoder_ref.update(depunctured_symbols.data(), code_rate);
+        index_puncture_code = (index_puncture_code+1) % puncture_code.size();
+        index_output_symbol++;
     }
-
+    decoder->update(depunctured_symbols.data(), requested_output_symbols);
     return index_punctured_symbol;
 }
 
