@@ -26,11 +26,21 @@ template <
     size_t constraint_length, size_t code_rate,
     typename error_t,
     typename soft_t, 
-    typename decision_bits_t,
-    size_t alignment=32u
+    typename decision_bits_t
 >
 class ViterbiDecoder_Core
 {
+private:
+    static constexpr 
+    size_t get_alignment(const size_t x) {
+        if (x % 32 == 0) {
+            return 32;
+        } else if (x % 16 == 0) {
+            return 16;
+        } else {
+            return x;
+        }
+    }
 public:
     static constexpr size_t K = constraint_length;
     static constexpr size_t R = code_rate;
@@ -40,24 +50,23 @@ protected:
     static constexpr size_t TOTAL_STATE_BITS = K-1u;
     static constexpr size_t DECISION_BITS_LENGTH = (NUMSTATES/DECISIONTYPE_BITSIZE > size_t(1u)) ? (NUMSTATES/DECISIONTYPE_BITSIZE) : size_t(1u);
     static constexpr size_t METRIC_LENGTH = NUMSTATES;
+    static constexpr size_t METRIC_ALIGNMENT = get_alignment(sizeof(error_t)*METRIC_LENGTH);
 
     struct metric_t {
         error_t buf[METRIC_LENGTH];
-    } ALIGNED(alignment);
+    } ALIGNED(METRIC_ALIGNMENT);
 
     struct decision_branch_t {
         decision_bits_t buf[DECISION_BITS_LENGTH];
     };
 
-    metric_t metrics[2];
-    size_t curr_metric_index;                   // 0/1 to swap old and new metrics
-
     const ViterbiBranchTable<K,R,soft_t>& branch_table;   // we can reuse an existing branch table
+    const ViterbiDecoder_Config<error_t> config;
 
+    ALIGNED(METRIC_ALIGNMENT) metric_t metrics[2];
+    size_t curr_metric_index;                   // 0/1 to swap old and new metrics
     std::vector<decision_branch_t> decisions;     // shape: (TRACEBACK_LENGTH x DECISION_BITS_LENGTH)
     size_t curr_decoded_bit;
-
-    const ViterbiDecoder_Config<error_t> config;
 public:
     ViterbiDecoder_Core(
         const ViterbiBranchTable<K,R,soft_t>& _branch_table,
@@ -66,8 +75,10 @@ public:
         config(_config),
         decisions()
     {
-        static_assert(K > 1u);       
-        static_assert(R > 1u);
+        static_assert(K >= 2u);       
+        static_assert(R >= 1u);
+        static_assert(sizeof(metric_t) % METRIC_ALIGNMENT == 0);
+        assert(uintptr_t(&metrics[0].buf[0]) % METRIC_ALIGNMENT == 0);
         reset();
         set_traceback_length(0);
     }

@@ -43,7 +43,8 @@ public:
     :   Base(std::forward<U>(args)...)
     {
         static_assert(is_valid, "Insufficient constraint length for vectorisation");
-        static_assert(sizeof(typename Base::metric_t) % ALIGN_AMOUNT == 0);
+        static_assert(Base::METRIC_ALIGNMENT % ALIGN_AMOUNT == 0);
+        static_assert(Base::branch_table.alignment % ALIGN_AMOUNT == 0);
     }
 
     inline

@@ -13,20 +13,32 @@
 
 // If the same parameters are used for the viterbi decoder
 // We can reuse the branch table for better memory usage
-template <size_t constraint_length, size_t code_rate, typename soft_t, size_t alignment=32u>
+template <size_t constraint_length, size_t code_rate, typename soft_t>
 class ViterbiBranchTable 
 {
+private:
+    static constexpr 
+    size_t get_alignment(const size_t x) {
+        if (x % 32 == 0) {
+            return 32;
+        } else if (x % 16 == 0) {
+            return 16;
+        } else {
+            return x;
+        }
+    }
 public:
     static constexpr size_t K = constraint_length;
     static constexpr size_t R = code_rate;
     static constexpr size_t stride = (size_t(1) << (K-2u));
+    static constexpr size_t alignment = get_alignment(sizeof(soft_t)*stride);
     struct branch_t {
         soft_t buf[stride];
     } ALIGNED(alignment);
 private:
     const soft_t soft_decision_high;            // soft value for high symbol
     const soft_t soft_decision_low;             // soft value for low symbol
-    branch_t branch_table[R];
+    ALIGNED(alignment) branch_t branch_table[R];
 public:
     // NOTE: Polynomials (G) should be in binary form with least signficant bit corresponding to the input bit
     template <typename code_t>
@@ -39,7 +51,8 @@ public:
     {
         static_assert(K > 1u);       
         static_assert(R > 1u);
-        // static_assert(sizeof(branch_t) % alignment == 0);
+        static_assert(sizeof(branch_t) % alignment == 0);
+        assert(uintptr_t(this->data()) % alignment == 0);
         assert(soft_decision_high > soft_decision_low);
         calculate_branch_table(G);
     }
