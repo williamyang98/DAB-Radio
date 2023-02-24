@@ -5,6 +5,7 @@
 #include <limits>
 
 #include "viterbi/viterbi_branch_table.h"
+#include "viterbi/viterbi_decoder_config.h"
 #include "viterbi/viterbi_decoder_core.h"
 #include "viterbi/viterbi_decoder_scalar.h"
 #include "viterbi/viterbi_decoder_sse_u16.h"
@@ -19,7 +20,9 @@
 //     171    | 001 111 001 |    100 111 1    |       79     |
 //     145    | 001 100 101 |    101 001 1    |       83     |
 //     133    | 001 011 011 |    110 110 1    |      109     |
-const uint8_t code_polynomial[DAB_Viterbi_Decoder::code_rate] = { 109, 79, 83, 109 };
+constexpr size_t K = DAB_Viterbi_Decoder::constraint_length;
+constexpr size_t R = DAB_Viterbi_Decoder::code_rate;
+const uint8_t code_polynomial[R] = { 109, 79, 83, 109 };
 constexpr int16_t soft_decision_low = int16_t(SOFT_DECISION_VITERBI_LOW);
 constexpr int16_t soft_decision_high = int16_t(SOFT_DECISION_VITERBI_HIGH);
 constexpr int16_t soft_decision_unpunctured = int16_t(SOFT_DECISION_VITERBI_PUNCTURED);
@@ -39,24 +42,21 @@ static const auto decoder_config = create_decoder_config();
 
 // Share the branch table for all decoders
 // This saves memory since we don't reallocate the same table for each decoder instance
-static const auto decoder_branch_table = ViterbiBranchTable<int16_t>(
-    DAB_Viterbi_Decoder::constraint_length, 
-    DAB_Viterbi_Decoder::code_rate, 
+static const auto decoder_branch_table = ViterbiBranchTable<K,R,int16_t>(
     code_polynomial,
-    soft_decision_high, soft_decision_low,
-    32u
+    soft_decision_high, soft_decision_low
 );
 
 // Wrap compile time selected decoder for forward declaration
 #if defined(__AVX2__)
 #pragma message("Compiling viterbi decoder with AVX2")
-using ExternalDecoder = ViterbiDecoder_AVX_u16<uint64_t>;
-#elif defined(__SSSE3__)
-#pragma message("Compiling viterbi decoder with SSSE3")
-using ExternalDecoder = ViterbiDecoder_SSE_u16<uint64_t>;
+using ExternalDecoder = ViterbiDecoder_AVX_u16<K,R>;
+#elif defined(__SSE4_2__)
+#pragma message("Compiling viterbi decoder with SSE4.2")
+using ExternalDecoder = ViterbiDecoder_SSE_u16<K,R>;
 #else
 #pragma message("Compiling viterbi decoder with scalar instructions")
-using ExternalDecoder = ViterbiDecoder_Scalar<uint16_t,int16_t,uint64_t,uint64_t>;
+using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
 #endif
 
 class DAB_Viterbi_Decoder_Internal: public ExternalDecoder 
@@ -137,5 +137,7 @@ size_t DAB_Viterbi_Decoder::update(
 
 uint64_t DAB_Viterbi_Decoder::chainback(tcb::span<uint8_t> bytes_out, const size_t end_state) {
     const size_t total_bits = bytes_out.size()*8u;
-    return decoder->chainback(bytes_out.data(), total_bits, end_state);
+    decoder->chainback(bytes_out.data(), total_bits, end_state);
+    const uint64_t error = decoder->get_error();
+    return error;
 }
