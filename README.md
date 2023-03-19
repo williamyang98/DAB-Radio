@@ -1,4 +1,7 @@
 # Introduction
+![windows-build](https://github.com/FiendChain/DAB-Radio/actions/workflows/windows.yml/badge.svg)
+![linux-build](https://github.com/FiendChain/DAB-Radio/actions/workflows/linux.yml/badge.svg)
+
 An implementation of a DAB (digital audio broadcasting) radio using software defined radio. 
 
 For a description of what software defined radio is refer to this [link](https://www.rtl-sdr.com/about-rtl-sdr/). 
