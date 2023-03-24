@@ -10,17 +10,17 @@ private:
     typedef std::list<std::pair<const K,T>> list_t;
     list_t lru_list;
     std::unordered_map<K, typename list_t::iterator> cache;
-    int max_size;
+    size_t max_size;
 public:
-    LRU_Cache(int _max_size=10) {
+    explicit LRU_Cache(size_t _max_size=10) {
        max_size = _max_size; 
     }
 
-    int get_max_size(void) const {
+    size_t get_max_size(void) const {
         return max_size;
     }
 
-    void set_max_size(const int _max_size) {
+    void set_max_size(const size_t _max_size) {
         max_size = _max_size;
         remove_lru();
     }
@@ -79,14 +79,14 @@ private:
             return;
         }
 
-        auto start = lru_list.begin();
-        auto end = lru_list.end();
-        std::advance(start, max_size);
-        for (auto it = start; it != end; it++) {
+        auto _start = lru_list.begin();
+        auto _end = lru_list.end();
+        std::advance(_start, max_size);
+        for (auto it = _start; it != _end; it++) {
             auto key = it->first;
             cache.erase(key);
         }
-        lru_list.erase(start, end);
+        lru_list.erase(_start, _end);
     }
 
     // move list element to the front

@@ -10,7 +10,7 @@ private:
     tcb::span<T>& buf;
     size_t length;
 public:
-    ReconstructionBuffer(tcb::span<T>& _buf)
+    explicit ReconstructionBuffer(tcb::span<T>& _buf)
     : buf(_buf), length(0) {}
     // Read the data from a source buffer and append it to this buffer
     size_t ConsumeBuffer(tcb::span<const T> src) {

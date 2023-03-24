@@ -15,8 +15,7 @@ private:
     size_t len;
     size_t align;
 public:
-    AlignedVector(const size_t _len=0, const size_t _align=32) 
-    {
+    explicit AlignedVector(const size_t _len=0, const size_t _align=32) {
         // Cannot align to zero bytes
         assert(_align != 0u);
         len = _len;
@@ -24,12 +23,12 @@ public:
         buf = NULL;
         const size_t total_bytes = len*sizeof(T);
         if (len > 0) {
-            buf = (T*)operator new[](total_bytes, std::align_val_t(align));
+            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
         }
     }
 
     ~AlignedVector() {
-        if (buf) {
+        if (buf != NULL) {
             operator delete[](buf, std::align_val_t(align));
         }
         len = 0;
@@ -44,13 +43,17 @@ public:
 
         const size_t total_bytes = len*sizeof(T);
         if (len > 0) {
-            buf = (T*)operator new[](total_bytes, std::align_val_t(align));
+            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
             std::memcpy(buf, other.data(), total_bytes);
         }
     };
 
     AlignedVector<T>& operator=(const AlignedVector<T>& other) {
-        if (buf) {
+        if (this == &other) {
+            return *this;
+        }
+
+        if (buf != NULL) {
             operator delete[](buf, std::align_val_t(align));
         }
 
@@ -60,7 +63,7 @@ public:
 
         const size_t total_bytes = len*sizeof(T);
         if (len > 0) {
-            buf = (T*)operator new[](total_bytes, std::align_val_t(align));
+            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
             std::memcpy(buf, other.data(), total_bytes);
         }
 
@@ -78,7 +81,11 @@ public:
     }
 
     AlignedVector<T>& operator=(AlignedVector<T>&& other) {
-        if (buf) {
+        if (this == &other) {
+            return *this;
+        }
+
+        if (buf != NULL) {
             operator delete[](buf, std::align_val_t(align));
         }
 

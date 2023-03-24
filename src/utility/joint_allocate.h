@@ -11,7 +11,7 @@ struct BufferParameters {
     size_t length;
     size_t alignment;
     // By default we align buffer to the size of the type
-    BufferParameters(size_t _length, size_t _alignment=0)
+    explicit BufferParameters(size_t _length, size_t _alignment=0)
     : length(_length), alignment(_alignment) {}
 };
 

@@ -15,7 +15,7 @@ public:
         observers.push_back(observer);
     }
     void Notify(T ... args) {
-        for (auto& o: observers) {
+        for (const auto& o: observers) {
             o(std::forward<T>(args)...);
         }
     }

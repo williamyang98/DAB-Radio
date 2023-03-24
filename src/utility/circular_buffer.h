@@ -10,7 +10,7 @@ private:
     size_t index;
     size_t length;
 public:
-    CircularBuffer(tcb::span<T>& _buf)
+    explicit CircularBuffer(tcb::span<T>& _buf)
     : buf(_buf), index(0), length(0) {}
     // Read the data from a source buffer and append it to this buffer
     // We can forcefully read all the data

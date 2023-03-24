@@ -24,7 +24,7 @@ private:
 
     bool is_send_terminate;
 public:
-    DoubleBuffer(const size_t _length)
+    explicit DoubleBuffer(const size_t _length)
     : length(_length),
       data_buf(2*_length)
     {
