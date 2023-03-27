@@ -5,7 +5,7 @@
 #include "utility/profiler.h"
 
 // Pipeline thread
-OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const size_t _start, const size_t _end) 
+OFDM_Demod_Pipeline::OFDM_Demod_Pipeline(const size_t _start, const size_t _end) 
 : symbol_start(_start), symbol_end(_end)
 {
     is_start = false;
@@ -15,17 +15,17 @@ OFDM_Demod_Pipeline_Thread::OFDM_Demod_Pipeline_Thread(const size_t _start, cons
     is_terminated = false;
 }
 
-OFDM_Demod_Pipeline_Thread::~OFDM_Demod_Pipeline_Thread() {
+OFDM_Demod_Pipeline::~OFDM_Demod_Pipeline() {
     Stop();
 }
 
-void OFDM_Demod_Pipeline_Thread::Stop() {
+void OFDM_Demod_Pipeline::Stop() {
     PROFILE_BEGIN_FUNC();
     is_terminated = true;
-    Start();
+    SignalStart();
 }
 
-void OFDM_Demod_Pipeline_Thread::Start() {
+void OFDM_Demod_Pipeline::SignalStart() {
     PROFILE_BEGIN_FUNC();
 
     PROFILE_BEGIN(lock_create);
@@ -37,7 +37,7 @@ void OFDM_Demod_Pipeline_Thread::Start() {
     cv_start.notify_one();
 }
 
-void OFDM_Demod_Pipeline_Thread::WaitStart() {
+void OFDM_Demod_Pipeline::WaitStart() {
     PROFILE_BEGIN_FUNC();
     if (is_terminated) return;
 
@@ -50,32 +50,32 @@ void OFDM_Demod_Pipeline_Thread::WaitStart() {
     is_start = false;
 }
 
-void OFDM_Demod_Pipeline_Thread::SignalPhaseError() {
+void OFDM_Demod_Pipeline::SignalPhaseError() {
     PROFILE_BEGIN_FUNC();
     auto lock = std::scoped_lock(mutex_phase_error_done);
     is_phase_error_done = true;
     cv_phase_error_done.notify_one();
 }
 
-void OFDM_Demod_Pipeline_Thread::WaitPhaseError() {
+void OFDM_Demod_Pipeline::WaitPhaseError() {
     auto lock = std::unique_lock(mutex_phase_error_done);
     cv_phase_error_done.wait(lock, [this]() { return is_phase_error_done; });
     is_phase_error_done = false;
 }
 
-void OFDM_Demod_Pipeline_Thread::SignalFFT() {
+void OFDM_Demod_Pipeline::SignalFFT() {
     auto lock = std::scoped_lock(mutex_fft_done);
     is_fft_done = true;
     cv_fft_done.notify_one();
 }
 
-void OFDM_Demod_Pipeline_Thread::WaitFFT() {
+void OFDM_Demod_Pipeline::WaitFFT() {
     auto lock = std::unique_lock(mutex_fft_done);
     cv_fft_done.wait(lock, [this]() { return is_fft_done; });
     is_fft_done = false;
 }
 
-void OFDM_Demod_Pipeline_Thread::SignalEnd() {
+void OFDM_Demod_Pipeline::SignalEnd() {
     PROFILE_BEGIN_FUNC();
 
     PROFILE_BEGIN(lock_create);
@@ -87,7 +87,7 @@ void OFDM_Demod_Pipeline_Thread::SignalEnd() {
     cv_end.notify_one();
 }
 
-void OFDM_Demod_Pipeline_Thread::WaitEnd() {
+void OFDM_Demod_Pipeline::WaitEnd() {
     PROFILE_BEGIN_FUNC();
 
     PROFILE_BEGIN(lock_create);
@@ -100,42 +100,42 @@ void OFDM_Demod_Pipeline_Thread::WaitEnd() {
 }
 
 // Coordinator thread
-OFDM_Demod_Coordinator_Thread::OFDM_Demod_Coordinator_Thread() {
+OFDM_Demod_Coordinator::OFDM_Demod_Coordinator() {
     is_start = false;
     is_end = true;
     is_terminated = false;
     cv_end.notify_all();
 }
 
-OFDM_Demod_Coordinator_Thread::~OFDM_Demod_Coordinator_Thread() {
+OFDM_Demod_Coordinator::~OFDM_Demod_Coordinator() {
     Stop();
 }
 
-void OFDM_Demod_Coordinator_Thread::Stop() {
+void OFDM_Demod_Coordinator::Stop() {
     is_terminated = true;
-    Start();
+    SignalStart();
 }
 
-void OFDM_Demod_Coordinator_Thread::Start() {
+void OFDM_Demod_Coordinator::SignalStart() {
     auto lock = std::scoped_lock(mutex_start);
     is_start = true;
     cv_start.notify_one();
 }
 
-void OFDM_Demod_Coordinator_Thread::WaitStart() {
+void OFDM_Demod_Coordinator::WaitStart() {
     if (is_terminated) return;
     auto lock = std::unique_lock(mutex_start);
     cv_start.wait(lock, [this]() { return is_start; });
     is_start = false;
 }
 
-void OFDM_Demod_Coordinator_Thread::SignalEnd() {
+void OFDM_Demod_Coordinator::SignalEnd() {
     auto lock = std::scoped_lock(mutex_end);
     is_end = true;
     cv_end.notify_one();
 }
 
-void OFDM_Demod_Coordinator_Thread::Wait() {
+void OFDM_Demod_Coordinator::WaitEnd() {
     auto lock = std::unique_lock(mutex_end);
     cv_end.wait(lock, [this]() { return is_end; });
     is_end = false;

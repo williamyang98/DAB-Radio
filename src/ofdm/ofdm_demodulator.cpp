@@ -4,7 +4,9 @@
 
 #include "./ofdm_demodulator.h"
 #include "./ofdm_demodulator_threads.h"
+
 #include <fftw3.h>
+#include "./dsp/dsp_config.h"
 #include "./dsp/apply_pll.h"
 #include "./dsp/complex_conj_mul_sum.h"
 
@@ -43,11 +45,11 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     return (viterbi_bit_t)(v);
 }
 
-#if defined(__AVX2__)
+#if defined(_OFDM_DSP_AVX2)
 #pragma message("Compiling OFDM demod so FFT buffers are aligned to 256bits for FFTW3 AVX SIMD")
 // 256bit intrinsics
 constexpr size_t ALIGN_AMOUNT = 32;
-#elif defined(__SSSE3__)
+#elif defined(_OFDM_DSP_SSSE3)
 #pragma message("Compiling OFDM demod so FFT buffers are aligned to 128bits for FFTW3 SSE SIMD")
 // 128bit intrinsics
 constexpr size_t ALIGN_AMOUNT = 16;
@@ -104,7 +106,6 @@ OFDM_Demod::OFDM_Demod(
     is_null_start_found = false;
     is_null_end_found = false;
     signal_l1_average = 0;
-    is_running = true;
 
     // Clause 3.12.1 - Fine time synchronisation
     // Correlation in time domain is the conjugate product in frequency domain
@@ -146,7 +147,7 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
     }
 
     // Setup our multithreaded processing pipeline
-    coordinator_thread = std::make_unique<OFDM_Demod_Coordinator_Thread>();
+    coordinator = std::make_unique<OFDM_Demod_Coordinator>();
     {
         int symbol_start = 0;    
         for (int i = 0; i < nb_threads; i++) {
@@ -156,7 +157,7 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
             const int nb_threads_remain = (nb_threads-i);
             const int nb_syms_in_thread = (int)std::ceil((float)nb_syms_remain / (float)nb_threads_remain);
             const int symbol_end = is_last_thread ? nb_syms : (symbol_start+nb_syms_in_thread);
-            pipelines.emplace_back(std::move(std::make_unique<OFDM_Demod_Pipeline_Thread>(
+            pipelines.emplace_back(std::move(std::make_unique<OFDM_Demod_Pipeline>(
                 symbol_start, symbol_end
             )));
             symbol_start = symbol_end;
@@ -164,21 +165,25 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
     }
 
     // Create coordinator thread
-    threads.emplace_back(std::move(std::make_unique<std::thread>(
+    coordinator_thread = std::make_unique<std::thread>(
         [this]() {
             PROFILE_TAG_THREAD("OFDM_Demod::CoordinatorThread");
-            while (is_running) {
-                CoordinatorThread();
-            }
-            coordinator_thread->SignalEnd();
+            while (CoordinatorThread());
         }
-    )));
+    );
 
     // Create pipeline threads
     for (int i = 0; i < pipelines.size(); i++) {
         auto& pipeline = *(pipelines[i].get());
-        auto* dependent_pipeline = ((i+1) >= pipelines.size()) ? NULL : pipelines[i+1].get();
-        threads.emplace_back(std::move(std::make_unique<std::thread>(
+
+        // Some pipelines depend on data being processed in other pipelines
+        const int dependent_pipeline_index = i+1;
+        OFDM_Demod_Pipeline* dependent_pipeline = NULL;
+        if (dependent_pipeline_index < pipelines.size()) {
+            dependent_pipeline = pipelines[dependent_pipeline_index].get();
+        }
+
+        pipeline_threads.emplace_back(std::make_unique<std::thread>(
             [this, &pipeline, dependent_pipeline]() {
                 PROFILE_TAG_THREAD("OFDM_Demod::PipelineThread");
 
@@ -190,24 +195,22 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
                 X.fields.start = (int)pipeline.GetSymbolStart();
                 X.fields.end   = (int)pipeline.GetSymbolEnd();
                 PROFILE_TAG_DATA_THREAD(X.data);
-                while (is_running) {
-                    PipelineThread(pipeline, dependent_pipeline);
-                }
+                while (PipelineThread(pipeline, dependent_pipeline));
             }
-        )));
+        ));
     }
 }
 
 OFDM_Demod::~OFDM_Demod() {
-    // join all threads 
-    coordinator_thread->Wait();
-    is_running = false;
-    coordinator_thread->Stop();
+    // Stop coordinator first so pipelines can finish properly
+    coordinator->Stop();
+    coordinator_thread->join();
+    // Stop pipelines after coordinator has stopped
     for (auto& pipeline: pipelines) {
         pipeline->Stop();
     }
-    for (auto& thread: threads) {
-        thread->join();
+    for (auto& pipeline_thread: pipeline_threads) {
+        pipeline_thread->join();
     }
 
     // fft/ifft buffers
@@ -525,14 +528,14 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     }
 
     PROFILE_BEGIN(coordinator_wait);
-    coordinator_thread->Wait();
+    coordinator->WaitEnd();
     PROFILE_END(coordinator_wait);
     // double buffer
     std::swap(inactive_buffer_data, active_buffer_data);
     inactive_buffer.Reset();
     // launch all our worker threads
     PROFILE_BEGIN(coordinator_start);
-    coordinator_thread->Start();
+    coordinator->SignalStart();
     PROFILE_END(coordinator_start);
 
     state = State::READING_NULL_AND_PRS;
@@ -541,60 +544,64 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
 
 // Thread 2: Coordinate pipeline threads and combine fine time synchronisation results
 // Clause 3.13.1: Fractional frequency offset estimation
-void OFDM_Demod::CoordinatorThread() {
+bool OFDM_Demod::CoordinatorThread() {
     PROFILE_BEGIN_FUNC();
 
     PROFILE_BEGIN(coordinator_wait_start);
-    coordinator_thread->WaitStart();
+    coordinator->WaitStart();
     PROFILE_END(coordinator_wait_start);
 
-    if (coordinator_thread->IsStopped()) {
-        return;
+    if (coordinator->IsStopped()) {
+        return false;
     }
 
     PROFILE_BEGIN(pipeline_workers);
+    {
+        PROFILE_BEGIN(pipeline_start);
+        for (auto& pipeline: pipelines) {
+            pipeline->SignalStart();
+        }
+        PROFILE_END(pipeline_start);
 
-    PROFILE_BEGIN(pipeline_start);
-    for (auto& pipeline: pipelines) {
-        pipeline->Start();
+        PROFILE_BEGIN(pipeline_wait_phase_error);
+        for (auto& pipeline: pipelines) {
+            pipeline->WaitPhaseError();
+        }
+        PROFILE_END(pipeline_wait_phase_error);
+
+        // Clause 3.13.1 - Fraction frequency offset estimation
+        PROFILE_BEGIN(calculate_phase_error);
+        float average_cyclic_error = 0;
+        for (auto& pipeline: pipelines) {
+            const float cyclic_error = pipeline->GetAveragePhaseError();
+            average_cyclic_error += cyclic_error;
+        }
+        average_cyclic_error /= (float)(params.nb_frame_symbols);
+        // Calculate adjustments to fine frequency offset 
+        const float fine_freq_error = CalculateFineFrequencyError(average_cyclic_error);
+        const float beta = cfg.sync.fine_freq_update_beta;
+        const float delta = -beta*fine_freq_error;
+        UpdateFineFrequencyOffset(delta);
+        PROFILE_END(calculate_phase_error);
+
+        PROFILE_BEGIN(pipeline_wait_end);
+        for (auto& pipeline: pipelines) {
+            pipeline->WaitEnd();
+        }
+        PROFILE_END(pipeline_wait_end);
+
+        PROFILE_BEGIN(coordinator_signal_end);
+        coordinator->SignalEnd();
+        PROFILE_END(coordinator_signal_end);
     }
-    PROFILE_END(pipeline_start);
-
-    PROFILE_BEGIN(pipeline_wait_phase_error);
-    for (auto& pipeline: pipelines) {
-        pipeline->WaitPhaseError();
-    }
-    PROFILE_END(pipeline_wait_phase_error);
-
-    // Clause 3.13.1 - Fraction frequency offset estimation
-    PROFILE_BEGIN(calculate_phase_error);
-    float average_cyclic_error = 0;
-    for (auto& pipeline: pipelines) {
-        const float cyclic_error = pipeline->GetAveragePhaseError();
-        average_cyclic_error += cyclic_error;
-    }
-    average_cyclic_error /= (float)(params.nb_frame_symbols);
-    // Calculate adjustments to fine frequency offset 
-    const float fine_freq_error = CalculateFineFrequencyError(average_cyclic_error);
-    const float beta = cfg.sync.fine_freq_update_beta;
-    const float delta = -beta*fine_freq_error;
-    UpdateFineFrequencyOffset(delta);
-    PROFILE_END(calculate_phase_error);
-
-    PROFILE_BEGIN(pipeline_wait_end);
-    for (auto& pipeline: pipelines) {
-        pipeline->WaitEnd();
-    }
-    PROFILE_END(pipeline_wait_end);
-
+    PROFILE_END(pipeline_workers);
     total_frames_read++;
-    PROFILE_BEGIN(coordinator_signal_end);
-    coordinator_thread->SignalEnd();
-    PROFILE_END(coordinator_signal_end);
 
     PROFILE_BEGIN(obs_on_ofdm_frame);
     obs_on_ofdm_frame.Notify(pipeline_out_bits);
     PROFILE_END(obs_on_ofdm_frame);
+
+    return true;
 }
 
 // Thread 3xN: Process ofdm frame
@@ -606,7 +613,7 @@ void OFDM_Demod::CoordinatorThread() {
 // Clause 3.16: Data demapper
 // Clause 3.16.1: Frequency deinterleaving
 // Clause 3.16.2: QPSK symbol demapper
-void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data) {
+bool OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pipeline* dependent_thread_data) {
     PROFILE_BEGIN_FUNC();
 
     const int symbol_start = (int)thread_data.GetSymbolStart();
@@ -620,7 +627,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     PROFILE_END(pipeline_wait_start);
 
     if (thread_data.IsStopped()) {
-        return;
+        return false;
     }
 
     PROFILE_BEGIN(data_processing);
@@ -669,6 +676,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     };
 
     // Calculate FFT and notify threads which need this result for DQPSK
+    // This way we don't hold up other threads waiting for these results
     PROFILE_BEGIN(calculate_dependent_fft);
     calculate_fft(symbol_start, symbol_start+1);
     PROFILE_END(calculate_dependent_fft);
@@ -677,7 +685,7 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
     thread_data.SignalFFT();
     PROFILE_END(pipeline_signal_fft);
 
-    // These FFTs are only used by us for DQPSK 
+    // These FFTs are only used by this thread for DQPSK 
     PROFILE_BEGIN(calculate_independent_fft);
     calculate_fft(symbol_start+1, symbol_end);
     PROFILE_END(calculate_independent_fft);
@@ -717,17 +725,11 @@ void OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_De
         PROFILE_END(calculate_independent_dqpsk);
     }
 
-    // TODO: optional - and we need to calculate the average
-    // Calculate symbol magnitude (include null symbol)
-    // for (int i = symbol_start; i < symbol_end; i++) {
-    //     auto* fft_buf = &pipeline_fft_buffer[i*nb_fft_length];
-    //     auto* fft_mag_buf = &pipeline_fft_mag_buffer[i*nb_fft_length];
-    //     CalculateMagnitude(fft_buf, fft_mag_buf);
-    // }
-
     PROFILE_BEGIN(pipeline_signal_end);
     thread_data.SignalEnd();
     PROFILE_END(pipeline_signal_end);
+
+    return true;
 }
 
 float OFDM_Demod::ApplyPLL(
@@ -818,7 +820,6 @@ void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
     const float overflow_margin = 10.0f;
     freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f + overflow_margin);
 }
-
 
 void OFDM_Demod::CalculateDQPSK(
     tcb::span<const std::complex<float>> in0, 

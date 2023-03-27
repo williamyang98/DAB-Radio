@@ -18,8 +18,8 @@
 
 typedef struct fftwf_plan_s* fftwf_plan;                                      \
 
-class OFDM_Demod_Pipeline_Thread;
-class OFDM_Demod_Coordinator_Thread;
+class OFDM_Demod_Pipeline;
+class OFDM_Demod_Coordinator;
 
 struct OFDM_Demod_Config {
     struct {
@@ -60,7 +60,6 @@ public:
         READING_SYMBOLS,
     };
 private:
-    bool is_running;
     OFDM_Demod_Config cfg;
     State state;
     const OFDM_Params params;
@@ -81,9 +80,10 @@ private:
     fftwf_plan fft_plan;
     fftwf_plan ifft_plan;
     // threads
-    std::unique_ptr<OFDM_Demod_Coordinator_Thread>           coordinator_thread;
-    std::vector<std::unique_ptr<OFDM_Demod_Pipeline_Thread>> pipelines;
-    std::vector<std::unique_ptr<std::thread>>                threads;
+    std::unique_ptr<OFDM_Demod_Coordinator>           coordinator;
+    std::vector<std::unique_ptr<OFDM_Demod_Pipeline>> pipelines;
+    std::unique_ptr<std::thread>                      coordinator_thread;
+    std::vector<std::unique_ptr<std::thread>>         pipeline_threads;
     // callback for when ofdm is completed
     Observable<tcb::span<const viterbi_bit_t>> obs_on_ofdm_frame;
     // Joint memory allocation block
@@ -151,8 +151,8 @@ private:
     size_t ReadSymbols(tcb::span<const std::complex<float>> buf);
 private:
     void CreateThreads(int nb_desired_threads);
-    void CoordinatorThread();
-    void PipelineThread(OFDM_Demod_Pipeline_Thread& thread_data, OFDM_Demod_Pipeline_Thread* dependent_thread_data);
+    bool CoordinatorThread();
+    bool PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pipeline* dependent_thread_data);
 private:
     float ApplyPLL(
         tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
