@@ -6,6 +6,7 @@ on:
 
 env:
   BUILD_TYPE: Release
+  PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
 jobs:
   build:
