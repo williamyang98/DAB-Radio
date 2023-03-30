@@ -2,7 +2,7 @@
 
 #include <immintrin.h>
 #include <stdint.h>
-#include "dsp_config.h"
+#include "../dsp_config.h"
 
 // Multiply packed complex float 
 

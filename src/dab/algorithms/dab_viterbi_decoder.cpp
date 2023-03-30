@@ -4,12 +4,10 @@
 #include <assert.h>
 #include <limits>
 
-#include "./viterbi/viterbi_branch_table.h"
-#include "./viterbi/viterbi_decoder_config.h"
-#include "./viterbi/viterbi_decoder_core.h"
-#include "./viterbi/viterbi_decoder_scalar.h"
-#include "./viterbi/viterbi_decoder_sse_u16.h"
-#include "./viterbi/viterbi_decoder_avx_u16.h"
+#include "viterbi/viterbi_branch_table.h"
+#include "viterbi/viterbi_decoder_config.h"
+#include "viterbi/viterbi_decoder_core.h"
+#include "detect_architecture.h"
 
 // DOC: ETSI EN 300 401
 // Clause 11.1 - Convolutional code
@@ -47,15 +45,28 @@ static const auto decoder_branch_table = ViterbiBranchTable<K,R,int16_t>(
 );
 
 // Wrap compile time selected decoder for forward declaration
-#if defined(__AVX2__)
-#pragma message("Compiling viterbi decoder with AVX2")
-using ExternalDecoder = ViterbiDecoder_AVX_u16<K,R>;
-#elif defined(__SSE4_2__)
-#pragma message("Compiling viterbi decoder with SSE4.2")
-using ExternalDecoder = ViterbiDecoder_SSE_u16<K,R>;
+#if defined(__ARCH_X86__)
+    #if defined(__AVX2__)
+        #pragma message("DAB_VITERBI_DECODER using x86 AVX2")
+        #include "viterbi/x86/viterbi_decoder_avx_u16.h"
+        using ExternalDecoder = ViterbiDecoder_AVX_u16<K,R>;
+    #elif defined(__SSE4_2__)
+        #pragma message("DAB_VITERBI_DECODER using x86 SSE4.2")
+        #include "viterbi/x86/viterbi_decoder_sse_u16.h"
+        using ExternalDecoder = ViterbiDecoder_SSE_u16<K,R>;
+    #else
+        #pragma message("DAB_VITERBI_DECODER using x86 SCALAR")
+        #include "viterbi/viterbi_decoder_scalar.h"
+        using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
+    #endif
+#elif defined(__ARCH_AARCH64__)
+    #pragma message("DAB_VITERBI_DECODER using ARM AARCH64 NEON")
+    #include "viterbi/arm/viterbi_decoder_neon_u16.h"
+    using ExternalDecoder = ViterbiDecoder_NEON_u16<K,R>;
 #else
-#pragma message("Compiling viterbi decoder with scalar instructions")
-using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
+    #pragma message("DAB_VITERBI_DECODER using crossplatform SCALAR")
+    #include "viterbi/viterbi_decoder_scalar.h"
+    using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
 #endif
 
 class DAB_Viterbi_Decoder_Internal: public ExternalDecoder 
@@ -89,7 +100,7 @@ size_t DAB_Viterbi_Decoder::get_traceback_length() const {
 }
 
 size_t DAB_Viterbi_Decoder::get_current_decoded_bit() const {
-    return decoder->get_current_decoded_bit();
+    return decoder->get_curr_decoded_bit();
 };
 
 void DAB_Viterbi_Decoder::reset(const size_t starting_state) {

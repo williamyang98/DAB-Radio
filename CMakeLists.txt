@@ -4,11 +4,14 @@ project(ofdm_demod)
 # NOTE: Root cmake file is used to setup all project dependencies
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-find_package(imgui REQUIRED)
-find_package(implot REQUIRED)
 find_package(faad2 REQUIRED)
 find_package(easyloggingpp REQUIRED)
 find_package(fmt REQUIRED)
+find_package(imgui REQUIRED)
+find_package(implot REQUIRED)
+
+set(viterbi_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/viterbi_decoder)
+find_package(viterbi CONFIG REQUIRED)
 
 # Windows + MSYS = Install rtlsdr from submodule
 # Ubuntu = Install rtlsdr from package manager
@@ -39,15 +42,23 @@ endif()
 
 target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 
-if(MSVC)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /arch:AVX2")
-# NOTE: If we are on a platform without AVX2
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
-add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+if (NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+    # x86 processors 
+    message(STATUS "Setting x86 SIMD CXX_FLAGS and defines")
+    if(MSVC)
+        add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast /arch:AVX2")
+        # NOTE: If we are on a platform without AVX2
+        #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma -ffast-math")
+        # NOTE: If we are compiling with sse4.2 not avx2+fma (affects pll and viterbi decoder)
+        #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -ffast-math")
+    endif()
 else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma -ffast-math")
-# NOTE: If we are compiling with sse4.2 not avx2+fma (affects pll and viterbi decoder)
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -ffast-math")
+    # arm processors
+    message(STATUS "Setting aarch64 SIMD CXX_FLAGS and defines")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
 endif()
 
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)

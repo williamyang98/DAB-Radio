@@ -4,8 +4,10 @@
 
 #include "./ofdm_demodulator.h"
 #include "./ofdm_demodulator_threads.h"
+#include "./ofdm_constants.h"
 
 #include <fftw3.h>
+#include "detect_architecture.h"
 #include "./dsp/dsp_config.h"
 #include "./dsp/apply_pll.h"
 #include "./dsp/complex_conj_mul_sum.h"
@@ -13,12 +15,29 @@
 #define PROFILE_ENABLE 1
 #include "utility/profiler.h"
 
-// In debug check that our joint allocated block has correct alignment
 #include "utility/joint_allocate.h"
 #include <assert.h>
 
-static constexpr float Fs = 2.048e6;
-static constexpr float Ts = 1.0f/Fs;
+// NOTE: Determine correct alignment for FFTW3 buffers
+#if defined(__ARCH_X86__)
+    #if defined(__AVX2__)
+        #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 AVX2 256bits")
+        constexpr size_t ALIGN_AMOUNT = 32;
+    #elif defined(__SSE__)
+        #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 SSE 128bits")
+        constexpr size_t ALIGN_AMOUNT = 16;
+    #else
+        #pragma message("OFDM_DEMOD FFTW3 buffers unaligned for x86 SCALAR")
+        constexpr size_t ALIGN_AMOUNT = 16;
+    #endif
+#elif defined(__ARCH_AARCH64__)
+    #pragma message("OFDM_DEMOD FFTW3 buffers aligned for ARM AARCH64 NEON 128bits")
+    constexpr size_t ALIGN_AMOUNT = 16;
+#else
+    #pragma message("OFDM_DEMOD FFTW3 buffers unaligned for crossplatform SCALAR")
+    constexpr size_t ALIGN_AMOUNT = 16;
+#endif
+
 
 // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
 // NOTE: Unless specified otherwise all clauses referenced belong to the above documentation
@@ -29,7 +48,8 @@ static constexpr float Ts = 1.0f/Fs;
 // - Hard decision bit: 0 or 1
 // - Soft decision bit: Between -A and A
 // We do this since our Viterbi decoder works with soft decision bits
-static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
+static inline 
+viterbi_bit_t convert_to_viterbi_bit(const float x) {
     // Clause 3.4.2 - QPSK symbol mapper
     // phi = (1-2*b0) + (1-2*b1)*1j
     // x0 = 1-2*b0, x1 = 1-2*b1
@@ -44,20 +64,6 @@ static inline viterbi_bit_t convert_to_viterbi_bit(const float x) {
     const float v = -x*scale;
     return (viterbi_bit_t)(v);
 }
-
-#if defined(_OFDM_DSP_AVX2)
-#pragma message("Compiling OFDM demod so FFT buffers are aligned to 256bits for FFTW3 AVX SIMD")
-// 256bit intrinsics
-constexpr size_t ALIGN_AMOUNT = 32;
-#elif defined(_OFDM_DSP_SSSE3)
-#pragma message("Compiling OFDM demod so FFT buffers are aligned to 128bits for FFTW3 SSE SIMD")
-// 128bit intrinsics
-constexpr size_t ALIGN_AMOUNT = 16;
-#else
-#pragma message("Compiling OFDM demod so FFT buffers are unaligned and will not use FFTW3 SIMD")
-// scalar code
-constexpr size_t ALIGN_AMOUNT = 8;
-#endif
 
 OFDM_Demod::OFDM_Demod(
     const OFDM_Params& _params, 

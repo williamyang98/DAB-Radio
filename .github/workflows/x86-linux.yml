@@ -1,4 +1,4 @@
-name: linux-build
+name: x86-linux
 
 on:
   push:
@@ -9,7 +9,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v3
@@ -18,10 +18,11 @@ jobs:
       
     - name: Install packages
       shell: bash
-      run: ./install_ubuntu_packages.sh
+      run: ./toolchains/x86/install_packages.sh
     
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ 
+      shell: bash
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/toolchains/x86/linux-gnu-toolchain.cmake
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
@@ -29,5 +30,5 @@ jobs:
     - name: Upload files (Release) 
       uses: actions/upload-artifact@v3
       with:
-        name: dab_radio_ubuntu_x64
+        name: dab_radio_linux_x64
         path: ${{github.workspace}}/build

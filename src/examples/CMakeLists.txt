@@ -86,10 +86,9 @@ init_example(convert_viterbi)
 target_link_libraries(convert_viterbi PRIVATE getopt)
 
 add_executable(apply_frequency_shift 
-    ${SRC_DIR}/apply_frequency_shift.cpp
-    ${ROOT_DIR}/ofdm/dsp/apply_pll.cpp)
+    ${SRC_DIR}/apply_frequency_shift.cpp)
 init_example(apply_frequency_shift)
-target_link_libraries(apply_frequency_shift PRIVATE getopt)
+target_link_libraries(apply_frequency_shift PRIVATE getopt ofdm_core)
 
 add_executable(read_wav ${SRC_DIR}/read_wav.cpp)
 init_example(read_wav)

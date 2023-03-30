@@ -1,0 +1,34 @@
+name: arm-linux
+
+on:
+  push:
+    branches: [ "master", "dev" ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+      with: 
+        submodules: recursive 
+      
+    - name: Install packages
+      shell: bash
+      run: ./toolchains/arm/install_packages.sh
+    
+    - name: Configure CMake
+      shell: bash
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/toolchains/arm/linux-gnu-toolchain.cmake
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+    
+    - name: Upload files (Release) 
+      uses: actions/upload-artifact@v3
+      with:
+        name: dab_radio_linux_aarch64
+        path: ${{github.workspace}}/build

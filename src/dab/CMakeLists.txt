@@ -28,7 +28,7 @@ add_library(dab_core STATIC
     ${SRC_DIR}/radio_fig_handler.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 target_include_directories(dab_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
-target_link_libraries(dab_core PRIVATE faad2 easyloggingpp fmt)
+target_link_libraries(dab_core PRIVATE faad2 viterbi easyloggingpp fmt)
 target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
 
 if (MSVC)

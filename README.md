@@ -1,6 +1,7 @@
 # Introduction
-![windows-build](https://github.com/FiendChain/DAB-Radio/actions/workflows/windows.yml/badge.svg)
-![linux-build](https://github.com/FiendChain/DAB-Radio/actions/workflows/linux.yml/badge.svg)
+![x86-windows](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml/badge.svg)
+![x86-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml/badge.svg)
+![arm-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/arm-linux.yml/badge.svg)
 
 An implementation of a DAB (digital audio broadcasting) radio using software defined radio. 
 
@@ -29,16 +30,19 @@ For those who are interested only in parts of the implementation refer to the fo
 ![OFDM Demodulator GUI](docs/gallery/ofdm_demodulator_gui.png)
 ![Simple Radio GUI](docs/gallery/simple_radio_gui.png)
 
-# Running radio from download
+# Download and run
 1. Download the ZIP archive from the releases page. 
 2. Setup rtlsdr radio drivers according to [here](https://www.rtl-sdr.com/about-rtl-sdr/)
-3. Run <code>./radio_app.exe</code>
-4. Go to the simple_view tab and select a service from the list. 
-5. Click "Run All" to listen to the channel and receive slideshows.
+3. Plug in your RTLSDR Blog v3 dongle
+4. Run <code>./radio_app.exe</code>
+5. Go to the simple_view tab and select a service from the list. 
+6. Click "Run All" to listen to the channel and receive slideshows.
 
-[Wohnort](http://www.wohnort.org/dab/australia.html) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are <code>[9A,9B,9C]</code>.
+[Wohnort](http://www.wohnort.org/dab/) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are <code>[9A,9B,9C]</code>.
 
-If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page. These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in the application list.
+Refer to <code>src/examples/README.md</code> for other example applications.
+
+If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page. These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
 
 # Building programs
 Clone the repository using the command
@@ -58,30 +62,21 @@ Windows build system requires:
 ***NOTE***: Modify the fx.bat helper batch file to point at your vcpkg install directory. 
 
 ## Method 2. Ubuntu 22.04
-1. <code>./install_ubuntu_packages.sh</code>
-2. <code>cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release</code>
-3. <code>ninja -C build -j8</code>
+Refer to instructions in <code>src/examples/toolchains/x86/README.md</code>
 
 ## Build notes
 The core algorithms for OFDM demodulation and DAB digital decoding are platform independent. The GUI code uses imgui which works on Windows and Ubuntu. 
 
-AVX2 and SSE4 instructions are used to speed up OFDM demodulation dsp and the viterbi decoder. You can change the compiler options in CMakeLists.txt to disable AVX2 or SSE4 if your cpu or compiler doesn't support it. If you are building this on other platforms other changes may need to be made.
+Vector instructions are used for x86 and ARM cpus to speed up parts of the code.
+You can change the compiler options in CMakeLists.txt to disable or enable these to suit your target.
 
-Built on Windows 10 with:
-- msbuild 17.2.1 + 52cd2da31
-- cl 19.32.31332 for x64
-- Visual Studio 2022 Community Edition (Which installs msbuild, cl and cmake)
-
-Dependencies are (refer to vcpkg.json or install_ubuntu_packages.sh):
+Dependencies are (refer to vcpkg.json or examples/toolchains):
 - glfw3
 - opengl
 - portaudio
 - fftw3
 
-The continuous integration (CI) scripts are in .github/workflows if you want to replicate the build on your system.
-
-# Example applications
-Refer to <code>src/examples/README.md</code> for example applications.
+The continuous integration (CI) scripts are in <code>.github/workflows</code> if you want to replicate the build on your system.
 
 # TODO
 ## Optimisations

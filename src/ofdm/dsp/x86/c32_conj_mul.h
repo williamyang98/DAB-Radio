@@ -2,7 +2,7 @@
 
 #include <immintrin.h>
 #include <stdint.h>
-#include "dsp_config.h"
+#include "../dsp_config.h"
 
 // Conjugate multiply packed complex float 
 // Y = X0*~X1
