@@ -1,7 +1,7 @@
 # Introduction
-![x86-windows](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml/badge.svg)
-![x86-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml/badge.svg)
-![arm-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/arm-linux.yml/badge.svg)
+[![x86-windows](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml)
+[![x86-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml)
+[![arm-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/arm-linux.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/arm-linux.yml)
 
 An implementation of a DAB (digital audio broadcasting) radio using software defined radio. 
 
