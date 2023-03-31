@@ -14,13 +14,13 @@
 #define LOG_ERROR(...) CLOG(ERROR, "msc-decoder") << fmt::format(__VA_ARGS__)
 
 // NOTE: Capacity channel sizes for mode I are constant
-constexpr int NB_CU_BITS = 64;
-constexpr int NB_CU_BYTES = NB_CU_BITS/8;
+constexpr int TOTAL_CAPACITY_UNIT_BITS = 64;
+constexpr int TOTAL_CAPACITY_UNIT_BYTES = TOTAL_CAPACITY_UNIT_BITS/8;
 
 MSC_Decoder::MSC_Decoder(const Subchannel _subchannel) 
 : subchannel(_subchannel), 
-  nb_encoded_bits(subchannel.length*NB_CU_BITS),
-  nb_encoded_bytes(subchannel.length*NB_CU_BYTES)
+  nb_encoded_bits(subchannel.length*TOTAL_CAPACITY_UNIT_BITS),
+  nb_encoded_bytes(subchannel.length*TOTAL_CAPACITY_UNIT_BYTES)
 {
     encoded_bits_buf.resize(nb_encoded_bits);
     decoded_bytes_buf.resize(nb_encoded_bytes);
@@ -40,7 +40,7 @@ MSC_Decoder::~MSC_Decoder() = default;
 
 tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
     const int N = (int)buf.size();
-    const int start_bit = subchannel.start_address*NB_CU_BITS;
+    const int start_bit = subchannel.start_address*TOTAL_CAPACITY_UNIT_BITS;
     const int end_bit = start_bit + nb_encoded_bits;
     if (end_bit > N) {
         LOG_ERROR("Subchannel bits {}:{} overflows MSC channel with {} bits", 
@@ -66,17 +66,8 @@ tcb::span<uint8_t> MSC_Decoder::DecodeCIF(tcb::span<const viterbi_bit_t> buf) {
         LOG_MESSAGE("Decoding UEP");
         nb_decoded_bytes = DecodeUEP();
     }
-    return { decoded_bytes_buf.data(), (size_t)nb_decoded_bytes };
+    return { decoded_bytes_buf.data(), size_t(nb_decoded_bytes) };
 }
-
-// // Helper macro to run viterbi decoder with parameters
-// #define VITDEC_RUN(L, PI)\
-// {\
-//     res = vitdec->Update(tcb::span(encoded_bits_buf).subspan(curr_encoded_bit), PI, L);\
-//     curr_encoded_bit += res.nb_encoded_bits;\
-//     curr_puncture_bit += res.nb_puncture_bits;\
-//     curr_decoded_bit += res.nb_decoded_bits;\
-// }
 
 int MSC_Decoder::DecodeEEP() {
     const auto descriptor = GetEEPDescriptor(subchannel);
@@ -89,8 +80,7 @@ int MSC_Decoder::DecodeEEP() {
     {
         size_t N;
         auto symbols_buf = tcb::span(encoded_bits_buf);
-        const int TOTAL_PUNCTURE_CODES = 2;
-        for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
+        for (int i = 0; i < EEP_Descriptor::TOTAL_PUNCTURE_CODES; i++) {
             const int Lx = descriptor.Lx[i].GetLx(n);
             const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
             N = vitdec->update(symbols_buf, puncture_code, 128*Lx);
@@ -107,7 +97,7 @@ int MSC_Decoder::DecodeEEP() {
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
     const uint64_t error = vitdec->chainback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
-    LOG_MESSAGE("error:    {}", error);
+    LOG_MESSAGE("vitdec_error: {}", error);
 
     // descrambler
     scrambler->Reset();
@@ -129,8 +119,7 @@ int MSC_Decoder::DecodeUEP() {
     {
         size_t N = 0u;
         auto symbols_buf = tcb::span(encoded_bits_buf);
-        const int TOTAL_PUNCTURE_CODES = 4;
-        for (int i = 0; i < TOTAL_PUNCTURE_CODES; i++) {
+        for (int i = 0; i < UEP_Descriptor::TOTAL_PUNCTURE_CODES; i++) {
             const int Lx = descriptor.Lx[i];
             const auto puncture_code = GetPunctureCode(descriptor.PIx[i]);
             N = vitdec->update(symbols_buf, puncture_code, 128*Lx);
@@ -148,7 +137,7 @@ int MSC_Decoder::DecodeUEP() {
     const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits-nb_padding_bits;
     const int nb_decoded_bytes = nb_decoded_bits/8;
     const uint64_t error = vitdec->chainback({decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
-    LOG_MESSAGE("error:    {}", error);
+    LOG_MESSAGE("vitdec_error: {}", error);
 
     // descrambler
     scrambler->Reset();

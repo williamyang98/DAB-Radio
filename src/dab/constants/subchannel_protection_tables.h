@@ -5,12 +5,13 @@
 // DOC: ETSI EN 300 401
 // The following tables and constants were taken from the above doc
 struct UEP_Descriptor {
+    static constexpr int TOTAL_PUNCTURE_CODES = 4;
     uint16_t subchannel_size; 
     uint16_t bitrate;
     uint8_t protection_level;
-    uint8_t Lx[4];                // Number of 128bit blocks with that puncture code
-    uint8_t PIx[4];               // ID of the puncture code
-    uint8_t total_padding_bits;   // UEP is different to EEP in that it adds padding bits
+    uint8_t Lx[TOTAL_PUNCTURE_CODES];   // Number of 128bit blocks with that puncture code
+    uint8_t PIx[TOTAL_PUNCTURE_CODES];  // ID of the puncture code
+    uint8_t total_padding_bits;         // UEP is different to EEP in that it adds padding bits
 };
 
 constexpr int UEP_PROTECTION_TABLE_SIZE = 64;
@@ -100,14 +101,15 @@ struct EEP_Lx_Equation {
 // EEP doesn't have a fixed subchannel size
 // Each protection profile scales to the provided subchannel size in the long form
 struct EEP_Descriptor {
+    static constexpr int TOTAL_PUNCTURE_CODES = 2;
     // DOC: ETSI EN 300 401
     // Clause 6.2.1 - Basic sub-channel organization
     // Subchannel capacity is a multiple of a constant
     // CU = K*n, where K is provided by protection profile
     // n = An integer constant that is used for various calculations for the protection profile
     uint16_t capacity_unit_multiple;  
-    EEP_Lx_Equation Lx[2];
-    uint8_t PIx[2];
+    EEP_Lx_Equation Lx[TOTAL_PUNCTURE_CODES];
+    uint8_t PIx[TOTAL_PUNCTURE_CODES];
     // bitrate is an multiple of the integer constant n
     uint8_t bitrate_multiple;
 }; 

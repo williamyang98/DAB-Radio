@@ -30,4 +30,15 @@ public:
         const size_t requested_output_symbols
     );
     uint64_t chainback(tcb::span<uint8_t> bytes_out, const size_t end_state=0u);
+private:
+    struct depuncture_res {
+        size_t total_output_symbols;
+        size_t total_punctured_symbols;
+    };
+    inline
+    depuncture_res depuncture_symbols(
+        tcb::span<const viterbi_bit_t> punctured_symbols, 
+        tcb::span<const uint8_t> puncture_code,
+        const size_t requested_output_symbols
+    );
 };
