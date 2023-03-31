@@ -1,6 +1,7 @@
 name: x86-windows
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "master", "dev" ]
 

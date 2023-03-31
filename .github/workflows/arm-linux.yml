@@ -1,6 +1,7 @@
 name: arm-linux
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "master", "dev" ]
 
