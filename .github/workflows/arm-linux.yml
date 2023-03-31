@@ -6,10 +6,27 @@ on:
 
 env:
   BUILD_TYPE: Release
-  PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
 jobs:
+  skip_check:
+    continue-on-error: false
+    runs-on: ubuntu-22.04
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+    - id: skip_check
+      uses: fkirc/skip-duplicate-actions@v5
+      with:
+        concurrent_skipping: 'never'
+        cancel_others: 'true'
+        skip_after_successful_duplicate: 'true'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "bin/**", "toolchains/x86/**", "vcpkg.json"]'
+        do_not_skip: '["workflow_dispatch", "schedule"]'
+
   build:
+    needs: skip_check
+    if: needs.skip_check.outputs.should_skip != 'true'
+
     runs-on: ubuntu-22.04
 
     steps:
@@ -23,7 +40,9 @@ jobs:
     
     - name: Configure CMake
       shell: bash
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_TOOLCHAIN_FILE=./toolchains/arm/linux-gnu-toolchain.cmake
+      run: |
+        export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G Ninja -DCMAKE_TOOLCHAIN_FILE=./toolchains/arm/linux-gnu-toolchain.cmake
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}

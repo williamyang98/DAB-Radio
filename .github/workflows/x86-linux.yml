@@ -8,7 +8,25 @@ env:
   BUILD_TYPE: Release
 
 jobs:
+  skip_check:
+    continue-on-error: false
+    runs-on: ubuntu-22.04
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+    - id: skip_check
+      uses: fkirc/skip-duplicate-actions@v5
+      with:
+        concurrent_skipping: 'never'
+        cancel_others: 'true'
+        skip_after_successful_duplicate: 'true'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "bin/**", "toolchains/arm/**", "vcpkg.json"]'
+        do_not_skip: '["workflow_dispatch", "schedule"]'
+
   build:
+    needs: skip_check
+    if: needs.skip_check.outputs.should_skip != 'true'
+
     runs-on: ubuntu-22.04
 
     steps:
