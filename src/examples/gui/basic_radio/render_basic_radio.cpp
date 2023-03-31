@@ -3,6 +3,8 @@
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
 
+#include <stdint.h>
+#include <inttypes.h>
 #include <fmt/core.h>
 #include "./formatters.h"
 
@@ -88,9 +90,9 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
                     is_decode_data  ? ICON_FA_DOWNLOAD  : ""
                 );
 
-                float offset = ImGui::GetWindowWidth() - ImGui::CalcTextSize(status_str.c_str()).x;
+                const float offset = ImGui::GetWindowWidth() - ImGui::CalcTextSize(status_str.c_str()).x;
                 ImGui::SameLine(offset);
-                ImGui::Text("%.*s", status_str.length(), status_str.c_str());
+                ImGui::Text("%.*s", int(status_str.length()), status_str.c_str());
             }
             ImGui::EndListBox();
         }
@@ -120,7 +122,7 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
                 ImGui::PopID();\
             }\
 
-            FIELD_MACRO("Name", "%.*s", service->label.length(), service->label.c_str());
+            FIELD_MACRO("Name", "%.*s", int(service->label.length()), service->label.c_str());
             FIELD_MACRO("ID", "%u", service->reference);
             FIELD_MACRO("Country Code", "0x%02X.%01X", service->extended_country_code, service->country_id);
             FIELD_MACRO("Programme Type", "%s (%u)", 
@@ -186,7 +188,7 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
                 GetAudioTypeString(component.audio_service_type) :
                 GetDataTypeString(component.data_service_type);
             
-            FIELD_MACRO("Label", "%.*s", component.label.length(), component.label.c_str());
+            FIELD_MACRO("Label", "%.*s", int(component.label.length()), component.label.c_str());
             FIELD_MACRO("Component ID", "%u", component.component_id);
             FIELD_MACRO("Global ID", "%u", component.global_id);
             FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
@@ -210,7 +212,7 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
             FIELD_MACRO("Subchannel ID", "%u", subchannel->id);
             FIELD_MACRO("Start Address", "%u", subchannel->start_address);
             FIELD_MACRO("Capacity Units", "%u", subchannel->length);
-            FIELD_MACRO("Protection", "%.*s", prot_label.length(), prot_label.c_str());
+            FIELD_MACRO("Protection", "%.*s", int(prot_label.length()), prot_label.c_str());
             FIELD_MACRO("Bitrate", "%u kb/s", bitrate_kbps);
 
             ImGui::EndTable();
@@ -263,10 +265,10 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
         const auto pos_group_start = ImGui::GetCursorScreenPos();
         ImGui::BeginGroup();
         ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
-        ImGui::Text(ICON_FA_CIRCLE);
+        ImGui::Text("%s", ICON_FA_CIRCLE);
         ImGui::PopStyleColor();
         ImGui::SameLine();
-        ImGui::Text(label);
+        ImGui::Text("%s", label);
         ImGui::EndGroup();
         const auto pos_group_end = ImGui::GetItemRectMax();
         ImGui::GetWindowDrawList()->AddRect(
@@ -301,7 +303,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
     // 1. Dynamic label
     // 2. MOT slideshow
     auto& label = channel.GetDynamicLabel();
-    ImGui::Text("Dynamic label: %.*s", label.length(), label.c_str());
+    ImGui::Text("Dynamic label: %.*s", int(label.length()), label.c_str());
 
     auto& slideshow_manager = channel.GetSlideshowManager();
     auto lock = std::scoped_lock(slideshow_manager.GetMutex());
@@ -342,7 +344,7 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
             ImGui::PushID(slideshow_id++);
             ImGui::Image(texture_id, texture_size);
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%.*s", slideshow.name.length(), slideshow.name.c_str());
+                ImGui::SetTooltip("%.*s", int(slideshow.name.length()), slideshow.name.c_str());
             }
             if (ImGui::IsItemClicked()) {
                 controller.SetSelectedSlideshow({ subchannel_id, &slideshow });
@@ -400,19 +402,19 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewContro
 
                 FIELD_MACRO("Subchannel ID", "%u", selection.subchannel_id);
                 FIELD_MACRO("Transport ID", "%u", slideshow->transport_id);
-                FIELD_MACRO("Name", "%.*s", slideshow->name.length(), slideshow->name.c_str());
-                FIELD_MACRO("Trigger Time", "%llu", slideshow->trigger_time);
-                FIELD_MACRO("Expire Time", "%llu", slideshow->expire_time);
+                FIELD_MACRO("Name", "%.*s", int(slideshow->name.length()), slideshow->name.c_str());
+                FIELD_MACRO("Trigger Time", "%" PRIi64, int64_t(slideshow->trigger_time));
+                FIELD_MACRO("Expire Time", "%" PRIi64, int64_t(slideshow->expire_time));
                 FIELD_MACRO("Category ID", "%u", slideshow->category_id);
                 FIELD_MACRO("Slide ID", "%u", slideshow->slide_id);
-                FIELD_MACRO("Category title", "%.*s", slideshow->category_title.length(), slideshow->category_title.c_str());
-                FIELD_MACRO("Click Through URL", "%.*s", slideshow->click_through_url.length(), slideshow->click_through_url.c_str());
-                FIELD_MACRO("Alt Location URL", "%.*s", slideshow->alt_location_url.length(), slideshow->alt_location_url.c_str());
+                FIELD_MACRO("Category title", "%.*s", int(slideshow->category_title.length()), slideshow->category_title.c_str());
+                FIELD_MACRO("Click Through URL", "%.*s", int(slideshow->click_through_url.length()), slideshow->click_through_url.c_str());
+                FIELD_MACRO("Alt Location URL", "%.*s", int(slideshow->alt_location_url.length()), slideshow->alt_location_url.c_str());
                 FIELD_MACRO("Size", "%zu Bytes", slideshow->image_data.size());
 
                 if (texture != NULL) {
                     FIELD_MACRO("Resolution", "%u x %u", texture->GetWidth(), texture->GetHeight());
-                    FIELD_MACRO("Internal Texture ID", "%u", texture->GetTextureID());
+                    FIELD_MACRO("Internal Texture ID", "%" PRIuPTR, uintptr_t(texture->GetTextureID()));
                 }
                 
                 #undef FIELD_MACRO

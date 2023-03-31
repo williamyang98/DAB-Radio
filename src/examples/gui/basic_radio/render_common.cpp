@@ -42,7 +42,7 @@ void RenderSubchannels(BasicRadio& radio) {
                 ImGui::TableSetColumnIndex(3);
                 ImGui::TextWrapped("%u", subchannel.length);
                 ImGui::TableSetColumnIndex(4);
-                ImGui::TextWrapped("%.*s", prot_label.length(), prot_label.c_str());
+                ImGui::TextWrapped("%.*s", int(prot_label.length()), prot_label.c_str());
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%u kb/s", bitrate_kbps);
 
@@ -90,8 +90,8 @@ void RenderEnsemble(BasicRadio& radio) {
             }\
 
             int row_id = 0;
-            const float LTO = static_cast<float>(ensemble.local_time_offset) / 10.0f;
-            FIELD_MACRO("Name", "%.*s", ensemble.label.length(), ensemble.label.c_str());
+            const float LTO = float(ensemble.local_time_offset) / 10.0f;
+            FIELD_MACRO("Name", "%.*s", int(ensemble.label.length()), ensemble.label.c_str());
             FIELD_MACRO("ID", "%u", ensemble.reference);
             FIELD_MACRO("Country Code", "%s (0x%02X.%01X)", 
                 GetCountryString(ensemble.extended_country_code, ensemble.country_id),
@@ -134,7 +134,7 @@ void RenderDateTime(BasicRadio& radio) {
             FIELD_MACRO("Time", "%02u:%02u:%02u.%03u", 
                 info.datetime.hours, info.datetime.minutes, 
                 info.datetime.seconds, info.datetime.milliseconds);
-            FIELD_MACRO("CIF Counter", "%+4u = %+2u|%-3u", 
+            FIELD_MACRO("CIF Counter", "%4u = %2u|%-3u", 
                 info.cif_counter.GetTotalCount(),
                 info.cif_counter.upper_count, info.cif_counter.lower_count);
 

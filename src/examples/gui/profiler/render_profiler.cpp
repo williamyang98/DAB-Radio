@@ -1,6 +1,8 @@
 #include "./render_profiler.h"
-#include <imgui.h>
 #include "utility/profiler.h"
+#include <imgui.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 void HandleInstrumentorThread(InstrumentorThread& thread);
 void RenderTrace(InstrumentorThread::profile_trace_t& trace);
@@ -11,6 +13,7 @@ void RenderProfiler() {
 
     if (ImGui::Begin("Profiler")) {
         static InstrumentorThread* thread = NULL;
+        static std::hash<std::thread::id> thread_id_hasher;
 
         const ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
         if (ImGui::BeginTable("Threads", 3, flags)) {
@@ -23,11 +26,12 @@ void RenderProfiler() {
             int row_id = 0;
             for (auto& [thread_id, instrumentor_thread]: instrumentor.GetThreadsList()) {
                 const bool is_selected = (thread == &instrumentor_thread);
+                const size_t thread_id_hash = thread_id_hasher(thread_id);
 
                 ImGui::PushID(row_id++);
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::Text("%zu", thread_id);
+                ImGui::Text("%zu", thread_id_hash);
                 ImGui::TableNextColumn();
                 if (ImGui::Selectable(instrumentor_thread.GetLabel(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                     if (is_selected) {
@@ -93,7 +97,7 @@ void RenderLoggedTraces(InstrumentorThread::profile_trace_logger_t& traces) {
             ImGui::Text("%zu", trace.size());
             ImGui::TableNextColumn();
             static char hash_string[32];
-            snprintf(hash_string, sizeof(hash_string), "%08llX", key);
+            snprintf(hash_string, sizeof(hash_string), "%" PRIx64, key);
             if (ImGui::Selectable(hash_string, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 if (is_selected) {
                     selected_key = 0;
@@ -154,11 +158,11 @@ void RenderTrace(InstrumentorThread::profile_trace_t& trace) {
                 ImGui::TreeNodeEx(result.name, ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanFullWidth);
             } 
             ImGui::TableNextColumn();
-            ImGui::Text("%lld", result.end-result.start);
+            ImGui::Text("%" PRIi64, result.end-result.start);
             ImGui::TableNextColumn();
-            ImGui::Text("%lld", result.start);
+            ImGui::Text("%" PRIi64, result.start);
             ImGui::TableNextColumn();
-            ImGui::Text("%lld", result.end);
+            ImGui::Text("%" PRIi64, result.end);
         }
 
         while (prev_stack_index > 0) {
