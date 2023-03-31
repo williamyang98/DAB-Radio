@@ -9,7 +9,6 @@
 #include "../../ofdm_constants.h"
 
 #include "./apply_pll.h"
-#include "./data_packing.h"
 #include "./c32_mul.h"
 
 // NOTE: On GCC we do not have the Intel SVML library 
@@ -29,6 +28,24 @@
 #define _mm256_cos_ps(x) cos256_ps(x)
 #endif
 #endif
+
+#ifdef _MSC_VER
+#define ALIGNED(x) __declspec(align(x))
+#else
+#define ALIGNED(x) __attribute__ ((aligned(x)))
+#endif
+
+inline static
+void create_step_pack(float* arr, const size_t K, const float dt) {
+    float x = 0.0f;
+    for (size_t i = 0; i < K; i++) {
+        // cos(dt)
+        arr[2*i+0] = x;
+        // cos(dt-pi/2) = sin(dt)
+        arr[2*i+1] = x - ((float)M_PI / 2.0f);
+        x += dt;
+    }
+}
 
 // Manual AVX2 code which is up to 4x faster
 #if defined(_OFDM_DSP_AVX2)
@@ -50,23 +67,15 @@ float apply_pll_avx2(
 
     // cos(dt) + jsin(dt) = cos(dt) + jcos(dt-PI/2)
     const float dt_step_pack_stride = dt_step * K;
-    cpx256_t dt_step_pack;
-    {
-        float x = 0.0f;
-        for (int i = 0; i < K; i++) {
-            // cos(dt)
-            dt_step_pack.f32[2*i+0] = x;
-            // cos(dt-pi/2) = sin(dt)
-            dt_step_pack.f32[2*i+1] = x - ((float)M_PI / 2.0f);
-            x += dt_step;
-        }
-    }
+    float ALIGNED(32) dt_step_pack_arr[K*2];
+    create_step_pack(dt_step_pack_arr, K, dt_step);
+    const __m256 dt_step_pack = _mm256_loadu_ps(dt_step_pack_arr);
 
     float dt = dt0;
     for (size_t i = 0; i < N_vector; i+=K) {
         // Update dt
         __m256 dt_pack = _mm256_set1_ps(dt);
-        dt_pack = _mm256_add_ps(dt_pack, dt_step_pack.ps);
+        dt_pack = _mm256_add_ps(dt_pack, dt_step_pack);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);
@@ -104,23 +113,15 @@ float apply_pll_ssse3(
     // Generate dt vector
     // cos(dt) + jsin(dt) = cos(dt) + jcos(dt-PI/2)
     const float dt_step_pack_stride = dt_step * K;
-    cpx128_t dt_step_pack;
-    {
-        float x = 0.0f;
-        for (int i = 0; i < K; i++) {
-            // cos(dt)
-            dt_step_pack.f32[2*i+0] = x;
-            // cos(dt-pi/2) = sin(dt)
-            dt_step_pack.f32[2*i+1] = x - ((float)M_PI / 2.0f);
-            x += dt_step;
-        }
-    }
+    float ALIGNED(16) dt_step_pack_arr[K*2u];
+    create_step_pack(dt_step_pack_arr, K, dt_step);
+    const __m128 dt_step_pack = _mm_load_ps(dt_step_pack_arr);
 
     float dt = dt0;
     for (size_t i = 0; i < N_vector; i+=K) {
         // Update dt
         __m128 dt_pack = _mm_set1_ps(dt);
-        dt_pack = _mm_add_ps(dt_pack, dt_step_pack.ps);
+        dt_pack = _mm_add_ps(dt_pack, dt_step_pack);
         dt += dt_step_pack_stride;
         if (is_large_offset) {
             dt = std::fmod(dt, 2.0f*(float)M_PI);

@@ -2,7 +2,6 @@
 
 #include "./complex_conj_mul_sum.h"
 #include "./c32_conj_mul.h"
-#include "./data_packing.h"
 
 #include <complex>
 #include <assert.h>
@@ -21,26 +20,25 @@ std::complex<float> complex_conj_mul_sum_avx2(
     const size_t M = N/K;
     const size_t N_vector = M*K;
 
-    auto y = std::complex<float>(0,0);
+    __m256 Y_vec = _mm256_set1_ps(0.0f);
     for (size_t i = 0; i < N_vector; i+=K) {
         __m256 X0 = _mm256_loadu_ps(reinterpret_cast<const float*>(&x0[i]));
         __m256 X1 = _mm256_loadu_ps(reinterpret_cast<const float*>(&x1[i]));
-        cpx256_t c1;
-        c1.ps = c32_conj_mul_avx2(X0, X1);
-
-        // Perform vectorised cumulative sum
-        // Shift half of vector and add. Repeat until we get the final sum
-        // [v1+v3 v2+v4]
-        cpx128_t c2;
-        cpx128_t c3;
-        c2.ps = _mm_add_ps(c1.m128[0], c1.m128[1]);
-        // [v2+v4 0]
-        c3.i = _mm_srli_si128(c2.i, sizeof(std::complex<float>));
-        // [v1+v2+v3+v4 0]
-        c2.ps = _mm_add_ps(c2.ps, c3.ps);
-
-        y += c2.c32[0];
+        __m256 Y = c32_conj_mul_avx2(X0, X1);
+        Y_vec = _mm256_add_ps(Y, Y_vec);
     }
+
+    // Perform vectorised cumulative sum
+    // [c1 c2 c3 c4]
+    // [c1+c3 c2+c4]
+    __m128 v0 = _mm_add_ps(_mm256_extractf128_ps(Y_vec, 0), _mm256_extractf128_ps(Y_vec, 1));
+    // [c1+c2+c3+c4 0]
+    v0 = _mm_add_ps(v0, _mm_permute_ps(v0, 0b0000'1110));
+    // Extract real and imaginary components
+    auto y = std::complex<float>{
+        _mm_cvtss_f32(v0),
+        _mm_cvtss_f32(_mm_permute_ps(v0, 0b000000'01)),
+    };
 
     y += complex_conj_mul_sum_scalar(x0.subspan(N_vector), x1.subspan(N_vector));
     return y;
@@ -60,23 +58,22 @@ std::complex<float> complex_conj_mul_sum_ssse3(
     const size_t M = N/K;
     const size_t N_vector = M*K;
 
-    auto y = std::complex<float>(0,0);
+    __m128 Y_vec = _mm_set1_ps(0.0f);
     for (size_t i = 0; i < N_vector; i+=K) {
         __m128 X0 = _mm_loadu_ps(reinterpret_cast<const float*>(&x0[i]));
         __m128 X1 = _mm_loadu_ps(reinterpret_cast<const float*>(&x1[i]));
-        cpx128_t c1;
-        c1.ps = c32_conj_mul_ssse3(X0, X1);
-
-        // Perform vectorised cumulative sum
-        // Shift half of vector and add. Repeat until we get the final sum
-        cpx128_t c2;
-        // [v2 0]
-        c2.i = _mm_srli_si128(c1.i, sizeof(std::complex<float>));
-        // [v1+v2 0]
-        c1.ps = _mm_add_ps(c1.ps, c2.ps);
-
-        y += c1.c32[0];
+        __m128 Y = c32_conj_mul_ssse3(X0, X1);
+        Y_vec = _mm_add_ps(Y, Y_vec);
     }
+
+    // [c1 c2]
+    // [c1+c2 0]
+    Y_vec = _mm_add_ps(Y_vec, _mm_shuffle_ps(Y_vec, Y_vec, 0b0000'1110));
+    // Extract real and imaginary components
+    auto y = std::complex<float>{
+        _mm_cvtss_f32(Y_vec),
+        _mm_cvtss_f32(_mm_shuffle_ps(Y_vec, Y_vec, 0b000000'01)),
+    };
 
     y += complex_conj_mul_sum_scalar(x0.subspan(N_vector), x1.subspan(N_vector));
     return y;
