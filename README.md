@@ -13,8 +13,6 @@ This repository contains applications that:
 1. Demodulate the OFDM (orthogonal frequency division multiplexed) raw IQ signals into a digital frame
 2. Decode DAB digital OFDM frames for use into a radio application
 
-The code in this project is purely academic. It can be considerably improved and optimised. Examples of more polished DAB projects is listed in the inspirations section below.
-
 For those who are interested only in parts of the implementation refer to the following directories:
 
 | Directory | Description |
@@ -32,7 +30,7 @@ For those who are interested only in parts of the implementation refer to the fo
 
 # Download and run
 1. Download the ZIP archive from the releases page. 
-2. Setup rtlsdr radio drivers according to [here](https://www.rtl-sdr.com/about-rtl-sdr/)
+2. Setup rtlsdr radio drivers according to [here](https://www.rtl-sdr.com/rtl-sdr-quick-start-guide/)
 3. Plug in your RTLSDR Blog v3 dongle
 4. Run <code>./radio_app.exe</code>
 5. Go to the simple_view tab and select a service from the list. 
@@ -42,7 +40,7 @@ For those who are interested only in parts of the implementation refer to the fo
 
 Refer to <code>src/examples/README.md</code> for other example applications.
 
-If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page. These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
+If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page [here](https://github.com/FiendChain/DAB-Radio/releases/tag/raw-iq-data). These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
 
 # Building programs
 Clone the repository using the command
@@ -70,7 +68,7 @@ The core algorithms for OFDM demodulation and DAB digital decoding are platform 
 Vector instructions are used for x86 and ARM cpus to speed up parts of the code.
 You can change the compiler options in CMakeLists.txt to disable or enable these to suit your target.
 
-Dependencies are (refer to vcpkg.json or examples/toolchains):
+Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install_packages.sh</code>):
 - glfw3
 - opengl
 - portaudio
