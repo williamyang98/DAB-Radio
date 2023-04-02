@@ -20,6 +20,49 @@ function(init_example target)
     endif()
 endfunction()
 
+function(install_dlls target)
+    if (WIN32)
+        add_custom_command(
+            TARGET ${target}
+            POST_BUILD 
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${target}> 
+            $<TARGET_FILE_DIR:${target}>
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
+endfunction()
+
+# Utility applications
+if (NOT DEFINED RTLSDR_LIBS)
+    message(FATAL_ERROR "RTLSDR_LIBS must be defined")
+endif()
+add_executable(rtl_sdr 
+    ${SRC_DIR}/rtl_sdr.cpp)
+init_example(rtl_sdr)
+target_link_libraries(rtl_sdr PRIVATE ${RTLSDR_LIBS} getopt)
+install_dlls(rtl_sdr)
+
+add_executable(simulate_transmitter 
+    ${SRC_DIR}/simulate_transmitter.cpp)
+init_example(simulate_transmitter)
+target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
+
+add_executable(convert_viterbi
+    ${SRC_DIR}/convert_viterbi.cpp)
+init_example(convert_viterbi)
+target_link_libraries(convert_viterbi PRIVATE getopt)
+
+add_executable(apply_frequency_shift 
+    ${SRC_DIR}/apply_frequency_shift.cpp)
+init_example(apply_frequency_shift)
+target_link_libraries(apply_frequency_shift PRIVATE getopt ofdm_core)
+
+add_executable(read_wav ${SRC_DIR}/read_wav.cpp)
+init_example(read_wav)
+target_link_libraries(read_wav PRIVATE getopt)
+
+# Example applications
 add_executable(ofdm_demod_gui 
     ${SRC_DIR}/ofdm_demod_gui.cpp
     ${SRC_DIR}/gui/imgui_skeleton.cpp)
@@ -75,25 +118,6 @@ target_link_libraries(basic_radio_benchmark PRIVATE
     dab_core basic_radio
     getopt easyloggingpp fmt)
 
-add_executable(simulate_transmitter 
-    ${SRC_DIR}/simulate_transmitter.cpp)
-init_example(simulate_transmitter)
-target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
-
-add_executable(convert_viterbi
-    ${SRC_DIR}/convert_viterbi.cpp)
-init_example(convert_viterbi)
-target_link_libraries(convert_viterbi PRIVATE getopt)
-
-add_executable(apply_frequency_shift 
-    ${SRC_DIR}/apply_frequency_shift.cpp)
-init_example(apply_frequency_shift)
-target_link_libraries(apply_frequency_shift PRIVATE getopt ofdm_core)
-
-add_executable(read_wav ${SRC_DIR}/read_wav.cpp)
-init_example(read_wav)
-target_link_libraries(read_wav PRIVATE getopt)
-
 add_executable(radio_app 
     ${SRC_DIR}/radio_app.cpp 
     ${SRC_DIR}/gui/imgui_skeleton.cpp)
@@ -103,15 +127,4 @@ target_link_libraries(radio_app PRIVATE
     getopt fmt easyloggingpp
     device_gui ofdm_gui basic_radio_gui audio_gui profiler_gui 
     imgui implot)
-
-if(WIN32)
-    # Copy dlls for prebuilt librtlsdr
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_custom_command(TARGET radio_app 
-            POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${rtlsdr_DIR}/bin/x64/
-            $<TARGET_FILE_DIR:radio_app>)
-    elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-        message(FATAL_ERROR "x86 rtlsdr is unsupported")
-    endif()
-endif()
+install_dlls(radio_app)

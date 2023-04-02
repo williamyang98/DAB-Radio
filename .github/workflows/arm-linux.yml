@@ -21,8 +21,7 @@ jobs:
         concurrent_skipping: 'same_content'
         cancel_others: 'true'
         skip_after_successful_duplicate: 'true'
-        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "bin/**", "toolchains/**", ".github/workflows/**", "vcpkg.json"]'
-        paths: '["src/**", "cmake/**", "vendor/**", ".github/workflows/arm-linux.yml", "toolchains/arm/**"]'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "vcpkg.json"]'
         do_not_skip: '["workflow_dispatch", "schedule"]'
 
   build:
