@@ -60,13 +60,17 @@ Windows build system requires:
 ***NOTE***: Modify the fx.bat helper batch file to point at your vcpkg install directory. 
 
 ## Method 2. Ubuntu 22.04
-Refer to instructions in <code>src/examples/toolchains/x86/README.md</code>
+Refer to instructions in <code>toolchains/x86/README.md</code>
 
-## Build notes
+## Build notes (Read this if you get illegal instructions)
 The core algorithms for OFDM demodulation and DAB digital decoding are platform independent. The GUI code uses imgui which works on Windows and Ubuntu. 
 
 Vector instructions are used for x86 and ARM cpus to speed up parts of the code.
-You can change the compiler options in CMakeLists.txt to disable or enable these to suit your target.
+You can change the compiler options in CMakeLists.txt to disable or enable these to suit your CPU.
+
+Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**.
+
+On Windows you also need to edit the <code>vcpkg.json</code> manifest so that FFTW uses the "avx" feature instead of "avx2". Depending on how old your CPU is, you can also try out "sse2" and "sse". Likewise for Ubuntu you will need to determine which flags your cpu supports. You can do this by running <code>cat /proc/cpuinfo</code> and checking the flags section.
 
 Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install_packages.sh</code>):
 - glfw3
@@ -75,6 +79,18 @@ Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install
 - fftw3
 
 The continuous integration (CI) scripts are in <code>.github/workflows</code> if you want to replicate the build on your system.
+
+# Inspirations
+- The welle.io open source radio has an excellent implementation of DAB radio. Their implementation is much more featureful and optimised than mine. Their repository can be found [here](https://github.com/albrechtl/welle.io). They also have a youtube video showcasing their wonderful software [here](https://www.youtube.com/watch?v=IJcgdmud-AI). 
+
+- There is a large community of rtl-sdr projects which can be found at [rtl-sdr.com](https://www.rtl-sdr.com/tag/dab/). This link points to a webpage showcasing several open source community projects that aim to decode DAB signals.
+
+# Important sources
+- [ETSI](https://www.etsi.org/standards) the non-for-profit standardisation organisation for making all of the standards free to access and view. Without their detailed documentation and specifications it would not be possible to build a rtl-sdr DAB radio.
+- [Phil Karn](https://github.com/ka9q) for his Reed Solomon and Viterbi decoding algorithms which can be found [here](https://github.com/ka9q/libfec)
+- [tcbrindle](https://github.com/tcbrindle) for his C++ single header template library implementation of std::span which can be found [here](https://github.com/tcbrindle/span)
+- [reyoung/avx_mathfun](https://github.com/reyoung/avx_mathfun) for their AVX/AVX2 implementations of _mm512_cos_pd
+- [RJVB/sse_mathfun](https://github.com/RJVB/sse_mathfun) for their SSE2 implementations of _mm_cos_pd
 
 # TODO
 ## Optimisations
@@ -113,15 +129,3 @@ The continuous integration (CI) scripts are in <code>.github/workflows</code> if
 
 ## Documentation
 - Add as much comments to link specific pieces of code to parts of the standard that were heavily referenced. This includes the specific document number, the specific clause and specific table/chart used.
-
-# Inspirations
-- The welle.io open source radio has an excellent implementation of DAB radio. Their implementation is much more featureful and optimised than mine. Their repository can be found [here](https://github.com/albrechtl/welle.io). They also have a youtube video showcasing their wonderful software [here](https://www.youtube.com/watch?v=IJcgdmud-AI). 
-
-- There is a large community of rtl-sdr projects which can be found at [rtl-sdr.com](https://www.rtl-sdr.com/tag/dab/). This link points to a webpage showcasing several open source community projects that aim to decode DAB signals.
-
-# Important sources
-- [ETSI](https://www.etsi.org/standards) the non-for-profit standardisation organisation for making all of the standards free to access and view. Without their detailed documentation and specifications it would not be possible to build a rtl-sdr DAB radio.
-- [Phil Karn](https://github.com/ka9q) for his Reed Solomon and Viterbi decoding algorithms which can be found [here](https://github.com/ka9q/libfec)
-- [tcbrindle](https://github.com/tcbrindle) for his C++ single header template library implementation of std::span which can be found [here](https://github.com/tcbrindle/span)
-- [reyoung/avx_mathfun](https://github.com/reyoung/avx_mathfun) for their AVX/AVX2 implementations of _mm512_cos_pd
-- [RJVB/sse_mathfun](https://github.com/RJVB/sse_mathfun) for their SSE2 implementations of _mm_cos_pd

@@ -50,7 +50,7 @@ static const auto decoder_branch_table = ViterbiBranchTable<K,R,int16_t>(
         #pragma message("DAB_VITERBI_DECODER using x86 AVX2")
         #include "viterbi/x86/viterbi_decoder_avx_u16.h"
         using ExternalDecoder = ViterbiDecoder_AVX_u16<K,R>;
-    #elif defined(__SSE4_2__)
+    #elif defined(__AVX__) || defined(__SSE4_2__)
         #pragma message("DAB_VITERBI_DECODER using x86 SSE4.2")
         #include "viterbi/x86/viterbi_decoder_sse_u16.h"
         using ExternalDecoder = ViterbiDecoder_SSE_u16<K,R>;

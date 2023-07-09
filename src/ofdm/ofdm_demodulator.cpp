@@ -23,7 +23,7 @@
     #if defined(__AVX2__)
         #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 AVX2 256bits")
         constexpr size_t ALIGN_AMOUNT = 32;
-    #elif defined(__SSE__)
+    #elif defined(__AVX__) || defined(__SSE__)
         #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 SSE 128bits")
         constexpr size_t ALIGN_AMOUNT = 16;
     #else
