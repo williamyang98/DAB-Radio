@@ -70,7 +70,7 @@ You can change the compiler options in CMakeLists.txt to disable or enable these
 
 Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**.
 
-On Windows you also need to edit the <code>vcpkg.json</code> manifest so that FFTW uses the "avx" feature instead of "avx2". Depending on how old your CPU is, you can also try out "sse2" and "sse". Likewise for Ubuntu you will need to determine which flags your cpu supports. You can do this by running <code>cat /proc/cpuinfo</code> and checking the flags section.
+***NOTE***: On Windows you also need to edit the <code>vcpkg.json</code> manifest so that FFTW uses the correct feature instead of "avx2". Valid options are ["avx2","avx","sse2","sse"]. Linux builds will compile to the cpu's microarchitecture using <code>-march=native</code>.
 
 Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install_packages.sh</code>):
 - glfw3
@@ -93,39 +93,12 @@ The continuous integration (CI) scripts are in <code>.github/workflows</code> if
 - [RJVB/sse_mathfun](https://github.com/RJVB/sse_mathfun) for their SSE2 implementations of _mm_cos_pd
 
 # TODO
-## Optimisations
-- Make OFDM demodulator more performant
-    - ~~Replace use of cosf and sinf in phase locked loop for fine freq compensation~~
-    - ~~Added multithreading to improve performance~~
-    - ~~Speed up complex multiplication with manual vectorization~~
-    - ~~Replaced atan2f with L1 norm and component extraction~~
-- ~~Make DAB frame decoder more performant~~
-    - ~~Replace inefficient general viterbi decoder with the SPIRAL project's implementation found [here](https://www.spiral.net/software/viterbi.html).~~
-- Profile other parts of the code that are excessively slow
-- Error correction
-    - ~~Use soft decision Viterbi decoding to improve error correction at low SNR~~
-    - ~~Increase the traceback length of the Viterbi decoder (Not preferrable due to currently slow implementation)~~
-    - Determine how to use the firecode CRC16 in the AAC super frame to correct errors
-
-## Features
-- Improve the basic radio GUI
-    - Make a user friendly interface that is streamlined
-    - Replace imgui with a less GPU/CPU hungry GUI framework
-- ~~Integrate the rtl_sdr.exe code from the librtlsdr library~~
-    - ~~Add in ensemble scanning across possible block frequencies~~
-    - ~~Add support for basic radio to handle multiple ensembles~~
-    - Automatically scan ensembles and persist data
-- Support the rest of the DAB standard
-    - MPEG-II audio for DAB channels
-    - ~~Stream/packet data for slideshows and extra programme information~~
-    - Handle strings with utf-8, utf-16 character sets (right now they show up as a question mark)
-- ~~Add coarse frequency correction~~
+- For OFDM demodulator the hand written SIMD might perform extremely poorly when compiling on gcc or clang.
+- For DAB+ determine how to perform error correction on the firecode CRC16 in the AAC super frame.
+- Replace imgui with a retain mode alternative.
+- Automatically scan DAB ensembles and channels and persistent them on the user's drive.
+- Support the rest of the DAB standard.
+    - MPEG-II audio for DAB channels.
+    - Handle strings with utf-8, utf-16 character sets. 
 - Add TII (transmitter identificaton information) decoding
 - Add SNR meter
-- Add view for OFDM symbol magnitude spectrum
-- Persist DAB database on the hard disk
-    - Save as JSON 
-    - Load from JSON at runtime if specified
-
-## Documentation
-- Add as much comments to link specific pieces of code to parts of the standard that were heavily referenced. This includes the specific document number, the specific clause and specific table/chart used.
