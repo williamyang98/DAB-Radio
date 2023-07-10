@@ -49,37 +49,37 @@ static const auto decoder_branch_table = ViterbiBranchTable<K,R,int16_t>(
     #if defined(__AVX2__)
         #pragma message("DAB_VITERBI_DECODER using x86 AVX2")
         #include "viterbi/x86/viterbi_decoder_avx_u16.h"
-        using ExternalDecoder = ViterbiDecoder_AVX_u16<K,R>;
+        using Decoder = ViterbiDecoder_AVX_u16<K,R>;
     #elif defined(__AVX__) || defined(__SSE4_2__)
         #pragma message("DAB_VITERBI_DECODER using x86 SSE4.2")
         #include "viterbi/x86/viterbi_decoder_sse_u16.h"
-        using ExternalDecoder = ViterbiDecoder_SSE_u16<K,R>;
+        using Decoder = ViterbiDecoder_SSE_u16<K,R>;
     #else
         #pragma message("DAB_VITERBI_DECODER using x86 SCALAR")
         #include "viterbi/viterbi_decoder_scalar.h"
-        using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
+        using Decoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t>;
     #endif
 #elif defined(__ARCH_AARCH64__)
     #pragma message("DAB_VITERBI_DECODER using ARM AARCH64 NEON")
     #include "viterbi/arm/viterbi_decoder_neon_u16.h"
-    using ExternalDecoder = ViterbiDecoder_NEON_u16<K,R>;
+    using Decoder = ViterbiDecoder_NEON_u16<K,R>;
 #else
     #pragma message("DAB_VITERBI_DECODER using crossplatform SCALAR")
     #include "viterbi/viterbi_decoder_scalar.h"
-    using ExternalDecoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t,uint64_t>;
+    using Decoder = ViterbiDecoder_Scalar<K,R,uint16_t,int16_t>;
 #endif
 
-class DAB_Viterbi_Decoder_Internal: public ExternalDecoder 
+using Core = ViterbiDecoder_Core<K,R,uint16_t,int16_t>;
+class DAB_Viterbi_Decoder_Internal: public Core
 {
 public:
     template <typename ... U>
-    DAB_Viterbi_Decoder_Internal(U&& ... args)
-    : ExternalDecoder(std::forward<U>(args)...) {}
+    DAB_Viterbi_Decoder_Internal(U&& ... args): Core(std::forward<U>(args)...) {}
 };
 
 
 DAB_Viterbi_Decoder::DAB_Viterbi_Decoder()
-: depunctured_symbols() 
+: depunctured_symbols(), accumulated_error(0)
 {
     decoder = std::make_unique<DAB_Viterbi_Decoder_Internal>(
         decoder_branch_table,
@@ -100,11 +100,12 @@ size_t DAB_Viterbi_Decoder::get_traceback_length() const {
 }
 
 size_t DAB_Viterbi_Decoder::get_current_decoded_bit() const {
-    return decoder->get_curr_decoded_bit();
+    return decoder->m_current_decoded_bit;
 };
 
 void DAB_Viterbi_Decoder::reset(const size_t starting_state) {
     decoder->reset(starting_state);
+    accumulated_error = 0;
 }
 
 size_t DAB_Viterbi_Decoder::update(
@@ -113,14 +114,14 @@ size_t DAB_Viterbi_Decoder::update(
     const size_t requested_output_symbols
 ) {
     const auto res = depuncture_symbols(punctured_symbols, puncture_code, requested_output_symbols);
-    decoder->update(depunctured_symbols.data(), res.total_output_symbols);
+    accumulated_error += Decoder::update<uint64_t>(*decoder.get(), depunctured_symbols.data(), res.total_output_symbols);
     return res.total_punctured_symbols;
 }
 
 uint64_t DAB_Viterbi_Decoder::chainback(tcb::span<uint8_t> bytes_out, const size_t end_state) {
     const size_t total_bits = bytes_out.size()*8u;
     decoder->chainback(bytes_out.data(), total_bits, end_state);
-    const uint64_t error = decoder->get_error();
+    const uint64_t error = accumulated_error + uint64_t(decoder->get_error());
     return error;
 }
 

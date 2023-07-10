@@ -17,6 +17,7 @@ public:
 private:
     std::unique_ptr<DAB_Viterbi_Decoder_Internal> decoder;
     std::vector<int16_t> depunctured_symbols;
+    uint64_t accumulated_error;
 public:
     DAB_Viterbi_Decoder();
     ~DAB_Viterbi_Decoder();
