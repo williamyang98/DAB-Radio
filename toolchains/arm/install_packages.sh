@@ -9,4 +9,4 @@ sudo apt-get --yes update
 sudo apt-get --yes install libllvm15:arm64
 sudo apt-get --yes install libgl1-mesa-dri:arm64
 sudo apt-get --yes install libglfw3-dev:arm64 libopengl-dev:arm64 
-sudo apt-get --yes libportaudio2:arm64 portaudio19-dev:arm64 librtlsdr-dev:arm64 libfftw3-dev:arm64 libfftw3-single3:arm64
+sudo apt-get --yes install libportaudio2:arm64 portaudio19-dev:arm64 librtlsdr-dev:arm64 libfftw3-dev:arm64 libfftw3-single3:arm64
