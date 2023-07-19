@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(ROOT_DIR ${CMAKE_SOURCE_DIR}/src)
 
-if (NOT DEFINED RTLSDR_LIBS)
+if(NOT DEFINED RTLSDR_LIBS)
     message(FATAL_ERROR "RTLSDR_LIBS must be defined")
 endif()
 

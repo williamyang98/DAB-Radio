@@ -13,16 +13,10 @@ function(init_example target)
     target_include_directories(${target} PRIVATE ${SRC_DIR} ${ROOT_DIR})
     set_target_properties(${target} PROPERTIES CXX_STANDARD 17)
     target_compile_definitions(${target} PRIVATE ELPP_THREAD_SAFE)
-    if(DEFINED MSVC)
-        target_compile_options(${target} PRIVATE "/MP")
-    else()
-        target_compile_options(${target} PRIVATE -pthread)
-        target_link_libraries(${target} PRIVATE pthread)
-    endif()
 endfunction()
 
 function(install_dlls target)
-    if (WIN32)
+    if(DEFINED WIN32)
         add_custom_command(
             TARGET ${target}
             POST_BUILD 
@@ -35,27 +29,23 @@ function(install_dlls target)
 endfunction()
 
 # Utility applications
-if (NOT DEFINED RTLSDR_LIBS)
+if(NOT DEFINED RTLSDR_LIBS)
     message(FATAL_ERROR "RTLSDR_LIBS must be defined")
 endif()
-add_executable(rtl_sdr 
-    ${SRC_DIR}/rtl_sdr.cpp)
+add_executable(rtl_sdr ${SRC_DIR}/rtl_sdr.cpp)
 init_example(rtl_sdr)
 target_link_libraries(rtl_sdr PRIVATE ${RTLSDR_LIBS} getopt)
 install_dlls(rtl_sdr)
 
-add_executable(simulate_transmitter 
-    ${SRC_DIR}/simulate_transmitter.cpp)
+add_executable(simulate_transmitter ${SRC_DIR}/simulate_transmitter.cpp)
 init_example(simulate_transmitter)
 target_link_libraries(simulate_transmitter PRIVATE ofdm_core getopt)
 
-add_executable(convert_viterbi
-    ${SRC_DIR}/convert_viterbi.cpp)
+add_executable(convert_viterbi ${SRC_DIR}/convert_viterbi.cpp)
 init_example(convert_viterbi)
 target_link_libraries(convert_viterbi PRIVATE getopt)
 
-add_executable(apply_frequency_shift 
-    ${SRC_DIR}/apply_frequency_shift.cpp)
+add_executable(apply_frequency_shift ${SRC_DIR}/apply_frequency_shift.cpp)
 init_example(apply_frequency_shift)
 target_link_libraries(apply_frequency_shift PRIVATE getopt ofdm_core)
 
@@ -73,8 +63,7 @@ target_link_libraries(ofdm_demod_gui PRIVATE
     ofdm_gui profiler_gui 
     imgui implot)
 
-add_executable(ofdm_demod_cli 
-    ${SRC_DIR}/ofdm_demod_cli.cpp)
+add_executable(ofdm_demod_cli ${SRC_DIR}/ofdm_demod_cli.cpp)
 init_example(ofdm_demod_cli)
 target_link_libraries(ofdm_demod_cli PRIVATE 
     ofdm_core getopt)

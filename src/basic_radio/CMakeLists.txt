@@ -13,7 +13,3 @@ set_target_properties(basic_radio PROPERTIES CXX_STANDARD 17)
 target_include_directories(basic_radio PRIVATE ${SRC_DIR} ${ROOT_DIR})
 target_link_libraries(basic_radio PRIVATE dab_core easyloggingpp fmt)
 target_compile_definitions(basic_radio PRIVATE ELPP_THREAD_SAFE)
-
-if (MSVC)
-target_compile_options(basic_radio PRIVATE "/MP")
-endif()

@@ -21,7 +21,3 @@ add_library(ofdm_core STATIC
 target_include_directories(ofdm_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
 target_link_libraries(ofdm_core PRIVATE ${FFTW3_LIBS} fmt)
-
-if (MSVC)
-target_compile_options(ofdm_core PRIVATE "/MP")
-endif()

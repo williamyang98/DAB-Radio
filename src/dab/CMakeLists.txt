@@ -30,7 +30,3 @@ set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 target_include_directories(dab_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
 target_link_libraries(dab_core PRIVATE faad2 viterbi easyloggingpp fmt)
 target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
-
-if (MSVC)
-target_compile_options(dab_core PRIVATE "/MP")
-endif()

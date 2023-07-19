@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-if (NOT DEFINED PORTAUDIO_LIBS)
+if(NOT DEFINED PORTAUDIO_LIBS)
     message(FATAL_ERROR "PORTAUDIO_LIBS must be defined")
 endif()
 
