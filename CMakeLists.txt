@@ -63,7 +63,7 @@ if(NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
         add_compile_options(-march=native -ffast-math)
     endif()
 else()
-    add_compile_options(-march=native -ffast-math)
+    add_compile_options(-ffast-math)
 endif()
 
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
