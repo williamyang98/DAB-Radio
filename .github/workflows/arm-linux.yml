@@ -21,7 +21,7 @@ jobs:
         concurrent_skipping: 'same_content'
         cancel_others: 'true'
         skip_after_successful_duplicate: 'true'
-        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "vcpkg.json", "toolchains/x86/*"]'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "vcpkg.json", "toolchains/ubuntu/*", "toolchains/windows/*"]'
         do_not_skip: '["workflow_dispatch", "schedule"]'
 
   build:

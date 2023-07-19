@@ -21,7 +21,7 @@ jobs:
         concurrent_skipping: 'same_content'
         cancel_others: 'true'
         skip_after_successful_duplicate: 'true'
-        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "toolchains/**"]'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "toolchains/arm/*", "toolchains/ubuntu/*"]'
         do_not_skip: '["workflow_dispatch", "schedule"]'
 
   build:
@@ -42,14 +42,14 @@ jobs:
         path: vcpkg
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_TOOLCHAIN_FILE:STRING=${{github.workspace}}/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -A"x64" -G"Visual Studio 17 2022"
+      run: cmake -B ${{github.workspace}}/build-windows -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_TOOLCHAIN_FILE:STRING=${{github.workspace}}/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -A"x64" -G"Visual Studio 17 2022"
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: cmake --build ${{github.workspace}}/build-windows --config ${{env.BUILD_TYPE}}
 
     - name: Copy files (Release)
       shell: bash
-      run: ./create_windows_package.sh
+      run: ./toolchains/windows/create_package.sh
 
     - name: Upload files (Release)
       uses: actions/upload-artifact@v3

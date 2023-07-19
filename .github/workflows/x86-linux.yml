@@ -21,7 +21,7 @@ jobs:
         concurrent_skipping: 'same_content'
         cancel_others: 'true'
         skip_after_successful_duplicate: 'true'
-        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "vcpkg.json", "toolchains/arm/*"]'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "vcpkg.json", "toolchains/arm/*", "toolchains/windows/*"]'
         do_not_skip: '["workflow_dispatch", "schedule"]'
 
   build:
@@ -37,7 +37,7 @@ jobs:
       
     - name: Install packages
       shell: bash
-      run: ./toolchains/x86/install_packages.sh
+      run: ./toolchains/ubuntu/install_packages.sh
     
     - name: Configure CMake
       shell: bash
