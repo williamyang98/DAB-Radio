@@ -54,13 +54,13 @@ Windows build system requires:
 
 1. Setup 64bit environment by running <code>vcvars64.bat</code> from C++ sdk
 2. Change directory to root of this directory
-3. Run <code>fx cmake-conf</code> to configure cmake
-4. Run <code>fx build release build\ALL_BUILD.vcxproj</code> to build all applications
+3. Run <code>./toolchains/windows/cmake_configure.bat</code> to configure cmake
+4. Run <code>./toolchains/windows/build.bat</code> to build all applications
 
 ***NOTE***: Modify the fx.bat helper batch file to point at your vcpkg install directory. 
 
 ## Method 2. Ubuntu 22.04
-Refer to instructions in <code>toolchains/x86/README.md</code>
+Refer to instructions in <code>toolchains/ubuntu/README.md</code>
 
 ## Build notes (Read this if you get illegal instructions)
 The core algorithms for OFDM demodulation and DAB digital decoding are platform independent. The GUI code uses imgui which works on Windows and Ubuntu. 
