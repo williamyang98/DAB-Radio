@@ -8,6 +8,7 @@
 #include "viterbi/viterbi_decoder_config.h"
 #include "viterbi/viterbi_decoder_core.h"
 #include "detect_architecture.h"
+#include "simd_flags.h"
 
 // DOC: ETSI EN 300 401
 // Clause 11.1 - Convolutional code
@@ -50,8 +51,8 @@ static const auto decoder_branch_table = ViterbiBranchTable<K,R,int16_t>(
         #pragma message("DAB_VITERBI_DECODER using x86 AVX2")
         #include "viterbi/x86/viterbi_decoder_avx_u16.h"
         using Decoder = ViterbiDecoder_AVX_u16<K,R>;
-    #elif defined(__AVX__) || defined(__SSE4_2__)
-        #pragma message("DAB_VITERBI_DECODER using x86 SSE4.2")
+    #elif defined(__SSE4_1__)
+        #pragma message("DAB_VITERBI_DECODER using x86 SSE4.1")
         #include "viterbi/x86/viterbi_decoder_sse_u16.h"
         using Decoder = ViterbiDecoder_SSE_u16<K,R>;
     #else

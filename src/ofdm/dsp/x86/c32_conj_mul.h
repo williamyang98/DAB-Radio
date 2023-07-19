@@ -2,14 +2,13 @@
 
 #include <immintrin.h>
 #include <stdint.h>
-#include "../dsp_config.h"
+#include "simd_flags.h"
 
 // Conjugate multiply packed complex float 
 // Y = X0*~X1
 
-#if defined(_OFDM_DSP_AVX2)
-static inline
-__m256 c32_conj_mul_avx2(__m256 x0, __m256 x1) {
+#if defined(__AVX__)
+__m256 c32_conj_mul_avx(__m256 x0, __m256 x1) {
     // Vectorise complex conjugate multiplication
     // [3 2 1 0] -> [2 3 0 1]
     constexpr uint8_t SWAP_COMPONENT_MASK = 0b10110001;
@@ -28,7 +27,7 @@ __m256 c32_conj_mul_avx2(__m256 x0, __m256 x1) {
     // [ad ac]
     __m256 b0 = _mm256_mul_ps(a1, a0);
 
-    #if !defined(_OFDM_DSP_FMA)
+    #if !defined(__FMA__)
     // [bc bd]
     __m256 b1 = _mm256_mul_ps(a2, x1);
     // [bc-ad bd+ac]
@@ -44,9 +43,8 @@ __m256 c32_conj_mul_avx2(__m256 x0, __m256 x1) {
 }
 #endif
 
-#if defined(_OFDM_DSP_SSSE3)
-static inline
-__m128 c32_conj_mul_ssse3(__m128 x0, __m128 x1) {
+#if defined(__SSE3__)
+__m128 c32_conj_mul_sse3(__m128 x0, __m128 x1) {
     // Vectorise complex conjugate multiplication
     // [3 2 1 0] -> [2 3 0 1]
     constexpr uint8_t SWAP_COMPONENT_MASK = 0b10110001;
@@ -65,7 +63,7 @@ __m128 c32_conj_mul_ssse3(__m128 x0, __m128 x1) {
     // [ad ac]
     __m128 b0 = _mm_mul_ps(a1, a0);
 
-    #if !defined(_OFDM_DSP_FMA)
+    #if !defined(__FMA__)
     // [bc bd]
     __m128 b1 = _mm_mul_ps(a2, x1);
     // [bc-ad bd+ac]

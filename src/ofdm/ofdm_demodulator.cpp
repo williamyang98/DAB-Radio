@@ -1,29 +1,28 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
+#include <assert.h>
 
 #include "./ofdm_demodulator.h"
 #include "./ofdm_demodulator_threads.h"
 #include "./ofdm_constants.h"
+#include "./dsp/apply_pll.h"
+#include "./dsp/complex_conj_mul_sum.h"
 
 #include <fftw3.h>
 #include "detect_architecture.h"
-#include "./dsp/dsp_config.h"
-#include "./dsp/apply_pll.h"
-#include "./dsp/complex_conj_mul_sum.h"
+#include "simd_flags.h"
+#include "utility/joint_allocate.h"
 
 #define PROFILE_ENABLE 1
 #include "utility/profiler.h"
 
-#include "utility/joint_allocate.h"
-#include <assert.h>
-
 // NOTE: Determine correct alignment for FFTW3 buffers
 #if defined(__ARCH_X86__)
-    #if defined(__AVX2__)
-        #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 AVX2 256bits")
+    #if defined(__AVX__)
+        #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 AVX 256bits")
         constexpr size_t ALIGN_AMOUNT = 32;
-    #elif defined(__AVX__) || defined(__SSE__)
+    #elif defined(__SSE__)
         #pragma message("OFDM_DEMOD FFTW3 buffers aligned to x86 SSE 128bits")
         constexpr size_t ALIGN_AMOUNT = 16;
     #else
