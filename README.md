@@ -17,12 +17,12 @@ For those who are interested only in parts of the implementation refer to the fo
 
 | Directory | Description |
 | --- | --- |
-| src/ofdm              | OFDM demodulation code |
-| src/dab               | DAB digital decoding core algorithms |
-| src/basic_radio       | Combines all of the DAB core algorithms into a cohesive example app |
-| src/basic_scraper     | Attaches itself via callbacks to a basic_radio instance to save audio/slideshow/MOT data to disk |
-| src/utility           | Small helper template library for general purpose use |
-| src/examples/*.cpp    | All our sample applications |
+| src/ofdm          | OFDM demodulation code |
+| src/dab           | DAB digital decoding core algorithms |
+| src/basic_radio   | Combines all of the DAB core algorithms into a cohesive example app |
+| src/basic_scraper | Attaches itself via callbacks to a basic_radio instance to save audio/slideshow/MOT data to disk |
+| src/utility       | Small helper template library for general purpose use |
+| examples/*.cpp    | All our sample applications |
 
 # Gallery
 ![OFDM Demodulator GUI](docs/gallery/ofdm_demodulator_gui.png)
