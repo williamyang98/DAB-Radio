@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR})
-set(ROOT_DIR ${CMAKE_SOURCE_DIR}/src)
+set(ROOT_DIR ${SRC_DIR}/..)
 
 if(NOT DEFINED FFTW3_LIBS)
     message(FATAL_ERROR "FFTW3_LIBS must be defined")
