@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(imgui)
 
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/imgui)
+set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../vendor/imgui)
 
 # imconfig.h is required to use 32bit vertex indices
 # this is required since implot uses alot of vertices

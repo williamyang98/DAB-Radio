@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(easyloggingpp)
 
-set(EASYLOGGINGPP_SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/easyloggingpp/src)
+set(EASYLOGGINGPP_SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../vendor/easyloggingpp/src)
 
 add_library(easyloggingpp STATIC
     ${EASYLOGGINGPP_SRC_DIR}/easylogging++.cc)

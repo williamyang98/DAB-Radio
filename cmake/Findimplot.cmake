@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(implot)
 
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/vendor/implot)
+set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../vendor/implot)
 
 add_library(implot STATIC
     "${SRC_DIR}/implot.h"
