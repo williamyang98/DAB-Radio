@@ -48,8 +48,11 @@ void ImguiSkeleton::AfterGLFWInit() {
 }
 
 void ImguiSkeleton::AfterImguiContextInit() {
-
     ImGuiIO& io = ImGui::GetIO();
+    
+    // implot produces large meshes so we need to use vertex index offsets
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
+
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
