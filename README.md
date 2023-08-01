@@ -44,32 +44,9 @@ If you can't find any DAB ensembles in your area, then you can download binary f
 # Building programs
 Clone the repository using the command
 
-<code>git clone https://github.com/FiendChain/DAB-Radio.git --recurse-submodules -j8</code>
+```git clone https://github.com/FiendChain/DAB-Radio.git --recurse-submodules -j8```
 
-## Method 1. Windows (cmd)
-Windows build system requires:
-- Visual Studio C++ SDK.
-- [vcpkg](https://vcpkg.io/en/getting-started.html)
-
-1. Setup 64bit environment by running <code>vcvars64.bat</code> from C++ sdk
-2. Change directory to root of this directory
-3. Run <code>./toolchains/windows/cmake_configure.bat</code> to configure cmake
-4. Run <code>./toolchains/windows/build.bat</code> to build all applications
-
-***NOTE***: Modify the fx.bat helper batch file to point at your vcpkg install directory. 
-
-## Method 2. Ubuntu 22.04
-Refer to instructions in <code>toolchains/ubuntu/README.md</code>
-
-## Build notes (Read this if you get illegal instructions)
-The core algorithms for OFDM demodulation and DAB digital decoding are platform independent. The GUI code uses imgui which works on Windows and Ubuntu. 
-
-Vector instructions are used for x86 and ARM cpus to speed up parts of the code.
-You can change the compiler options in CMakeLists.txt to disable or enable these to suit your CPU.
-
-Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**.
-
-***NOTE***: On Windows you also need to edit the <code>vcpkg.json</code> manifest so that FFTW uses the correct feature instead of "avx2". Valid options are ["avx2","avx","sse2","sse"]. Linux builds will compile to the cpu's microarchitecture using <code>-march=native</code>.
+Refer to ```./toolchains/*/README.md``` to build for your platform.
 
 Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install_packages.sh</code>):
 - glfw3
@@ -78,6 +55,13 @@ Dependencies are (refer to <code>vcpkg.json</code> or <code>toolchains/*/install
 - fftw3
 
 The continuous integration (CI) scripts are in <code>.github/workflows</code> if you want to replicate the build on your system.
+
+## Build notes (Read this if you get illegal instructions)
+SIMD instructions are used for x86 and ARM cpus to speed up computation heavy code paths.
+
+Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**. 
+
+```./toolchains/windows/README.md``` has steps for configuring the right files to build for older CPUs.
 
 # Inspirations
 - The welle.io open source radio has an excellent implementation of DAB radio. Their implementation is much more featureful and optimised than mine. Their repository can be found [here](https://github.com/albrechtl/welle.io). They also have a youtube video showcasing their wonderful software [here](https://www.youtube.com/watch?v=IJcgdmud-AI). 
