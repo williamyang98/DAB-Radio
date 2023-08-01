@@ -50,9 +50,13 @@ void create_dt_step_simd(float* arr, const size_t K, const float dt) {
     }
 }
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#define IS_INTEL_SVML 1
+#endif
+
 #if defined(__SSE3__)
 
-#if !defined(_MSC_VER)
+#if !IS_INTEL_SVML
 #define USE_SSE_AUTO
 #define SSE_MATHFUN_WITH_CODE
 #include "./x86/sse_mathfun.h"
@@ -104,7 +108,7 @@ float apply_pll_sse3(
 
 #if defined(__AVX__)
 
-#if !defined(_MSC_VER)
+#if !IS_INTEL_SVML
 #include "./x86/avx_mathfun.h"
 #define _mm256_cos_ps(x) cos256_ps(x)
 #endif

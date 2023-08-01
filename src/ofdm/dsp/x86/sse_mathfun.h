@@ -200,8 +200,8 @@ _PS_CONST(cephes_log_q2, 0.693359375);
 //    _PD_CONST_TYPE(mant_mask, int, 0x7f800000);
 //    _PD_CONST_TYPE(inv_mant_mask, int, ~0x7f800000);
 
-    _PD_CONST_TYPE(sign_mask, uint64_t, 0x8000000000000000LL);
-    _PD_CONST_TYPE(inv_sign_mask, uint64_t, ~0x8000000000000000LL);
+    _PD_CONST_TYPE(sign_mask, uint64_t, 0x8000000000000000ULL);
+    _PD_CONST_TYPE(inv_sign_mask, uint64_t, ~0x8000000000000000ULL);
 
 #endif
 
@@ -1307,18 +1307,18 @@ static inline double scalCumSumSumSq( double *xa, int n, double *sumSQ )
 
 #    if defined(__x86_64__) || defined(x86_64) || defined(_LP64)
 //      static inline v2df _mm_abs_pd( v2df a )
-//      { _PD_CONST_TYPE(abs_mask, uint64_t, ~0x8000000000000000LL);
+//      { _PD_CONST_TYPE(abs_mask, uint64_t, ~0x8000000000000000ULL);
 //          return _mm_and_pd(a, *(v2df*)_pd_abs_mask);
 //      }
     /*!
         SSE2 'intrinsic' to take the absolute value of a
      */
     static inline v2df _mm_abs_pd(  v2df a )
-    { const static uint64_t am1[2] = {~0x8000000000000000LL,~0x8000000000000000LL};
+    { const static uint64_t am1[2] = {~0x8000000000000000ULL,~0x8000000000000000ULL};
         return _mm_and_pd(a, *((v2df*)am1) );
     }
     static inline double _mm_abs_sd( double a )
-    { const static uint64_t am2 = {~0x8000000000000000LL};
+    { const static uint64_t am2 = {~0x8000000000000000ULL};
       v2si r = _mm_and_si64( *((v2si*)&a), *((v2si*)&am2) );
         return *((double*) &r);
     }
