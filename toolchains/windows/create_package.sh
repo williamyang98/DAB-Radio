@@ -1,6 +1,6 @@
 #!/bin/bash
 output_dir="dab_radio_windows_x64"
-build_dir="build-windows/examples/Release"
+build_dir="build-windows/examples"
 
 # clean directory
 rm -rf ${output_dir}
