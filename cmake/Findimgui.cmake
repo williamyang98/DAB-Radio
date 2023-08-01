@@ -3,6 +3,10 @@ project(imgui)
 
 set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../vendor/imgui)
 
+# imconfig.h is required to use 32bit vertex indices
+# this is required since implot uses alot of vertices
+configure_file(cmake/imgui_imconfig.h.in ${SRC_DIR}/imconfig.h)
+
 add_library(imgui STATIC
     "${SRC_DIR}/imgui.h"
     "${SRC_DIR}/imgui_internal.h"
