@@ -27,12 +27,12 @@ private:
     std::unique_ptr<BasicRadio> radio;
     std::unique_ptr<BasicScraper> scraper;
 public:
-    App(const int transmission_mode, FILE* const _fp_in, const char* dir)
+    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const char* dir)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
         frame_bits.resize(params.nb_frame_bits);
-        radio = std::make_unique<BasicRadio>(params);
+        radio = std::make_unique<BasicRadio>(params, total_demod_threads);
         scraper = std::make_unique<BasicScraper>(*(radio.get()), dir);
     }
     void Run() {
@@ -56,6 +56,7 @@ void usage() {
         "\t    If no file is provided then stdin is used\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-T total radio threads (default: auto)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -66,9 +67,10 @@ int main(int argc, char** argv) {
     const char* rd_filename = NULL;
     bool is_logging = false;
     int transmission_mode = 1;
+    int total_radio_threads = 0;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "o:i:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "o:i:M:T:vh")) != -1) {
         switch (opt) {
         case 'o':
             output_dir = optarg;
@@ -78,6 +80,9 @@ int main(int argc, char** argv) {
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 'T':
+            total_radio_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -130,7 +135,7 @@ int main(int argc, char** argv) {
     scraper_conf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
     basic_scraper_logger->configure(scraper_conf);
 
-    auto app = App(transmission_mode, fp_in, output_dir);
+    auto app = App(transmission_mode, total_radio_threads, fp_in, output_dir);
     app.Run();
     return 0;
 }

@@ -40,7 +40,7 @@ private:
     std::unique_ptr<std::thread> ofdm_demod_thread;
     std::unique_ptr<std::thread> basic_radio_thread;
 public:
-    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const int _block_size, const char* dir)
+    App(const int transmission_mode, const int total_demod_threads, const int total_radio_threads, FILE* const _fp_in, const int _block_size, const char* dir)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
@@ -49,7 +49,7 @@ public:
         rd_in_float.resize(_block_size);
         frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(params.nb_frame_bits);
 
-        radio = std::make_unique<BasicRadio>(params);
+        radio = std::make_unique<BasicRadio>(params, total_radio_threads);
         scraper = std::make_unique<BasicScraper>(*(radio.get()), dir);
         ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
 
@@ -143,13 +143,14 @@ int main(int argc, char** argv) {
     const char* output_dir = NULL;
     const char* rd_filename = NULL;
     int total_demod_threads = 0;
+    int total_radio_threads = 0;
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;
     bool is_coarse_freq_correction = true;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "o:i:b:M:t:vCh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "o:i:b:M:t:T:vCh")) != -1) {
         switch (opt) {
         case 'o':
             output_dir = optarg;
@@ -165,6 +166,9 @@ int main(int argc, char** argv) {
             break;
         case 't':
             total_demod_threads = (int)(atof(optarg));
+            break;
+        case 'T':
+            total_radio_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -228,7 +232,7 @@ int main(int argc, char** argv) {
     basic_scraper_logger->configure(scraper_conf);
 
     fprintf(stderr, "Writing to directory %s\n", output_dir);
-    auto app = App(transmission_mode, total_demod_threads, fp_in, block_size, output_dir);
+    auto app = App(transmission_mode, total_demod_threads, total_radio_threads, fp_in, block_size, output_dir);
     auto& config = app.GetDemod().GetConfig();
     config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
     app.Run();

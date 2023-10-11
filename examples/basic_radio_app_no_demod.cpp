@@ -46,11 +46,11 @@ private:
     PortAudio_Output pa_output;
     std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
 public:
-    App(const int transmission_mode, FILE* const _fp_in) 
+    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in) 
     : fp_in(_fp_in) {
         auto params = get_dab_parameters(transmission_mode);
         frame_bits.resize(params.nb_frame_bits);
-        radio = std::make_unique<BasicRadio>(params);
+        radio = std::make_unique<BasicRadio>(params, total_demod_threads);
         gui_controller = std::make_unique<BasicRadioViewController>(*(radio.get()));
 
         using namespace std::placeholders;
@@ -165,6 +165,7 @@ void usage() {
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-T total radio threads (default: auto)]\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -175,15 +176,19 @@ int main(int argc, char** argv) {
     char* rd_filename = NULL;
     bool is_logging = false;
     int transmission_mode = 1;
+    int total_radio_threads = 0;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:M:vh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:M:T:vh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 'T':
+            total_radio_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -226,7 +231,7 @@ int main(int argc, char** argv) {
     el::Helpers::setThreadName("main-thread");
 
     auto port_audio_handler = ScopedPaHandler();
-    auto app = App(transmission_mode, fp_in);
+    auto app = App(transmission_mode, total_radio_threads, fp_in);
     auto renderer = Renderer(app);
     const int rv = RenderImguiSkeleton(&renderer);
     return rv;

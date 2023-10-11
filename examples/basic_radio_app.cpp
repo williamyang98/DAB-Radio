@@ -62,7 +62,7 @@ private:
     PortAudio_Output pa_output;
     std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
 public:
-    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const int _block_size)
+    App(const int transmission_mode, const int total_demod_threads, const int total_radio_threads, FILE* const _fp_in, const int _block_size)
     : fp_in(_fp_in) 
     {
         auto params = get_dab_parameters(transmission_mode);
@@ -72,7 +72,7 @@ public:
         frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(params.nb_frame_bits);
 
         ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
-        radio = std::make_unique<BasicRadio>(params);
+        radio = std::make_unique<BasicRadio>(params, total_radio_threads);
         radio_view_controller = std::make_unique<BasicRadioViewController>(*(radio.get()));
 
         using namespace std::placeholders;
@@ -244,6 +244,7 @@ void usage() {
         "\t[-b block size (default: 8192)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
         "\t[-t total ofdm demod threads (default: auto)]\n"
+        "\t[-T total radio threads (default: auto)]\n"
         "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -252,6 +253,7 @@ void usage() {
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     int total_demod_threads = 0;
+    int total_radio_threads = 0;
     char* rd_filename = NULL;
     int block_size = 8192;
     bool is_logging = false;
@@ -259,7 +261,7 @@ int main(int argc, char** argv) {
     bool is_coarse_freq_correction = true;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:b:M:t:vCh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:b:M:t:T:vCh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
@@ -272,6 +274,9 @@ int main(int argc, char** argv) {
             break;
         case 't':
             total_demod_threads = (int)(atof(optarg));
+            break;
+        case 'T':
+            total_radio_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -325,7 +330,7 @@ int main(int argc, char** argv) {
 
     auto port_audio_handler = ScopedPaHandler();
 
-    auto app = App(transmission_mode, total_demod_threads, fp_in, block_size);
+    auto app = App(transmission_mode, total_demod_threads, total_radio_threads, fp_in, block_size);
     auto& config = app.GetOFDMDemod().GetConfig();
     config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
 
