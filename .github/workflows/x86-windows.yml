@@ -42,7 +42,7 @@ jobs:
     - name: Setup vcpkg with caching
       uses: friendlyanon/setup-vcpkg@v1
       with: 
-        committish: c9f906558f9bb12ee9811d6edc98ec9255c6cda5
+        committish: c6d6efed3e9b4242765bfe1b5c5befffd85f7b92
         path: vcpkg
 
     - name: Configure CMake
