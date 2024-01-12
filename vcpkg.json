@@ -1,7 +1,7 @@
 {
   "name": "main",
   "version-string": "latest",
-  "builtin-baseline": "39b17cf84c8b389d5800775eaa61e279610c3f33",
+  "builtin-baseline": "c6d6efed3e9b4242765bfe1b5c5befffd85f7b92",
   "dependencies": [
     {
       "name": "glfw3",
@@ -9,7 +9,7 @@
     },
     {
       "name": "opengl",
-      "version>=": "0.0#9"
+      "version>=": "2022-12-04#3"
     },
     {
       "name": "portaudio",
