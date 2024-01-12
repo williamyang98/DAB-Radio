@@ -3,108 +3,101 @@
 #include <stdint.h>
 
 #include "./dab_database.h"
-
-#include <map>
-#include <vector>
 #include "utility/span.h"
+#include <assert.h>
+#include <vector>
+#include <memory>
 
-// The topology of the updater classes is as follows
-// Parent:  Stores the database (which stores its entities)
-//          Stores lookup tables that associates database entities to their updater (child)
-//          Keeps track of the global status of the database (how many entities are completed)
-// Child:   Stores a reference to their database entity
-//          Keeps track of which fields were updated
-//          Determines if there are enough provided fields for an entity to be complete
-//          Detects if there are conflicting field values
-//          Reports to the parent when it is complete
-// Here is the relationship between the updater parent/child, and the database entity:
-//          Parent updater <-- one to many --> Child updater <-- one to one --> Database entity
-class UpdaterParent 
-{
-public:
-    virtual ~UpdaterParent() {}
-    virtual DAB_Database* GetDatabase() = 0;
-    virtual void SignalComplete() = 0;
-    virtual void SignalPending() = 0;
-    virtual void SignalConflict() = 0;
-    virtual void SignalUpdate() = 0;
+struct DatabaseUpdaterGlobalStatistics {
+    size_t nb_total = 0;
+    size_t nb_pending = 0;
+    size_t nb_completed = 0;
+    size_t nb_conflicts = 0;
+    size_t nb_updates = 0;
+    bool operator==(const DatabaseUpdaterGlobalStatistics& other) const {
+        return 
+            (nb_total == other.nb_total) &&
+            (nb_pending == other.nb_pending) &&
+            (nb_completed == other.nb_completed) &&
+            (nb_conflicts == other.nb_conflicts) &&
+            (nb_updates == other.nb_updates);
+    }
+    bool operator!=(const DatabaseUpdaterGlobalStatistics& other) const {
+        return !(*this == other);
+    }
 };
 
-// Think of this like a web form
-// Acts as a setter wrapper around the database entity (which it stores as a pointer)
-//      Keeps track of which fields were modified/set
-//      This is done so the fields can be tracked
-// If a field is updated more than once, check if the new value conflicts with old value
-// If a set of declare fields isn't valid report a conflict
-//      I.e. Audio service requires different fields to data service
-class UpdaterChild 
+class DatabaseEntityUpdater 
 {
 protected:
-    UpdaterParent* parent = NULL;
-    int total_conflicts = 0;
-    int total_updates = 0;
+    size_t total_conflicts = 0;
+    size_t total_updates = 0;
     bool is_complete = false;
+private:
+    DatabaseUpdaterGlobalStatistics& stats;
 public:
-    virtual ~UpdaterChild() {}
-    // NOTE: This must be called upon creation of the updater
-    void BindParent(UpdaterParent* _parent) { 
-        parent = _parent; 
-        parent->SignalPending();
-        CheckIsComplete();
-    }
-    int GetTotalConflicts() { return total_conflicts; }
-    // override with completion requirements
-    virtual bool IsComplete() = 0;
+    DatabaseEntityUpdater(DatabaseUpdaterGlobalStatistics& _stats): stats(_stats) {}
+    virtual ~DatabaseEntityUpdater() {}
 protected:
-    // Update internal state and report state to parent
+    virtual bool IsComplete() = 0;
+    void OnCreate() {
+        stats.nb_total++;
+        stats.nb_pending++; 
+        OnComplete();
+    }
     void OnConflict() {
         total_conflicts++;
-        parent->SignalConflict();
+        stats.nb_conflicts++;
     }
-    void CheckIsComplete() {
-        if (is_complete) return;
-        if (IsComplete()) {
-            is_complete = true;
-            parent->SignalComplete();
+    void OnComplete() {
+        const bool new_is_complete = IsComplete();
+        if (is_complete == new_is_complete) return;
+        is_complete = new_is_complete;
+        if (new_is_complete) {
+            stats.nb_completed++;
+            stats.nb_pending--;
+        } else {
+            stats.nb_completed--;
+            stats.nb_pending++;
         }
     }
     void OnUpdate() {
         total_updates++;
-        parent->SignalUpdate();
+        stats.nb_updates++;
     }
 };
 
-// When we set a field, return what the database did with it
-enum UpdateResult { SUCCESS, CONFLICT, NO_CHANGE };
+enum class UpdateResult { SUCCESS, CONFLICT, NO_CHANGE };
 
-// All the updater to database entity associations
-// NOTE: Most or all of the updaters keep track of changed fields with a dirty field
-class EnsembleUpdater: public UpdaterChild 
+class EnsembleUpdater: public DatabaseEntityUpdater 
 {
 private:
-    Ensemble* data;
+    DAB_Database& db;
     uint8_t dirty_field = 0x00;
 public:
-    explicit EnsembleUpdater(Ensemble* _data): data(_data) {}
+    explicit EnsembleUpdater(DAB_Database& _db, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db) { OnCreate(); } 
     UpdateResult SetReference(const ensemble_id_t reference);
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetNumberServices(const uint8_t nb_services);
     UpdateResult SetReconfigurationCount(const uint16_t reconfiguration_count);
-    UpdateResult SetLocalTimeOffset(const int local_time_offset);
+    UpdateResult SetLocalTimeOffset(const int8_t local_time_offset);
     UpdateResult SetInternationalTableID(const uint8_t international_table_id) ;
     bool IsComplete() override;
-    Ensemble* GetData() { return data; }
+    auto& GetData() { return db.ensemble; }
 };
 
-class ServiceUpdater: public UpdaterChild 
+class ServiceUpdater: public DatabaseEntityUpdater 
 {
 private:
-    Service* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit ServiceUpdater(Service* _data): data(_data) {}
+    explicit ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(tcb::span<const uint8_t> buf);
@@ -112,16 +105,18 @@ public:
     UpdateResult SetLanguage(const language_id_t language);
     UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
     bool IsComplete() override;
-    Service* GetData() { return data; }
+    auto& GetData() { return db.services[index]; }
 };
 
-class ServiceComponentUpdater: public UpdaterChild 
+class ServiceComponentUpdater: public DatabaseEntityUpdater 
 {
-private:   
-    ServiceComponent* data;
+private:
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit ServiceComponentUpdater(ServiceComponent* _data): data(_data) {}
+    explicit ServiceComponentUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetTransportMode(const TransportMode transport_mode);
     UpdateResult SetAudioServiceType(const AudioServiceType audio_service_type);
@@ -130,16 +125,18 @@ public:
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
     uint32_t GetServiceReference();
     bool IsComplete() override;
-    ServiceComponent* GetData() { return data; }
+    auto& GetData() { return db.service_components[index]; }
 };
 
-class SubchannelUpdater: public UpdaterChild 
+class SubchannelUpdater: public DatabaseEntityUpdater 
 {
 private:
-    Subchannel* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit SubchannelUpdater(Subchannel* _data): data(_data) {}
+    explicit SubchannelUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetStartAddress(const subchannel_addr_t start_address);
     UpdateResult SetLength(const subchannel_size_t length);
     UpdateResult SetIsUEP(const bool is_uep);
@@ -148,143 +145,148 @@ public:
     UpdateResult SetEEPType(const EEP_Type eep_type);
     UpdateResult SetFECScheme(const fec_scheme_t fec_scheme);
     bool IsComplete() override;
-    Subchannel* GetData() { return data; }
+    auto& GetData() { return db.subchannels[index]; }
 };
 
-class LinkServiceUpdater: public UpdaterChild 
+class LinkServiceUpdater: public DatabaseEntityUpdater 
 {
 private:
-    LinkService* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit LinkServiceUpdater(LinkService* _data): data(_data) {}
+    explicit LinkServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetIsActiveLink(const bool is_active_link);
     UpdateResult SetIsHardLink(const bool is_hard_link);
     UpdateResult SetIsInternational(const bool is_international);
     UpdateResult SetServiceReference(const service_id_t service_reference);
     service_id_t GetServiceReference();
     bool IsComplete() override;
-    LinkService* GetData() { return data; }
+    auto& GetData() { return db.link_services[index]; }
 };
 
-class FM_ServiceUpdater: public UpdaterChild 
+class FM_ServiceUpdater: public DatabaseEntityUpdater 
 {
 private:
-    FM_Service* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit FM_ServiceUpdater(FM_Service* _data): data(_data) {}
+    explicit FM_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLinkageSetNumber(const lsn_t linkage_set_number); 
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     bool IsComplete() override;
-    FM_Service* GetData() { return data; }
+    auto& GetData() { return db.fm_services[index]; }
 };
 
-class DRM_ServiceUpdater: public UpdaterChild 
+class DRM_ServiceUpdater: public DatabaseEntityUpdater 
 {
 private:
-    DRM_Service* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit DRM_ServiceUpdater(DRM_Service* _data): data(_data) {}
+    explicit DRM_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLinkageSetNumber(const lsn_t linkage_set_number); 
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     bool IsComplete() override;
-    DRM_Service* GetData() { return data; }
+    auto& GetData() { return db.drm_services[index]; }
 };
 
-class AMSS_ServiceUpdater: public UpdaterChild 
+class AMSS_ServiceUpdater: public DatabaseEntityUpdater 
 {
 private:
-    AMSS_Service* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit AMSS_ServiceUpdater(AMSS_Service* _data): data(_data) {}
+    explicit AMSS_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
     bool IsComplete() override;
-    AMSS_Service* GetData() { return data; }
+    auto& GetData() { return db.amss_services[index]; }
 };
 
-class OtherEnsembleUpdater: public UpdaterChild 
+class OtherEnsembleUpdater: public DatabaseEntityUpdater 
 {
 private:
-    OtherEnsemble* data;
+    DAB_Database& db;
+    const size_t index;
     uint8_t dirty_field = 0x00;
 public:
-    explicit OtherEnsembleUpdater(OtherEnsemble* _data): data(_data) {}
+    explicit OtherEnsembleUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
+        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetIsContinuousOutput(const bool is_continuous_output);
     UpdateResult SetIsGeographicallyAdjacent(const bool is_geographically_adjacent);
     UpdateResult SetIsTransmissionModeI(const bool is_transmission_mode_I);
     UpdateResult SetFrequency(const freq_t frequency);
     bool IsComplete() override;
-    OtherEnsemble* GetData() { return data; }
+    auto& GetData() { return db.other_ensembles[index]; }
 };
 
-class DAB_Database_Updater: public UpdaterParent
+class DAB_Database_Updater
 {
-public:
-    struct Statistics {
-        int nb_total = 0;
-        int nb_pending = 0;
-        int nb_completed = 0;
-        int nb_conflicts = 0;
-        int nb_updates = 0;
-        bool operator==(const Statistics& other) {
-            return 
-                (nb_total == other.nb_total) &&
-                (nb_pending == other.nb_pending) &&
-                (nb_completed == other.nb_completed) &&
-                (nb_conflicts == other.nb_conflicts) &&
-                (nb_updates == other.nb_updates);
-        }
-        bool operator!=(const Statistics& other) {
-            return !(*this == other);
-        }
-    };
 private:
-    // keep track of update statuses
-    Statistics stats;
-    // db is not owned by updater 
-    DAB_Database* db;  
-    // keep reference to all updaters for global conflict/completion check
-    std::vector<UpdaterChild*> all_updaters;
-    EnsembleUpdater ensemble_updater;
-    // to get the ids for each updater, we get the ids from the database
-    std::map<service_id_t, ServiceUpdater> service_updaters;
-    std::map<std::pair<service_id_t, service_component_id_t>, ServiceComponentUpdater> service_component_updaters;
-    std::map<subchannel_id_t, SubchannelUpdater> subchannel_updaters;
-    std::map<lsn_t, LinkServiceUpdater> link_service_updaters;
-    std::map<fm_id_t, FM_ServiceUpdater> fm_service_updaters;
-    std::map<drm_id_t, DRM_ServiceUpdater> drm_service_updaters;
-    std::map<amss_id_t, AMSS_ServiceUpdater> amss_service_updaters;
-    std::map<ensemble_id_t, OtherEnsembleUpdater> other_ensemble_updaters;
+    std::unique_ptr<DatabaseUpdaterGlobalStatistics> stats;
+    std::unique_ptr<DAB_Database> db;  
+    std::unique_ptr<EnsembleUpdater> ensemble_updater;
+    std::vector<ServiceUpdater> service_updaters;
+    std::vector<ServiceComponentUpdater> service_component_updaters;
+    std::vector<SubchannelUpdater> subchannel_updaters;
+    std::vector<LinkServiceUpdater> link_service_updaters;
+    std::vector<FM_ServiceUpdater> fm_service_updaters;
+    std::vector<DRM_ServiceUpdater> drm_service_updaters;
+    std::vector<AMSS_ServiceUpdater> amss_service_updaters;
+    std::vector<OtherEnsembleUpdater> other_ensemble_updaters;
 public:
-    explicit DAB_Database_Updater(DAB_Database* _db);
-    ~DAB_Database_Updater() override = default;
-    DAB_Database* GetDatabase() override { return db; }
-    void SignalComplete() override;
-    void SignalPending() override;
-    void SignalConflict() override;
-    void SignalUpdate() override;
-    EnsembleUpdater* GetEnsembleUpdater();
-    // Create the instance
-    ServiceUpdater* GetServiceUpdater(const service_id_t service_ref);
-    ServiceComponentUpdater* GetServiceComponentUpdater_Service(const service_id_t service_ref, const service_component_id_t component_id);
-    SubchannelUpdater* GetSubchannelUpdater(const subchannel_id_t subchannel_id);
-    LinkServiceUpdater* GetLinkServiceUpdater(const lsn_t link_service_number);
-    FM_ServiceUpdater* GetFMServiceUpdater(const fm_id_t RDS_PI_code);
-    DRM_ServiceUpdater* GetDRMServiceUpdater(const drm_id_t drm_code);
-    AMSS_ServiceUpdater* GetAMSS_ServiceUpdater(const amss_id_t amss_code);
-    OtherEnsembleUpdater* GetOtherEnsemble(const ensemble_id_t ensemble_reference);
-    // Returns NULL if it couldn't find the instance
+    explicit DAB_Database_Updater();
+    EnsembleUpdater& GetEnsembleUpdater() { return *(ensemble_updater.get()); }
+    ServiceUpdater& GetServiceUpdater(const service_id_t service_ref);
+    ServiceComponentUpdater& GetServiceComponentUpdater_Service(const service_id_t service_ref, const service_component_id_t component_id);
+    SubchannelUpdater& GetSubchannelUpdater(const subchannel_id_t subchannel_id);
+    LinkServiceUpdater& GetLinkServiceUpdater(const lsn_t link_service_number);
+    FM_ServiceUpdater& GetFMServiceUpdater(const fm_id_t RDS_PI_code);
+    DRM_ServiceUpdater& GetDRMServiceUpdater(const drm_id_t drm_code);
+    AMSS_ServiceUpdater& GetAMSS_ServiceUpdater(const amss_id_t amss_code);
+    OtherEnsembleUpdater& GetOtherEnsemble(const ensemble_id_t ensemble_reference);
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
-    // Create a copy of the database with complete entities
-    void ExtractCompletedDatabase(DAB_Database& dest_db);
-    // Get status of database
-    inline Statistics GetStatistics() const { return stats; }
+    const auto& GetDatabase() const { return *(db.get()); }
+    const auto& GetStatistics() const { return *(stats.get()); }
+private:
+    template <typename T, typename U, typename F, typename ... Args>
+    U& find_or_insert_updater(std::vector<T>& entries, std::vector<U>& updaters, F&& func, Args... args) {
+        assert(entries.size() == updaters.size());
+        const size_t N = entries.size();
+        size_t index = 0;
+        for (index = 0; index < N; index++) {
+            if (func(entries[index])) break;
+        }
+        if (index == N) {
+            entries.emplace_back(std::forward<Args>(args)...);
+            updaters.emplace_back(*(db.get()), index, *(stats.get()));
+        }
+        return updaters[index];
+    }
+
+    template <typename T, typename U, typename F>
+    U* find_updater(std::vector<T>& entries, std::vector<U>& updaters, F&& func) {
+        assert(entries.size() == updaters.size());
+        const size_t N = entries.size();
+        size_t index = 0;
+        for (index = 0; index < N; index++) {
+            if (func(entries[index])) break;
+        }
+        if (index == N) {
+            return nullptr;
+        }
+        return &updaters[index];
+    }
 };

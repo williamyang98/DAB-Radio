@@ -16,8 +16,7 @@
 BasicFICRunner::BasicFICRunner(const DAB_Parameters& _params) 
 : params(_params)
 {
-    dab_db = std::make_unique<DAB_Database>();
-    dab_db_updater = std::make_unique<DAB_Database_Updater>(dab_db.get());
+    dab_db_updater = std::make_unique<DAB_Database_Updater>();
     fic_decoder = std::make_unique<FIC_Decoder>(params.nb_fib_cif_bits, params.nb_fibs_per_cif);
     fig_processor = std::make_unique<FIG_Processor>();
     fig_handler = std::make_unique<Radio_FIG_Handler>();

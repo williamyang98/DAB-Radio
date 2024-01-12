@@ -2,6 +2,7 @@
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
 #include "dab/mot/MOT_processor.h"
+#include "dab/database/dab_database.h"
 
 #include <string.h>
 #include <functional>
@@ -17,7 +18,7 @@
 #undef GetCurrentTime
 
 std::string GetCurrentTime(void) {
-    auto t = std::time(NULL);
+    auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
     return fmt::format("{:04}-{:02}-{:02}T{:02}-{:02}-{:02}", 
         tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
@@ -38,12 +39,15 @@ void BasicScraper::Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_C
     controls.SetIsDecodeData(true);
     controls.SetIsPlayAudio(false);
 
-    auto& db_manager = radio.GetDatabaseManager(); 
-
-    auto lock = std::scoped_lock(db_manager.GetDatabaseMutex());
-    auto& db = db_manager.GetDatabase();
-    auto* component = db.GetServiceComponent_Subchannel(id);
-    if (component == NULL) {
+    auto& db = radio.GetDatabase();
+    ServiceComponent* component = nullptr;
+    for (auto& e: db.service_components) {
+        if (e.subchannel_id == id) {
+            component = &e;
+            break;
+        };
+    }
+    if (component == nullptr) {
         return;
     }
 
@@ -78,18 +82,18 @@ Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_P
 }
 
 BasicAudioScraper::~BasicAudioScraper() {
-    if (fp_wav != NULL) {
+    if (fp_wav != nullptr) {
         CloseWavFile(fp_wav, total_bytes_written);
-        fp_wav = NULL;
+        fp_wav = nullptr;
         total_bytes_written = 0;
     }
 }
 
 void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uint8_t> data) {
     if (old_params != params) {
-        if (fp_wav != NULL) {
+        if (fp_wav != nullptr) {
             CloseWavFile(fp_wav, total_bytes_written);
-            fp_wav = NULL;
+            fp_wav = nullptr;
             total_bytes_written = 0;
         }
 
@@ -98,7 +102,7 @@ void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uin
         old_params = params;
     }
 
-    if (fp_wav == NULL) {
+    if (fp_wav == nullptr) {
         return;
     }
 
@@ -117,7 +121,7 @@ FILE* BasicAudioScraper::CreateWavFile(BasicAudioParams params) {
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
-    if (fp == NULL) {
+    if (fp == nullptr) {
         LOG_ERROR("[audio] Failed to open file {}", filepath_str);
         return fp;
     }
@@ -197,7 +201,7 @@ void BasicSlideshowScraper::OnSlideshow(Basic_Slideshow& slideshow) {
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
-    if (fp == NULL) {
+    if (fp == nullptr) {
         LOG_ERROR("[slideshow] Failed to open file {}", filepath_str);
         return;
     }
@@ -228,7 +232,7 @@ void BasicMOTScraper::OnMOTEntity(MOT_Entity& mot) {
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
-    if (fp == NULL) {
+    if (fp == nullptr) {
         LOG_ERROR("[MOT] Failed to open file {}", filepath_str);
         return;
     }

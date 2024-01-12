@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <set>
 
 #include "./dab_database_types.h"
 
@@ -47,14 +46,14 @@ struct Ensemble {
     std::string label;
     uint8_t nb_services = 0;                            // optional: fig 0/7 provides this
     uint16_t reconfiguration_count = 0;                 // optional: fig 0/7 provides this
-    int local_time_offset = 0;                          // Value of this shall be +- 155 (LTO is +-15.5 hours)
+    int8_t local_time_offset = 0;                       // Value of this shall be +- 155 (LTO is +-15.5 hours)
     uint8_t international_table_id = 0;                 // table id for programme type strings
 };
 
 struct ServiceComponent;
 
 struct Service {
-    const service_id_t reference = 0;                    
+    service_id_t reference = 0;                    
     country_id_t country_id = 0;                        // required 
     extended_country_id_t extended_country_code = 0;  
     std::string label;
@@ -67,8 +66,8 @@ struct Service {
 struct ServiceComponent {
     // NOTE: Two methods to identify a service component
     // Method 1: service_id/SCIdS used together for stream mode
-    const service_id_t service_reference;   
-    const service_component_id_t component_id;         
+    service_id_t service_reference;   
+    service_component_id_t component_id;         
     // Method 2: SCId global identifier used for packet mode
     service_component_global_id_t global_id = 0;          
     subchannel_id_t subchannel_id = 0;                                  // required 
@@ -83,7 +82,7 @@ struct ServiceComponent {
 };
 
 struct Subchannel {
-    const subchannel_id_t id;                   
+    subchannel_id_t id;                   
     subchannel_addr_t start_address = 0;                // required
     subchannel_size_t length = 0;                       // required
     bool is_uep = false;                                // required
@@ -97,7 +96,7 @@ struct Subchannel {
 // For frequency or service sharing across different transmissions 
 // E.g. A service may be linked to a FM station, etc...
 struct LinkService {
-    const lsn_t id;                                     // linkage set number (LSN)
+    lsn_t id;                                     // linkage set number (LSN)
     bool is_active_link = false;                        
     bool is_hard_link =  false;
     bool is_international = false;
@@ -106,31 +105,31 @@ struct LinkService {
 };
 
 struct FM_Service {
-    const fm_id_t RDS_PI_code;                           
+    fm_id_t RDS_PI_code;                           
     lsn_t linkage_set_number = 0;                       // required
     bool is_time_compensated = false;
-    std::set<freq_t> frequencies;                       // required
+    std::vector<freq_t> frequencies;                       // required
     explicit FM_Service(const fm_id_t _id): RDS_PI_code(_id) {}
 };
 
 struct DRM_Service {
-    const drm_id_t drm_code;             
+    drm_id_t drm_code;             
     lsn_t linkage_set_number = 0;                       // required
     bool is_time_compensated = false;
-    std::set<freq_t> frequencies;                       // required
+    std::vector<freq_t> frequencies;                       // required
     explicit DRM_Service(const drm_id_t _id): drm_code(_id) {}
 };
 
 struct AMSS_Service {
-    const amss_id_t amss_code; 
+    amss_id_t amss_code; 
     bool is_time_compensated = false;
-    std::set<freq_t> frequencies;                       // required     
+    std::vector<freq_t> frequencies;                       // required     
     explicit AMSS_Service(const amss_id_t _id): amss_code(_id) {}
 };
 
 // other ensemble information
 struct OtherEnsemble {
-    const ensemble_id_t reference;      
+    ensemble_id_t reference;      
     country_id_t country_id = 0;           
     bool is_continuous_output = false;
     bool is_geographically_adjacent = false;

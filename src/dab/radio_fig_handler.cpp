@@ -17,9 +17,9 @@ void Radio_FIG_Handler::OnEnsemble_1_ID(
     const uint8_t cif_upper, const uint8_t cif_lower) 
 {
     if (updater) {
-        auto u = updater->GetEnsembleUpdater();    
-        u->SetCountryID(country_id);
-        u->SetReference(ensemble_ref);
+        auto& u = updater->GetEnsembleUpdater();    
+        u.SetCountryID(country_id);
+        u.SetReference(ensemble_ref);
     }
 
     if (misc_info) {
@@ -36,9 +36,9 @@ void Radio_FIG_Handler::OnSubchannel_1_Short(
     const uint8_t table_switch, const uint8_t table_index) 
 {
     if (!updater) return;
-    auto u = updater->GetSubchannelUpdater(subchannel_id);
-    u->SetStartAddress(start_address);
-    u->SetIsUEP(true);
+    auto& u = updater->GetSubchannelUpdater(subchannel_id);
+    u.SetStartAddress(start_address);
+    u.SetIsUEP(true);
 
     // reserved for future tables
     if (table_switch) {
@@ -54,8 +54,8 @@ void Radio_FIG_Handler::OnSubchannel_1_Short(
     }
 
     const auto props = UEP_PROTECTION_TABLE[table_index];
-    u->SetUEPProtIndex(table_index);
-    u->SetLength(props.subchannel_size);
+    u.SetUEPProtIndex(table_index);
+    u.SetLength(props.subchannel_size);
 }
 
 // Long form for EEP
@@ -66,12 +66,12 @@ void Radio_FIG_Handler::OnSubchannel_1_Long(
     const uint16_t subchannel_size)
 {
     if (!updater) return;
-    auto u = updater->GetSubchannelUpdater(subchannel_id);
-    u->SetIsUEP(false);
-    u->SetStartAddress(start_address);
-    u->SetEEPType(option ? EEP_Type::TYPE_B : EEP_Type::TYPE_A);
-    u->SetEEPProtLevel(protection_level);
-    u->SetLength(subchannel_size);
+    auto& u = updater->GetSubchannelUpdater(subchannel_id);
+    u.SetIsUEP(false);
+    u.SetStartAddress(start_address);
+    u.SetEEPType(option ? EEP_Type::TYPE_B : EEP_Type::TYPE_A);
+    u.SetEEPProtLevel(protection_level);
+    u.SetLength(subchannel_size);
 }
 
 // fig 0/2 - service components type
@@ -81,17 +81,13 @@ void Radio_FIG_Handler::OnServiceComponent_1_StreamAudioType(
     const uint8_t audio_service_type, const bool is_primary)
 {
     if (!updater) return;
-    ServiceUpdater* s_u = NULL;
-    ServiceComponentUpdater* sc_u = NULL;
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    // get service
-    s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
-
-    // attempt to find the corresponding service component
+    ServiceComponentUpdater* sc_u = nullptr;
     if (is_primary) {
-        sc_u = updater->GetServiceComponentUpdater_Service(service_reference, 0);
+        sc_u = &updater->GetServiceComponentUpdater_Service(service_reference, 0);
     } else {
         sc_u = updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
     } 
@@ -122,17 +118,14 @@ void Radio_FIG_Handler::OnServiceComponent_1_StreamDataType(
     const uint8_t data_service_type, const bool is_primary)
 {
     if (!updater) return;
-    ServiceUpdater* s_u = NULL;
-    ServiceComponentUpdater* sc_u = NULL;
 
-    // get service
-    s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    // attempt to find the corresponding service component
+    ServiceComponentUpdater* sc_u = nullptr;
     if (is_primary) {
-        sc_u = updater->GetServiceComponentUpdater_Service(service_reference, 0);
+        sc_u = &updater->GetServiceComponentUpdater_Service(service_reference, 0);
     } else {
         sc_u = updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
     }
@@ -167,17 +160,14 @@ void Radio_FIG_Handler::OnServiceComponent_1_PacketDataType(
     const uint16_t service_component_global_id, const bool is_primary)
 {
     if (!updater) return;
-    ServiceUpdater* s_u = NULL;
-    ServiceComponentUpdater* sc_u = NULL;
 
-    // get service
-    s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    // attempt to find the corresponding service component
+    ServiceComponentUpdater* sc_u = nullptr;
     if (is_primary) {
-        sc_u = updater->GetServiceComponentUpdater_Service(service_reference, 0);
+        sc_u = &updater->GetServiceComponentUpdater_Service(service_reference, 0);
     } else {
         sc_u = updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
     }
@@ -196,7 +186,7 @@ void Radio_FIG_Handler::OnServiceComponent_2_PacketDataType(
     const uint16_t packet_address)
 {
     if (!updater) return;
-    ServiceComponentUpdater* u = NULL;
+    ServiceComponentUpdater* u = nullptr;
     u = updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
     if (!u) {
         u = updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
@@ -224,14 +214,14 @@ void Radio_FIG_Handler::OnServiceComponent_3_Short_Language(
     const uint8_t subchannel_id, const uint8_t language)
 {
     if (!updater) return;
-    auto sc_u = updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
+    auto* sc_u = updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
     if (!sc_u) {
         return;
     }
 
     const auto service_reference = sc_u->GetServiceReference();
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetLanguage(language);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetLanguage(language);
 }
 
 // For packet mode service components that have a global id
@@ -240,13 +230,13 @@ void Radio_FIG_Handler::OnServiceComponent_3_Long_Language(
     const uint8_t language)
 {
     if (!updater) return;
-    auto sc_u = updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
+    auto* sc_u = updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
     if (!sc_u) {
         return;
     }
     const auto service_reference = sc_u->GetServiceReference(); 
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetLanguage(language);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetLanguage(language);
 }
 
 // fig 0/6 - Service linking information
@@ -257,10 +247,10 @@ void Radio_FIG_Handler::OnServiceLinkage_1_LSN_Only(
     const uint16_t linkage_set_number)
 {
     if (!updater) return;
-    auto u = updater->GetLinkServiceUpdater(linkage_set_number);
-    u->SetIsActiveLink(is_active_link);
-    u->SetIsHardLink(is_hard_link);
-    u->SetIsInternational(is_international);
+    auto& u = updater->GetLinkServiceUpdater(linkage_set_number);
+    u.SetIsActiveLink(is_active_link);
+    u.SetIsHardLink(is_hard_link);
+    u.SetIsInternational(is_international);
 }
 
 void Radio_FIG_Handler::OnServiceLinkage_1_ServiceID(
@@ -269,16 +259,16 @@ void Radio_FIG_Handler::OnServiceLinkage_1_ServiceID(
     const uint8_t country_id, const uint32_t service_ref, const uint8_t extended_country_code)
 {
     if (!updater) return;
-    auto l_u = updater->GetLinkServiceUpdater(linkage_set_number);
-    auto s_u = updater->GetServiceUpdater(service_ref);
+    auto& l_u = updater->GetLinkServiceUpdater(linkage_set_number);
+    auto& s_u = updater->GetServiceUpdater(service_ref);
 
-    l_u->SetServiceReference(service_ref);
-    l_u->SetIsActiveLink(is_active_link);
-    l_u->SetIsHardLink(is_hard_link);
-    l_u->SetIsInternational(is_international);
+    l_u.SetServiceReference(service_ref);
+    l_u.SetIsActiveLink(is_active_link);
+    l_u.SetIsHardLink(is_hard_link);
+    l_u.SetIsInternational(is_international);
 
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 }
 
 void Radio_FIG_Handler::OnServiceLinkage_1_RDS_PI_ID(
@@ -287,17 +277,17 @@ void Radio_FIG_Handler::OnServiceLinkage_1_RDS_PI_ID(
     const uint16_t rds_pi_id, const uint8_t extended_country_code)
 {
     if (!updater) return;
-    auto l_u = updater->GetLinkServiceUpdater(linkage_set_number);
-    l_u->SetIsActiveLink(is_active_link);
-    l_u->SetIsHardLink(is_hard_link);
-    l_u->SetIsInternational(is_international);
+    auto& l_u = updater->GetLinkServiceUpdater(linkage_set_number);
+    l_u.SetIsActiveLink(is_active_link);
+    l_u.SetIsHardLink(is_hard_link);
+    l_u.SetIsInternational(is_international);
 
-    auto fm_u = updater->GetFMServiceUpdater(rds_pi_id);
-    fm_u->SetLinkageSetNumber(linkage_set_number);
+    auto& fm_u = updater->GetFMServiceUpdater(rds_pi_id);
+    fm_u.SetLinkageSetNumber(linkage_set_number);
 
-    const auto service_reference = l_u->GetServiceReference();
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    const auto service_reference = l_u.GetServiceReference();
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetExtendedCountryCode(extended_country_code);
 }
 
 void Radio_FIG_Handler::OnServiceLinkage_1_DRM_ID(
@@ -306,13 +296,13 @@ void Radio_FIG_Handler::OnServiceLinkage_1_DRM_ID(
     const uint32_t drm_id)
 {
     if (!updater) return;
-    auto l_u = updater->GetLinkServiceUpdater(linkage_set_number);
-    l_u->SetIsActiveLink(is_active_link);
-    l_u->SetIsHardLink(is_hard_link);
-    l_u->SetIsInternational(is_international);
+    auto& l_u = updater->GetLinkServiceUpdater(linkage_set_number);
+    l_u.SetIsActiveLink(is_active_link);
+    l_u.SetIsHardLink(is_hard_link);
+    l_u.SetIsInternational(is_international);
 
-    auto drm_u = updater->GetDRMServiceUpdater(drm_id);
-    drm_u->SetLinkageSetNumber(linkage_set_number);
+    auto& drm_u = updater->GetDRMServiceUpdater(drm_id);
+    drm_u.SetLinkageSetNumber(linkage_set_number);
 }
 
 // fig 0/7 - Configuration information
@@ -320,9 +310,9 @@ void Radio_FIG_Handler::OnConfigurationInformation_1(
     const uint8_t nb_services, const uint16_t reconfiguration_count)
 {
     if (!updater) return;
-    auto u = updater->GetEnsembleUpdater();
-    u->SetNumberServices(nb_services);
-    u->SetReconfigurationCount(reconfiguration_count);
+    auto& u = updater->GetEnsembleUpdater();
+    u.SetNumberServices(nb_services);
+    u.SetReconfigurationCount(reconfiguration_count);
 }
 
 // fig 0/8 - Service component global definition
@@ -333,12 +323,12 @@ void Radio_FIG_Handler::OnServiceComponent_4_Short_Definition(
     const uint8_t subchannel_id)
 {
     if (!updater) return;
-    auto s_u = updater->GetServiceUpdater(service_ref);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_ref);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto sc_u = updater->GetServiceComponentUpdater_Service(service_ref, service_component_id);
-    sc_u->SetSubchannel(subchannel_id);
+    auto& sc_u = updater->GetServiceComponentUpdater_Service(service_ref, service_component_id);
+    sc_u.SetSubchannel(subchannel_id);
 }
 
 // For packet mode service components that have a global id
@@ -348,12 +338,12 @@ void Radio_FIG_Handler::OnServiceComponent_4_Long_Definition(
     const uint16_t service_component_global_id)
 {
     if (!updater) return;
-    auto s_u = updater->GetServiceUpdater(service_ref);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_ref);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto sc_u = updater->GetServiceComponentUpdater_Service(service_ref, service_component_id);
-    sc_u->SetGlobalID(service_component_id);
+    auto& sc_u = updater->GetServiceComponentUpdater_Service(service_ref, service_component_id);
+    sc_u.SetGlobalID(service_component_id);
 }
 
 // fig 0/9 - Ensemble country, LTO (local time offset), international table
@@ -362,8 +352,8 @@ void Radio_FIG_Handler::OnEnsemble_2_Country(
     const uint8_t international_table_id)
 {
     if (!updater) return;
-    auto u = updater->GetEnsembleUpdater();
-    u->SetExtendedCountryCode(extended_country_code);
+    auto& u = updater->GetEnsembleUpdater();
+    u.SetExtendedCountryCode(extended_country_code);
 
     // local time offset is a 6 bit field
     // b5 = 0:positive, 1:negative
@@ -373,9 +363,9 @@ void Radio_FIG_Handler::OnEnsemble_2_Country(
     const uint8_t sign =  (local_time_offset & 0b00100000);
     const uint8_t value = (local_time_offset & 0b00011111);
     // Value goes from -155 to 155 which is -15.5 to 15.5 hours
-    const int LTO_hours = (sign ? -1 : 1) * value * 5;
-    u->SetLocalTimeOffset(LTO_hours);
-    u->SetInternationalTableID(international_table_id);
+    const int8_t LTO_hours = (sign ? -1 : 1) * value * 5;
+    u.SetLocalTimeOffset(LTO_hours);
+    u.SetInternationalTableID(international_table_id);
 }
  
 void Radio_FIG_Handler::OnEnsemble_2_Service_Country(
@@ -386,8 +376,8 @@ void Radio_FIG_Handler::OnEnsemble_2_Service_Country(
 {
     if (!updater) return;
 
-    auto u = updater->GetEnsembleUpdater();
-    u->SetExtendedCountryCode(extended_country_code);
+    auto& u = updater->GetEnsembleUpdater();
+    u.SetExtendedCountryCode(extended_country_code);
 
     // local time offset is a 6 bit field
     // b5 = 0:positive, 1:negative
@@ -397,13 +387,13 @@ void Radio_FIG_Handler::OnEnsemble_2_Service_Country(
     const uint8_t sign =  (local_time_offset & 0b00100000);
     const uint8_t value = (local_time_offset & 0b00011111);
     // Value goes from -155 to 155 which is -15.5 to 15.5 hours
-    const int LTO_hours = (sign ? -1 : 1) * value * 5;
-    u->SetLocalTimeOffset(LTO_hours);
-    u->SetInternationalTableID(international_table_id);
+    const int8_t LTO_hours = (sign ? -1 : 1) * value * 5;
+    u.SetLocalTimeOffset(LTO_hours);
+    u.SetInternationalTableID(international_table_id);
 
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(service_country_id);
-    s_u->SetExtendedCountryCode(service_extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(service_country_id);
+    s_u.SetExtendedCountryCode(service_extended_country_code);
 }
  
 // fig 0/10 - Ensemble date and time
@@ -443,11 +433,11 @@ void Radio_FIG_Handler::OnServiceComponent_5_UserApplication(
 {
     if (!updater) return;
 
-    auto s_u = updater->GetServiceUpdater(service_reference); 
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference); 
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
+    auto& sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
 
     LOG_MESSAGE("service_ref={} component_id={} app_type={} N={}",
         service_reference, service_component_id, app_type, N);
@@ -490,8 +480,8 @@ void Radio_FIG_Handler::OnSubchannel_2_FEC(
     const uint8_t subchannel_id, const uint8_t fec_type)
 {
     if (!updater) return;
-    auto u = updater->GetSubchannelUpdater(subchannel_id);
-    u->SetFECScheme(fec_type);
+    auto& u = updater->GetSubchannelUpdater(subchannel_id);
+    u.SetFECScheme(fec_type);
 }
 
 // fig 0/17 - Programme type
@@ -503,17 +493,17 @@ void Radio_FIG_Handler::OnService_1_ProgrammeType(
 {
     if (!updater) return;
 
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
-    s_u->SetProgrammeType(programme_type);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
+    s_u.SetProgrammeType(programme_type);
 
     if (has_language) {
-        s_u->SetLanguage(language_type);
+        s_u.SetLanguage(language_type);
     }
 
     if (has_closed_caption) {
-        s_u->SetClosedCaption(closed_caption_type);
+        s_u.SetClosedCaption(closed_caption_type);
     }
 }
 
@@ -527,12 +517,12 @@ void Radio_FIG_Handler::OnFrequencyInformation_1_Ensemble(
 {
     if (!updater) return;
 
-    auto u = updater->GetOtherEnsemble(ensemble_reference);
-    u->SetCountryID(country_id);
-    u->SetIsContinuousOutput(is_continuous_output);
-    u->SetIsGeographicallyAdjacent(is_geographically_adjacent);
-    u->SetIsTransmissionModeI(is_transmission_mode_I);
-    u->SetFrequency(frequency);
+    auto& u = updater->GetOtherEnsemble(ensemble_reference);
+    u.SetCountryID(country_id);
+    u.SetIsContinuousOutput(is_continuous_output);
+    u.SetIsGeographicallyAdjacent(is_geographically_adjacent);
+    u.SetIsTransmissionModeI(is_transmission_mode_I);
+    u.SetFrequency(frequency);
 }
 
 void Radio_FIG_Handler::OnFrequencyInformation_1_RDS_PI(
@@ -541,9 +531,9 @@ void Radio_FIG_Handler::OnFrequencyInformation_1_RDS_PI(
 {
     if (!updater) return;
 
-    auto u = updater->GetFMServiceUpdater(rds_pi_id);
-    u->SetIsTimeCompensated(is_time_compensated);
-    u->AddFrequency(frequency);
+    auto& u = updater->GetFMServiceUpdater(rds_pi_id);
+    u.SetIsTimeCompensated(is_time_compensated);
+    u.AddFrequency(frequency);
 }
 
 void Radio_FIG_Handler::OnFrequencyInformation_1_DRM(
@@ -552,9 +542,9 @@ void Radio_FIG_Handler::OnFrequencyInformation_1_DRM(
 {
     if (!updater) return;
 
-    auto u = updater->GetDRMServiceUpdater(drm_id);
-    u->SetIsTimeCompensated(is_time_compensated); 
-    u->AddFrequency(frequency);
+    auto& u = updater->GetDRMServiceUpdater(drm_id);
+    u.SetIsTimeCompensated(is_time_compensated); 
+    u.AddFrequency(frequency);
 }
 
 void Radio_FIG_Handler::OnFrequencyInformation_1_AMSS(
@@ -563,9 +553,9 @@ void Radio_FIG_Handler::OnFrequencyInformation_1_AMSS(
 {
     if (!updater) return;
 
-    auto u = updater->GetAMSS_ServiceUpdater(amss_id);
-    u->SetIsTimeCompensated(is_time_compensated);
-    u->AddFrequency(frequency);
+    auto& u = updater->GetAMSS_ServiceUpdater(amss_id);
+    u.SetIsTimeCompensated(is_time_compensated);
+    u.AddFrequency(frequency);
 }
 
 // fig 0/24 - Other ensemble services
@@ -575,12 +565,12 @@ void Radio_FIG_Handler::OnOtherEnsemble_1_Service(
 {
     if (!updater) return;
 
-    auto s_u = updater->GetServiceUpdater(service_reference); 
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference); 
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto e_u = updater->GetOtherEnsemble(ensemble_reference);
-    e_u->SetCountryID(ensemble_country_id);
+    auto& e_u = updater->GetOtherEnsemble(ensemble_reference);
+    e_u.SetCountryID(ensemble_country_id);
 }
 
 // fig 1/0 - Ensemble label
@@ -591,9 +581,9 @@ void Radio_FIG_Handler::OnEnsemble_3_Label(
 {
     if (!updater) return;
 
-    auto e_u = updater->GetEnsembleUpdater(); 
-    e_u->SetCountryID(country_id);
-    e_u->SetLabel(buf);
+    auto& e_u = updater->GetEnsembleUpdater(); 
+    e_u.SetCountryID(country_id);
+    e_u.SetLabel(buf);
 
     // TODO: for label handler store the abbreviation field somewhere
 }
@@ -607,10 +597,10 @@ void Radio_FIG_Handler::OnService_2_Label(
 {
     if (!updater) return;
 
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
-    s_u->SetLabel(buf);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
+    s_u.SetLabel(buf);
 }
 
 // fig 1/4 - Non-primary service component label
@@ -622,10 +612,10 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
 {
     if (!updater) return;
 
-    auto s_u = updater->GetServiceUpdater(service_reference);
-    s_u->SetCountryID(country_id);
-    s_u->SetExtendedCountryCode(extended_country_code);
+    auto& s_u = updater->GetServiceUpdater(service_reference);
+    s_u.SetCountryID(country_id);
+    s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
-    sc_u->SetLabel(buf);
+    auto& sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
+    sc_u.SetLabel(buf);
 }
