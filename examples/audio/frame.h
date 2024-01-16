@@ -1,10 +1,8 @@
 #pragma once
 
-constexpr int TOTAL_AUDIO_CHANNELS = 2;
-
-// Stereo audio sample of type T
 template <typename T>
 struct Frame {
+    static const int TOTAL_AUDIO_CHANNELS = 2;
     T channels[TOTAL_AUDIO_CHANNELS];
 
     Frame<T> operator+(const Frame<T>& other) const {

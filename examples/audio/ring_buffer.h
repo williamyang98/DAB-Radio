@@ -1,149 +1,78 @@
 #pragma once
-
-#include <stdint.h>
-#include <mutex>
-#include <condition_variable>
 #include <vector>
-#include <algorithm>
-#include "utility/span.h"
+#include <cstring>
+#include "./utility/span.h"
 
 template <typename T>
-class RingBuffer
+class RingBuffer 
 {
-public:
-    struct scoped_buffer_t {
-        std::unique_lock<std::mutex> lock;
-        tcb::span<const T> buf;
-        scoped_buffer_t(std::mutex& _mutex, tcb::span<const T> _buf) 
-        : lock(_mutex), buf(_buf) {}
-    };
 private:
-    std::vector<T> blocks_buf;
-    // fill write block
-    int curr_wr_block_index;
-
-    int curr_rd_block;
-    int curr_wr_block;
-    int nb_blocks;
-    int block_size;
-    int nb_max_blocks;
-
-    std::mutex mutex_rw;
-    std::condition_variable cv_nb_total_blocks;
+    std::vector<T> m_data;
+    size_t m_write_index = 0;
+    size_t m_read_index = 0;
+    size_t m_total_used = 0;
 public:
-    RingBuffer(const int _block_size, const int _nb_max_blocks) {
-        block_size = _block_size;
-        nb_max_blocks = _nb_max_blocks;
+    template <typename... Args>
+    RingBuffer(Args... args): m_data(std::forward<Args>(args)...) {}
 
-        curr_wr_block_index = 0;
-        curr_rd_block = 0;
-        curr_wr_block = 0;
-        nb_blocks = 0;
+    size_t get_size() const { return m_data.size(); }
+    size_t get_total_used() const { return m_total_used; }
+    size_t get_total_free() const { return get_size()-m_total_used; }
+    bool is_full() const { return m_total_used == get_size(); }
+    bool is_empty() const { return m_total_used == 0; }
 
-        blocks_buf.resize(block_size*nb_max_blocks);
-    }
-
-    void SetMaxBlocks(const int _nb_max_blocks) {
-        auto lock = std::scoped_lock(mutex_rw);
-        if (nb_max_blocks == _nb_max_blocks) {
-            return;
+    void write_from_src_with_overwrite(const tcb::span<const T> full_src) {
+        auto src = full_src;
+        if (src.size() > get_size()) {
+            const size_t phantom_write_length = src.size() - get_size();
+            m_write_index = (m_write_index + phantom_write_length) % get_size();
+            src = src.last(get_size());
         }
-        nb_max_blocks = _nb_max_blocks;
 
-        blocks_buf.resize(block_size*nb_max_blocks);
-        curr_wr_block_index = 0;
-        curr_rd_block = 0;
-        curr_wr_block = 0;
-        nb_blocks = 0;
-    }
-
-    void SetBlockSize(const int _block_size) {
-        auto lock = std::scoped_lock(mutex_rw);
-        if (block_size == _block_size) {
-            return;
+        size_t write_length = src.size();
+        size_t overflow_length = 0;
+        const size_t end_index = m_write_index + write_length;
+        if (end_index > get_size()) {
+            overflow_length = end_index - get_size(); 
+            write_length -= overflow_length;
         }
-        block_size = _block_size;
 
-        blocks_buf.resize(block_size*nb_max_blocks);
-        curr_wr_block_index = 0;
-        curr_rd_block = 0;
-        curr_wr_block = 0;
-        nb_blocks = 0;
+        std::memcpy(m_data.data() + m_write_index, src.data(), write_length * sizeof(T));
+        std::memcpy(m_data.data(), src.data() + write_length, overflow_length * sizeof(T));
+        m_write_index = (m_write_index + src.size()) % get_size();
 
-    }
-
-    int GetTotalBlocks() const { return nb_blocks; }
-
-    void ConsumeBuffer(tcb::span<const T> buf, const bool is_blocking=true) {
-        auto lock = std::unique_lock(mutex_rw);
-        const int N = (int)buf.size();
-
-        int curr_byte = 0;
-        while (curr_byte < N) {
-            if (is_blocking && (nb_blocks >= nb_max_blocks)) {
-                const auto max_delay = std::chrono::duration<float>(1.0f);
-                cv_nb_total_blocks.wait_for(lock, max_delay, [this]() {
-                    return (nb_blocks < nb_max_blocks);
-                });
-            }
-
-            const int nb_remain = (N-curr_byte);
-
-            tcb::span<const T> rd_buf = { 
-                &buf[curr_byte], 
-                (size_t)nb_remain 
-            };        
-
-            const int nb_required = block_size-curr_wr_block_index;
-            tcb::span<T> wr_buf = { 
-                &blocks_buf[curr_wr_block*block_size + curr_wr_block_index], 
-                (size_t)nb_required
-            };
-
-            const int nb_copy = (nb_required > nb_remain) ? nb_remain : nb_required;
-            std::copy_n(rd_buf.begin(), nb_copy, wr_buf.begin());
-            curr_wr_block_index += nb_copy;
-            curr_byte += nb_copy;
-
-            if (curr_wr_block_index >= block_size) {
-                curr_wr_block_index = 0;
-                curr_wr_block = (curr_wr_block+1)%nb_max_blocks;
-                nb_blocks++;
-                if (nb_blocks > nb_max_blocks) {
-                    nb_blocks = nb_max_blocks;
-                }
-            }
+        m_total_used += full_src.size();
+        if (m_total_used > get_size()) {
+            const size_t total_read_lost = m_total_used - get_size();
+            m_read_index = (m_read_index + total_read_lost) % get_size();
+            m_total_used = get_size();
         }
     }
 
-    scoped_buffer_t PopBlock() {
-        auto scoped_buf = scoped_buffer_t(mutex_rw, {});
-        if (nb_blocks == 0) {
-            return scoped_buf;
+    size_t write_from_src_until_full(tcb::span<const T> src) {
+        const size_t total_free = get_total_free();
+        const size_t write_length = (src.size() > total_free) ? total_free : src.size();
+        write_from_src_with_overwrite(src.first(write_length));
+        return write_length;
+    }
+
+    size_t read_to_dest(tcb::span<T> dest) {
+        const size_t total_used = get_total_used();
+        const size_t full_read_length = (dest.size() > total_used) ? total_used : dest.size();
+
+        size_t read_length = full_read_length;
+        size_t overflow_length = 0;
+        const size_t end_index = m_read_index + read_length;
+        if (end_index > get_size()) {
+            overflow_length = end_index - get_size(); 
+            read_length -= overflow_length;
         }
 
-        tcb::span<const T> rd_buf = {  
-            &blocks_buf[curr_rd_block*block_size],
-            (size_t)block_size
-        };
-        curr_rd_block = (curr_rd_block+1)%nb_max_blocks;
-        nb_blocks--;
-        cv_nb_total_blocks.notify_one();
+        std::memcpy(dest.data(), m_data.data() + m_read_index, read_length * sizeof(T));
+        std::memcpy(dest.data() + read_length, m_data.data(), overflow_length * sizeof(T));
+        m_read_index = (m_read_index + full_read_length) % get_size();
+        m_total_used -= full_read_length;
 
-        scoped_buf.buf = rd_buf; 
-        return scoped_buf;
-    }
-
-    void Reset() {
-        auto lock = std::scoped_lock(mutex_rw);
-        curr_wr_block_index = 0;
-        curr_rd_block = 0;
-        curr_wr_block = 0;
-        nb_blocks = 0;
-        cv_nb_total_blocks.notify_one();
-    }
-
-    size_t GetTotalBlockBytes() {
-        return block_size * sizeof(T);
+        return full_read_length;
     }
 };

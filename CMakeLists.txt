@@ -57,6 +57,9 @@ if(NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
         add_compile_options(/fp:fast /arch:AVX2)
         # add_compile_options(/fp:fast /arch:AVX)
         # add_compile_options(/fp:fast)
+        # add_compile_options(/fsanitize=address)
+        # add_compile_definitions(_DISABLE_VECTOR_ANNOTATION)
+        # add_compile_definitions(_DISABLE_STRING_ANNOTATION)
     else()
         # NOTE: We are optimising specifically for your CPU's microarchitecture
         #       This is okay since we don't ship prebuilt binaries for linux distributions

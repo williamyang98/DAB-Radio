@@ -1,6 +1,6 @@
 #pragma once
 
 #include "audio/portaudio_utility.h"
-#include "audio/portaudio_output.h"
+#include "audio/audio_pipeline.h"
 
-void RenderPortAudioControls(PaDeviceList& device_list, PortAudio_Output& audio_output);
+void RenderPortAudioControls(PaDeviceList& device_list, AudioPipeline& pipeline);

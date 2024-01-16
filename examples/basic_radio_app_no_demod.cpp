@@ -15,9 +15,8 @@
 #endif
 
 #include "basic_radio/basic_radio.h"
-#include "./audio/portaudio_output.h"
-#include "./audio/audio_mixer.h"
-#include "./audio/resampled_pcm_player.h"
+#include "./audio/audio_pipeline.h"
+#include "./audio/portaudio_sink.h"
 #include "./audio/portaudio_utility.h"
 
 #include <GLFW/glfw3.h> 
@@ -43,8 +42,7 @@ private:
     std::unique_ptr<std::thread> radio_thread;
 
     PaDeviceList pa_devices;
-    PortAudio_Output pa_output;
-    std::unordered_map<subchannel_id_t, std::unique_ptr<Resampled_PCM_Player>> dab_plus_audio_players;
+    AudioPipeline audio_pipeline;
 public:
     App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in) 
     : fp_in(_fp_in) {
@@ -63,10 +61,12 @@ public:
         #ifdef _WIN32
         const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
         const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
-        pa_output.Open(target_device_index);
         #else
-        pa_output.Open(Pa_GetDefaultOutputDevice());
+        const auto target_device_index = Pa_GetDefaultOutputDevice();
         #endif
+
+        auto audio_sink_res = PortAudioSink::create_from_index(target_device_index);
+        audio_pipeline.set_sink(std::move(audio_sink_res.sink));
     }
     ~App() {
         fclose(fp_in);
@@ -75,7 +75,7 @@ public:
     }
     auto& GetRadio() { return *(radio.get()); }
     auto& GetViewController() { return *(gui_controller.get()); }
-    auto& GetPaAudioOutput() { return pa_output; }
+    auto& GetAudioPipeline() { return audio_pipeline; }
     auto& GetPaDevices() { return pa_devices; }
 private:
     void RunnerThread() {
@@ -93,26 +93,18 @@ private:
     }
     void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
         auto& controls = channel.GetControls();
-
-        auto& mixer = pa_output.GetMixer();
-        auto buf = mixer.CreateManagedBuffer(2);
-
-        auto player = std::make_unique<Resampled_PCM_Player>(buf, pa_output.GetSampleRate());
-        auto res = dab_plus_audio_players.emplace(subchannel_id, std::move(player)).first;
-        auto* pcm_player = res->second.get(); 
-        channel.OnAudioData().Attach([this, &controls, pcm_player](BasicAudioParams params, tcb::span<const uint8_t> buf) {
+        auto audio_source = std::make_shared<AudioPipelineSource>();
+        audio_pipeline.add_source(audio_source);
+        channel.OnAudioData().Attach([this, &controls, audio_source](BasicAudioParams params, tcb::span<const uint8_t> buf) {
             if (!controls.GetIsPlayAudio()) {
                 return;
             }
-
-            pcm_player->SetInputSampleRate(params.frequency);
-
             tcb::span<const Frame<int16_t>> rd_buf = {
                 reinterpret_cast<const Frame<int16_t>*>(buf.data()),
                 (size_t)(buf.size() / sizeof(Frame<int16_t>))
             };
-
-            pcm_player->ConsumeBuffer(rd_buf);
+            const bool is_blocking = audio_pipeline.get_sink() != nullptr;
+            audio_source->read_from_source(rd_buf, float(params.frequency), is_blocking);
         });
     }
 };
@@ -149,7 +141,7 @@ public:
             ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
             ImGui::DockSpace(dockspace_id);
             if (ImGui::Begin("Audio Controls")) {
-                RenderPortAudioControls(app.GetPaDevices(), app.GetPaAudioOutput());
+                RenderPortAudioControls(app.GetPaDevices(), app.GetAudioPipeline());
             }
             ImGui::End();
             RenderBasicRadio(app.GetRadio(), app.GetViewController());
