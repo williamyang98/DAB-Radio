@@ -9,30 +9,6 @@
 #define LOG_MESSAGE(...) CLOG(INFO, "db-updater") << fmt::format(__VA_ARGS__)
 #define LOG_ERROR(...) CLOG(ERROR, "db-updater") << fmt::format(__VA_ARGS__)
 
-#define FORM_FIELD_MACRO(__FIELD_NAME, __FIELD_VALUE, __DIRTY_FLAG, __COMPARE) {\
-    auto& data = GetData();\
-    if (dirty_field & __DIRTY_FLAG) {\
-        if (!__COMPARE(data.__FIELD_NAME, __FIELD_VALUE)) {\
-            LOG_ERROR("{} conflict because of value mismatch", #__DIRTY_FLAG);\
-            OnConflict();\
-            return UpdateResult::CONFLICT;\
-        }\
-        return UpdateResult::NO_CHANGE;\
-    }\
-    dirty_field |= __DIRTY_FLAG;\
-    data.__FIELD_NAME = __FIELD_VALUE;\
-    OnComplete();\
-    OnUpdate();\
-    return UpdateResult::SUCCESS;\
-}
-
-#define COMPARE_MACRO_VALUE(__X,__Y) (__X == __Y)
-#define COMPARE_MACRO_STRING(__X,__Y) (__Y.compare(__X) == 0)
-#define FORM_FIELD_VALUE_MACRO(__FIELD_NAME, __FIELD_VALUE, __DIRTY_FLAG)\
-    FORM_FIELD_MACRO(__FIELD_NAME, __FIELD_VALUE, __DIRTY_FLAG, COMPARE_MACRO_VALUE)
-#define FORM_FIELD_STRING_MACRO(__FIELD_NAME, __FIELD_VALUE, __DIRTY_FLAG)\
-    FORM_FIELD_MACRO(__FIELD_NAME, __FIELD_VALUE, __DIRTY_FLAG, COMPARE_MACRO_STRING)
-
 template <typename T>
 bool insert_if_unique(std::vector<T>& vec, T value) {
     for (auto& v: vec) {
@@ -54,11 +30,11 @@ const uint8_t ENSEMBLE_FLAG_INTER_TABLE = 0b00000001;
 const uint8_t ENSEMBLE_FLAG_REQUIRED    = 0b11100001;
 
 UpdateResult EnsembleUpdater::SetReference(const ensemble_id_t reference) {
-    FORM_FIELD_VALUE_MACRO(reference, reference, ENSEMBLE_FLAG_REFERENCE);
+    return UpdateField(GetData().reference, reference, ENSEMBLE_FLAG_REFERENCE);
 }
 
 UpdateResult EnsembleUpdater::SetCountryID(const country_id_t country_id) {
-    FORM_FIELD_VALUE_MACRO(country_id, country_id, ENSEMBLE_FLAG_COUNTRY_ID);
+    return UpdateField(GetData().country_id, country_id, ENSEMBLE_FLAG_COUNTRY_ID);
 }
 
 UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t extended_country_code) {
@@ -67,28 +43,28 @@ UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t
     if (extended_country_code == 0x00) {
         return UpdateResult::NO_CHANGE;
     }
-    FORM_FIELD_VALUE_MACRO(extended_country_code, extended_country_code, ENSEMBLE_FLAG_ECC);
+    return UpdateField(GetData().extended_country_code, extended_country_code, ENSEMBLE_FLAG_ECC);
 }
 
 UpdateResult EnsembleUpdater::SetLabel(tcb::span<const uint8_t> buf) {
     auto new_label = std::string_view((const char*)buf.data(), buf.size());
-    FORM_FIELD_STRING_MACRO(label, new_label, ENSEMBLE_FLAG_LABEL);
+    return UpdateField(GetData().label, new_label, ENSEMBLE_FLAG_LABEL);
 }
 
 UpdateResult EnsembleUpdater::SetNumberServices(const uint8_t nb_services) {
-    FORM_FIELD_VALUE_MACRO(nb_services, nb_services, ENSEMBLE_FLAG_NB_SERVICES);
+    return UpdateField(GetData().nb_services, nb_services, ENSEMBLE_FLAG_NB_SERVICES);
 }
 
 UpdateResult EnsembleUpdater::SetReconfigurationCount(const uint16_t reconfiguration_count) {
-    FORM_FIELD_VALUE_MACRO(reconfiguration_count, reconfiguration_count, ENSEMBLE_FLAG_RCOUNT);
+    return UpdateField(GetData().reconfiguration_count, reconfiguration_count, ENSEMBLE_FLAG_RCOUNT);
 }
 
 UpdateResult EnsembleUpdater::SetLocalTimeOffset(const int8_t local_time_offset) {
-    FORM_FIELD_VALUE_MACRO(local_time_offset, local_time_offset, ENSEMBLE_FLAG_LTO);
+    return UpdateField(GetData().local_time_offset, local_time_offset, ENSEMBLE_FLAG_LTO);
 }
 
 UpdateResult EnsembleUpdater::SetInternationalTableID(const uint8_t international_table_id) {
-    FORM_FIELD_VALUE_MACRO(international_table_id, international_table_id, ENSEMBLE_FLAG_INTER_TABLE);
+    return UpdateField(GetData().international_table_id, international_table_id, ENSEMBLE_FLAG_INTER_TABLE);
 }
 
 bool EnsembleUpdater::IsComplete() {
@@ -105,31 +81,31 @@ const uint8_t SERVICE_FLAG_CLOSED_CAP   = 0b00000100;
 const uint8_t SERVICE_FLAG_REQUIRED     = 0b10000000;
 
 UpdateResult ServiceUpdater::SetCountryID(const country_id_t country_id) {
-    FORM_FIELD_VALUE_MACRO(country_id, country_id, SERVICE_FLAG_COUNTRY_ID);
+    return UpdateField(GetData().country_id, country_id, SERVICE_FLAG_COUNTRY_ID);
 }
 
 UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t extended_country_code) {
     if (extended_country_code == 0x00) {
         return UpdateResult::NO_CHANGE;
     }
-    FORM_FIELD_VALUE_MACRO(extended_country_code, extended_country_code, SERVICE_FLAG_ECC);
+    return UpdateField(GetData().extended_country_code, extended_country_code, SERVICE_FLAG_ECC);
 }
 
 UpdateResult ServiceUpdater::SetLabel(tcb::span<const uint8_t> buf) {
     auto new_label = std::string_view((const char*)buf.data(), buf.size());
-    FORM_FIELD_STRING_MACRO(label, new_label, SERVICE_FLAG_LABEL);
+    return UpdateField(GetData().label, new_label, SERVICE_FLAG_LABEL);
 }
 
 UpdateResult ServiceUpdater::SetProgrammeType(const programme_id_t programme_type) {
-    FORM_FIELD_VALUE_MACRO(programme_type, programme_type, SERVICE_FLAG_PROGRAM_TYPE);
+    return UpdateField(GetData().programme_type, programme_type, SERVICE_FLAG_PROGRAM_TYPE);
 }
 
 UpdateResult ServiceUpdater::SetLanguage(const language_id_t language) {
-    FORM_FIELD_VALUE_MACRO(language, language, SERVICE_FLAG_LANGUAGE);
+    return UpdateField(GetData().language, language, SERVICE_FLAG_LANGUAGE);
 }
 
 UpdateResult ServiceUpdater::SetClosedCaption(const closed_caption_id_t closed_caption) {
-    FORM_FIELD_VALUE_MACRO(closed_caption, closed_caption, SERVICE_FLAG_CLOSED_CAP);
+    return UpdateField(GetData().closed_caption, closed_caption, SERVICE_FLAG_CLOSED_CAP);
 }
 
 bool ServiceUpdater::IsComplete() {
@@ -149,7 +125,7 @@ const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01011000;
 
 UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
     auto new_label = std::string_view((const char*)buf.data(), buf.size());
-    FORM_FIELD_STRING_MACRO(label, new_label, SERVICE_COMPONENT_FLAG_LABEL);
+    return UpdateField(GetData().label, new_label, SERVICE_COMPONENT_FLAG_LABEL);
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {
@@ -158,7 +134,7 @@ UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode trans
         return UpdateResult::CONFLICT;
     }
 
-    FORM_FIELD_VALUE_MACRO(transport_mode, transport_mode, SERVICE_COMPONENT_FLAG_TRANSPORT_MODE);
+    return UpdateField(GetData().transport_mode, transport_mode, SERVICE_COMPONENT_FLAG_TRANSPORT_MODE);
 }
 
 UpdateResult ServiceComponentUpdater::SetAudioServiceType(const AudioServiceType audio_service_type) {
@@ -171,7 +147,7 @@ UpdateResult ServiceComponentUpdater::SetAudioServiceType(const AudioServiceType
         OnConflict();
         return UpdateResult::CONFLICT;
     }
-    FORM_FIELD_VALUE_MACRO(audio_service_type, audio_service_type, SERVICE_COMPONENT_FLAG_AUDIO_TYPE);
+    return UpdateField(GetData().audio_service_type, audio_service_type, SERVICE_COMPONENT_FLAG_AUDIO_TYPE);
 }
 
 UpdateResult ServiceComponentUpdater::SetDataServiceType(const DataServiceType data_service_type) {
@@ -179,15 +155,15 @@ UpdateResult ServiceComponentUpdater::SetDataServiceType(const DataServiceType d
         OnConflict();
         return UpdateResult::CONFLICT;
     }
-    FORM_FIELD_VALUE_MACRO(data_service_type, data_service_type, SERVICE_COMPONENT_FLAG_DATA_TYPE);
+    return UpdateField(GetData().data_service_type, data_service_type, SERVICE_COMPONENT_FLAG_DATA_TYPE);
 }
 
 UpdateResult ServiceComponentUpdater::SetSubchannel(const subchannel_id_t subchannel_id) {
-    FORM_FIELD_VALUE_MACRO(subchannel_id, subchannel_id, SERVICE_COMPONENT_FLAG_SUBCHANNEL);
+    return UpdateField(GetData().subchannel_id, subchannel_id, SERVICE_COMPONENT_FLAG_SUBCHANNEL);
 }
 
 UpdateResult ServiceComponentUpdater::SetGlobalID(const service_component_global_id_t global_id) {
-    FORM_FIELD_VALUE_MACRO(global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID);
+    return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID);
 }
 
 uint32_t ServiceComponentUpdater::GetServiceReference() {
@@ -212,15 +188,15 @@ const uint8_t SUBCHANNEL_FLAG_REQUIRED_UEP      = 0b11110000;
 const uint8_t SUBCHANNEL_FLAG_REQUIRED_EEP      = 0b11101100;
 
 UpdateResult SubchannelUpdater::SetStartAddress(const subchannel_addr_t start_address) {
-    FORM_FIELD_VALUE_MACRO(start_address, start_address, SUBCHANNEL_FLAG_START_ADDRESS);
+    return UpdateField(GetData().start_address, start_address, SUBCHANNEL_FLAG_START_ADDRESS);
 }
 
 UpdateResult SubchannelUpdater::SetLength(const subchannel_size_t length) {
-    FORM_FIELD_VALUE_MACRO(length, length, SUBCHANNEL_FLAG_LENGTH); 
+    return UpdateField(GetData().length, length, SUBCHANNEL_FLAG_LENGTH); 
 }
 
 UpdateResult SubchannelUpdater::SetIsUEP(const bool is_uep) {
-    FORM_FIELD_VALUE_MACRO(is_uep, is_uep, SUBCHANNEL_FLAG_IS_UEP);
+    return UpdateField(GetData().is_uep, is_uep, SUBCHANNEL_FLAG_IS_UEP);
 }
 
 UpdateResult SubchannelUpdater::SetUEPProtIndex(const uep_protection_index_t uep_prot_index) {
@@ -228,7 +204,7 @@ UpdateResult SubchannelUpdater::SetUEPProtIndex(const uep_protection_index_t uep
     if (res == UpdateResult::CONFLICT) {
         return UpdateResult::CONFLICT;
     }
-    FORM_FIELD_VALUE_MACRO(uep_prot_index, uep_prot_index, SUBCHANNEL_FLAG_UEP_PROT_INDEX);
+    return UpdateField(GetData().uep_prot_index, uep_prot_index, SUBCHANNEL_FLAG_UEP_PROT_INDEX);
 }
 
 UpdateResult SubchannelUpdater::SetEEPProtLevel(const eep_protection_level_t eep_prot_level) {
@@ -236,7 +212,7 @@ UpdateResult SubchannelUpdater::SetEEPProtLevel(const eep_protection_level_t eep
     if (res == UpdateResult::CONFLICT) {
         return UpdateResult::CONFLICT;
     }
-    FORM_FIELD_VALUE_MACRO(eep_prot_level, eep_prot_level, SUBCHANNEL_FLAG_EEP_PROT_LEVEL);
+    return UpdateField(GetData().eep_prot_level, eep_prot_level, SUBCHANNEL_FLAG_EEP_PROT_LEVEL);
 }
 
 UpdateResult SubchannelUpdater::SetEEPType(const EEP_Type eep_type) {
@@ -244,11 +220,11 @@ UpdateResult SubchannelUpdater::SetEEPType(const EEP_Type eep_type) {
     if (res == UpdateResult::CONFLICT) {
         return UpdateResult::CONFLICT;
     }
-    FORM_FIELD_VALUE_MACRO(eep_type, eep_type, SUBCHANNEL_FLAG_EEP_TYPE);
+    return UpdateField(GetData().eep_type, eep_type, SUBCHANNEL_FLAG_EEP_TYPE);
 }
 
 UpdateResult SubchannelUpdater::SetFECScheme(const fec_scheme_t fec_scheme) {
-    FORM_FIELD_VALUE_MACRO(fec_scheme, fec_scheme, SUBCHANNEL_FLAG_FEC_SCHEME);
+    return UpdateField(GetData().fec_scheme, fec_scheme, SUBCHANNEL_FLAG_FEC_SCHEME);
 }
 
 bool SubchannelUpdater::IsComplete() {
@@ -265,19 +241,19 @@ const uint8_t LINK_FLAG_SERVICE_REF     = 0b00010000;
 const uint8_t LINK_FLAG_REQUIRED        = 0b00010000;
 
 UpdateResult LinkServiceUpdater::SetIsActiveLink(const bool is_active_link) {
-    FORM_FIELD_VALUE_MACRO(is_active_link, is_active_link, LINK_FLAG_ACTIVE);
+    return UpdateField(GetData().is_active_link, is_active_link, LINK_FLAG_ACTIVE);
 }
 
 UpdateResult LinkServiceUpdater::SetIsHardLink(const bool is_hard_link) {
-    FORM_FIELD_VALUE_MACRO(is_hard_link, is_hard_link, LINK_FLAG_HARD);
+    return UpdateField(GetData().is_hard_link, is_hard_link, LINK_FLAG_HARD);
 }
 
 UpdateResult LinkServiceUpdater::SetIsInternational(const bool is_international) {
-    FORM_FIELD_VALUE_MACRO(is_international, is_international, LINK_FLAG_INTERNATIONAL);
+    return UpdateField(GetData().is_international, is_international, LINK_FLAG_INTERNATIONAL);
 }
 
 UpdateResult LinkServiceUpdater::SetServiceReference(const service_id_t service_reference) {
-    FORM_FIELD_VALUE_MACRO(service_reference, service_reference, LINK_FLAG_SERVICE_REF);
+    return UpdateField(GetData().service_reference, service_reference, LINK_FLAG_SERVICE_REF);
 }
 
 service_id_t LinkServiceUpdater::GetServiceReference() {
@@ -295,11 +271,11 @@ const uint8_t FM_FLAG_FREQ      = 0b00100000;
 const uint8_t FM_FLAG_REQUIRED  = 0b10100000;
 
 UpdateResult FM_ServiceUpdater::SetLinkageSetNumber(const lsn_t linkage_set_number) {
-    FORM_FIELD_VALUE_MACRO(linkage_set_number, linkage_set_number, FM_FLAG_LSN);
+    return UpdateField(GetData().linkage_set_number, linkage_set_number, FM_FLAG_LSN);
 }
 
 UpdateResult FM_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compensated) {
-    FORM_FIELD_VALUE_MACRO(is_time_compensated, is_time_compensated, FM_FLAG_TIME_COMP);
+    return UpdateField(GetData().is_time_compensated, is_time_compensated, FM_FLAG_TIME_COMP);
 }
 
 UpdateResult FM_ServiceUpdater::AddFrequency(const freq_t frequency) {
@@ -321,11 +297,11 @@ const uint8_t DRM_FLAG_FREQ      = 0b00100000;
 const uint8_t DRM_FLAG_REQUIRED  = 0b10100000;
 
 UpdateResult DRM_ServiceUpdater::SetLinkageSetNumber(const lsn_t linkage_set_number) {
-    FORM_FIELD_VALUE_MACRO(linkage_set_number, linkage_set_number, DRM_FLAG_LSN);
+    return UpdateField(GetData().linkage_set_number, linkage_set_number, DRM_FLAG_LSN);
 }
 
 UpdateResult DRM_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compensated) {
-    FORM_FIELD_VALUE_MACRO(is_time_compensated, is_time_compensated, DRM_FLAG_TIME_COMP);
+    return UpdateField(GetData().is_time_compensated, is_time_compensated, DRM_FLAG_TIME_COMP);
 }
 
 UpdateResult DRM_ServiceUpdater::AddFrequency(const freq_t frequency) {
@@ -346,7 +322,7 @@ const uint8_t AMSS_FLAG_FREQ      = 0b01000000;
 const uint8_t AMSS_FLAG_REQUIRED  = 0b01000000;
 
 UpdateResult AMSS_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compensated) {
-    FORM_FIELD_VALUE_MACRO(is_time_compensated, is_time_compensated, AMSS_FLAG_TIME_COMP);
+    return UpdateField(GetData().is_time_compensated, is_time_compensated, AMSS_FLAG_TIME_COMP);
 }
 
 UpdateResult AMSS_ServiceUpdater::AddFrequency(const freq_t frequency) {
@@ -370,23 +346,23 @@ const uint8_t OE_FLAG_FREQ       = 0b00001000;
 const uint8_t OE_FLAG_REQUIRED   = 0b00001000;
 
 UpdateResult OtherEnsembleUpdater::SetCountryID(const country_id_t country_id) {
-    FORM_FIELD_VALUE_MACRO(country_id, country_id, OE_FLAG_COUNTRY_ID);
+    return UpdateField(GetData().country_id, country_id, OE_FLAG_COUNTRY_ID);
 }
 
 UpdateResult OtherEnsembleUpdater::SetIsContinuousOutput(const bool is_continuous_output) {
-    FORM_FIELD_VALUE_MACRO(is_continuous_output, is_continuous_output, OE_FLAG_CONT_OUT);
+    return UpdateField(GetData().is_continuous_output, is_continuous_output, OE_FLAG_CONT_OUT);
 }
 
 UpdateResult OtherEnsembleUpdater::SetIsGeographicallyAdjacent(const bool is_geographically_adjacent) {
-    FORM_FIELD_VALUE_MACRO(is_geographically_adjacent, is_geographically_adjacent, OE_FLAG_GEO_ADJ);
+    return UpdateField(GetData().is_geographically_adjacent, is_geographically_adjacent, OE_FLAG_GEO_ADJ);
 }
 
 UpdateResult OtherEnsembleUpdater::SetIsTransmissionModeI(const bool is_transmission_mode_I) {
-    FORM_FIELD_VALUE_MACRO(is_transmission_mode_I, is_transmission_mode_I, OE_FLAG_MODE_I);
+    return UpdateField(GetData().is_transmission_mode_I, is_transmission_mode_I, OE_FLAG_MODE_I);
 }
 
 UpdateResult OtherEnsembleUpdater::SetFrequency(const freq_t frequency) {
-    FORM_FIELD_VALUE_MACRO(frequency, frequency, OE_FLAG_FREQ);
+    return UpdateField(GetData().frequency, frequency, OE_FLAG_FREQ);
 }
 
 bool OtherEnsembleUpdater::IsComplete() {

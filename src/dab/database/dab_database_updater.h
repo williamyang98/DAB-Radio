@@ -1,12 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-
-#include "./dab_database.h"
-#include "utility/span.h"
 #include <assert.h>
 #include <vector>
+#include <string>
 #include <memory>
+#include "./dab_database.h"
+#include "utility/span.h"
 
 struct DatabaseUpdaterGlobalStatistics {
     size_t nb_total = 0;
@@ -27,18 +27,21 @@ struct DatabaseUpdaterGlobalStatistics {
     }
 };
 
-class DatabaseEntityUpdater 
+enum class UpdateResult { SUCCESS, CONFLICT, NO_CHANGE };
+
+template <typename T>
+class DatabaseEntityUpdater
 {
 protected:
     size_t total_conflicts = 0;
     size_t total_updates = 0;
     bool is_complete = false;
+    T dirty_field = T(0);
 private:
     DatabaseUpdaterGlobalStatistics& stats;
 public:
     DatabaseEntityUpdater(DatabaseUpdaterGlobalStatistics& _stats): stats(_stats) {}
-    virtual ~DatabaseEntityUpdater() {}
-protected:
+    ~DatabaseEntityUpdater() {}
     virtual bool IsComplete() = 0;
     void OnCreate() {
         stats.nb_total++;
@@ -65,18 +68,44 @@ protected:
         total_updates++;
         stats.nb_updates++;
     }
+    UpdateResult UpdateField(std::string& dst, std::string_view src, T dirty_flag) {
+        if (dirty_field & dirty_flag) {
+            if (src.compare(dst) != 0) {
+                OnConflict();
+                return UpdateResult::CONFLICT;
+            }
+            return UpdateResult::NO_CHANGE;
+        }
+        dirty_field |= dirty_flag;
+        dst = src;
+        OnComplete();
+        OnUpdate();
+        return UpdateResult::SUCCESS;
+    }
+    template <typename U>
+    UpdateResult UpdateField(U& dst, U src, T dirty_flag) {
+        if (dirty_field & dirty_flag) {
+            if (dst != src) {
+                OnConflict();
+                return UpdateResult::CONFLICT;
+            }
+            return UpdateResult::NO_CHANGE;
+        }
+        dirty_field |= dirty_flag;
+        dst = src;
+        OnComplete();
+        OnUpdate();
+        return UpdateResult::SUCCESS;
+    }
 };
 
-enum class UpdateResult { SUCCESS, CONFLICT, NO_CHANGE };
-
-class EnsembleUpdater: public DatabaseEntityUpdater 
+class EnsembleUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
-    uint8_t dirty_field = 0x00;
 public:
     explicit EnsembleUpdater(DAB_Database& _db, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db) { OnCreate(); } 
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db) { OnCreate(); } 
     UpdateResult SetReference(const ensemble_id_t reference);
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
@@ -85,38 +114,38 @@ public:
     UpdateResult SetReconfigurationCount(const uint16_t reconfiguration_count);
     UpdateResult SetLocalTimeOffset(const int8_t local_time_offset);
     UpdateResult SetInternationalTableID(const uint8_t international_table_id) ;
-    bool IsComplete() override;
     auto& GetData() { return db.ensemble; }
+private:
+    bool IsComplete() override;
 };
 
-class ServiceUpdater: public DatabaseEntityUpdater 
+class ServiceUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetProgrammeType(const programme_id_t programme_type);
     UpdateResult SetLanguage(const language_id_t language);
     UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
-    bool IsComplete() override;
     auto& GetData() { return db.services[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class ServiceComponentUpdater: public DatabaseEntityUpdater 
+class ServiceComponentUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit ServiceComponentUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLabel(tcb::span<const uint8_t> buf);
     UpdateResult SetTransportMode(const TransportMode transport_mode);
     UpdateResult SetAudioServiceType(const AudioServiceType audio_service_type);
@@ -124,19 +153,19 @@ public:
     UpdateResult SetSubchannel(const subchannel_id_t subchannel_id);
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
     uint32_t GetServiceReference();
-    bool IsComplete() override;
     auto& GetData() { return db.service_components[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class SubchannelUpdater: public DatabaseEntityUpdater 
+class SubchannelUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit SubchannelUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetStartAddress(const subchannel_addr_t start_address);
     UpdateResult SetLength(const subchannel_size_t length);
     UpdateResult SetIsUEP(const bool is_uep);
@@ -144,98 +173,99 @@ public:
     UpdateResult SetEEPProtLevel(const eep_protection_level_t eep_prot_level);
     UpdateResult SetEEPType(const EEP_Type eep_type);
     UpdateResult SetFECScheme(const fec_scheme_t fec_scheme);
-    bool IsComplete() override;
     auto& GetData() { return db.subchannels[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class LinkServiceUpdater: public DatabaseEntityUpdater 
+class LinkServiceUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit LinkServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetIsActiveLink(const bool is_active_link);
     UpdateResult SetIsHardLink(const bool is_hard_link);
     UpdateResult SetIsInternational(const bool is_international);
     UpdateResult SetServiceReference(const service_id_t service_reference);
     service_id_t GetServiceReference();
-    bool IsComplete() override;
     auto& GetData() { return db.link_services[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class FM_ServiceUpdater: public DatabaseEntityUpdater 
+class FM_ServiceUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit FM_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLinkageSetNumber(const lsn_t linkage_set_number); 
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
-    bool IsComplete() override;
     auto& GetData() { return db.fm_services[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class DRM_ServiceUpdater: public DatabaseEntityUpdater 
+class DRM_ServiceUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit DRM_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetLinkageSetNumber(const lsn_t linkage_set_number); 
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
-    bool IsComplete() override;
     auto& GetData() { return db.drm_services[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class AMSS_ServiceUpdater: public DatabaseEntityUpdater 
+class AMSS_ServiceUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit AMSS_ServiceUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetIsTimeCompensated(const bool is_time_compensated);
     UpdateResult AddFrequency(const freq_t frequency);
-    bool IsComplete() override;
     auto& GetData() { return db.amss_services[index]; }
+private:
+    bool IsComplete() override;
 };
 
-class OtherEnsembleUpdater: public DatabaseEntityUpdater 
+class OtherEnsembleUpdater: private DatabaseEntityUpdater<uint8_t>
 {
 private:
     DAB_Database& db;
     const size_t index;
-    uint8_t dirty_field = 0x00;
 public:
     explicit OtherEnsembleUpdater(DAB_Database& _db, size_t _index, DatabaseUpdaterGlobalStatistics& _stats)
-        : DatabaseEntityUpdater(_stats), db(_db), index(_index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint8_t>(_stats), db(_db), index(_index) { OnCreate(); }
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetIsContinuousOutput(const bool is_continuous_output);
     UpdateResult SetIsGeographicallyAdjacent(const bool is_geographically_adjacent);
     UpdateResult SetIsTransmissionModeI(const bool is_transmission_mode_I);
     UpdateResult SetFrequency(const freq_t frequency);
-    bool IsComplete() override;
     auto& GetData() { return db.other_ensembles[index]; }
+private:
+    bool IsComplete() override;
 };
 
 class DAB_Database_Updater
 {
 private:
     std::unique_ptr<DatabaseUpdaterGlobalStatistics> stats;
-    std::unique_ptr<DAB_Database> db;  
+    std::unique_ptr<DAB_Database> db;
     std::unique_ptr<EnsembleUpdater> ensemble_updater;
     std::vector<ServiceUpdater> service_updaters;
     std::vector<ServiceComponentUpdater> service_component_updaters;
