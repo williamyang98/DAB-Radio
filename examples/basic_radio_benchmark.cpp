@@ -31,12 +31,12 @@ private:
     std::unique_ptr<BasicRadio> radio;
     Config config;
 public:
-    App(const int transmission_mode, FILE* const _fp_in)
+    App(const int transmission_mode, FILE* const _fp_in, const int total_threads)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
         frame_bits.resize(params.nb_frame_bits);
-        radio = std::make_unique<BasicRadio>(params);
+        radio = std::make_unique<BasicRadio>(params, total_threads);
         // Start decoding audio/data for benchmarking
         // We are interested in these code paths for profiling
         radio->On_DAB_Plus_Channel().Attach([this](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
@@ -66,6 +66,7 @@ void usage() {
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
+        "\t[-t total threads (default: 1)]\n"
         "\t[-D disable decode data (default: true)]\n"
         "\t[-A disable decode audio (default: true)]\n"
         "\t[-v Enable logging (default: false)]\n"
@@ -80,15 +81,19 @@ int main(int argc, char** argv) {
     bool is_decode_data = true;
     bool is_decode_audio = true;
     int transmission_mode = 1;
+    int total_threads = 1;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "i:M:DAvh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "i:M:t:DAvh")) != -1) {
         switch (opt) {
         case 'i':
             rd_filename = optarg;
             break;
         case 'M':
             transmission_mode = (int)(atof(optarg));
+            break;
+        case 't':
+            total_threads = (int)(atof(optarg));
             break;
         case 'D':
             is_decode_data = false;
@@ -143,7 +148,7 @@ int main(int argc, char** argv) {
     scraper_conf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
     basic_scraper_logger->configure(scraper_conf);
 
-    auto app = App(transmission_mode, fp_in);
+    auto app = App(transmission_mode, fp_in, total_threads);
     auto& config = app.GetConfig();
     config.is_decode_audio = is_decode_audio;
     config.is_decode_data = is_decode_data;

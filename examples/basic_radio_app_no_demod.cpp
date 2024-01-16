@@ -157,7 +157,7 @@ void usage() {
         "\t[-i input filename (default: None)]\n"
         "\t    If no file is provided then stdin is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
-        "\t[-T total radio threads (default: auto)]\n"
+        "\t[-T total radio threads (default: 1)]\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
     char* rd_filename = NULL;
     bool is_logging = false;
     int transmission_mode = 1;
-    int total_radio_threads = 0;
+    int total_radio_threads = 1;
 
     int opt; 
     while ((opt = getopt_custom(argc, argv, "i:M:T:vh")) != -1) {

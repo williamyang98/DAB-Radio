@@ -132,7 +132,8 @@ void usage() {
         "\t[-v Enable logging (default: false)]\n"
         "\t[-b block size (default: 8192)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
-        "\t[-t total ofdm demod threads (default: auto)]\n"
+        "\t[-t total ofdm demod threads (default: 1)]\n"
+        "\t[-T total radio threads (default: 1)]\n"
         "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
     );
@@ -142,8 +143,8 @@ INITIALIZE_EASYLOGGINGPP
 int main(int argc, char** argv) {
     const char* output_dir = NULL;
     const char* rd_filename = NULL;
-    int total_demod_threads = 0;
-    int total_radio_threads = 0;
+    int total_demod_threads = 1;
+    int total_radio_threads = 1;
     int block_size = 8192;
     bool is_logging = false;
     int transmission_mode = 1;

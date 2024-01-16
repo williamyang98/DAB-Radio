@@ -27,12 +27,12 @@ private:
     std::unique_ptr<BasicRadio> radio;
     std::unique_ptr<BasicScraper> scraper;
 public:
-    App(const int transmission_mode, const int total_demod_threads, FILE* const _fp_in, const char* dir)
+    App(const int transmission_mode, const int total_radio_threads, FILE* const _fp_in, const char* dir)
     : fp_in(_fp_in)
     {
         auto params = get_dab_parameters(transmission_mode);
         frame_bits.resize(params.nb_frame_bits);
-        radio = std::make_unique<BasicRadio>(params, total_demod_threads);
+        radio = std::make_unique<BasicRadio>(params, total_radio_threads);
         scraper = std::make_unique<BasicScraper>(*(radio.get()), dir);
     }
     void Run() {
@@ -56,7 +56,7 @@ void usage() {
         "\t    If no file is provided then stdin is used\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-M dab transmission mode (default: 1)]\n"
-        "\t[-T total radio threads (default: auto)]\n"
+        "\t[-T total radio threads (default: 1)]\n"
         "\t[-h (show usage)]\n"
     );
 }
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     const char* rd_filename = NULL;
     bool is_logging = false;
     int transmission_mode = 1;
-    int total_radio_threads = 0;
+    int total_radio_threads = 1;
 
     int opt; 
     while ((opt = getopt_custom(argc, argv, "o:i:M:T:vh")) != -1) {

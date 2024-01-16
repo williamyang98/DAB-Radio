@@ -91,6 +91,7 @@ class App
 {
 private:
     const int transmission_mode = 1;
+    const int total_radio_threads;
     // When switching between block frequencies, interrupt the data flow so we dont have data from 
     // the previous block frequency entering the data models for the new block frequency
     int demodulator_cooldown_max = 10;
@@ -111,11 +112,12 @@ private:
     PaDeviceList pa_devices;
     AudioPipeline audio_pipeline;
 public:
-    explicit App(const int total_demod_threads) 
-    :   device_selector(std::make_unique<DeviceSelector>())
+    explicit App(const int _total_demod_threads, const int _total_radio_threads) 
+    :   device_selector(std::make_unique<DeviceSelector>()),
+        total_radio_threads(_total_radio_threads)
     {
         const auto dab_params = get_dab_parameters(transmission_mode);
-        ofdm_demod = Create_OFDM_Demodulator(transmission_mode, total_demod_threads);
+        ofdm_demod = Create_OFDM_Demodulator(transmission_mode, _total_demod_threads);
 
         frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits);
         raw_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(0);
@@ -251,7 +253,7 @@ private:
 private:
     void CreateRadio(const std::string& key) {
         const auto dab_params = get_dab_parameters(transmission_mode);
-        auto radio = std::make_unique<BasicRadio>(dab_params);
+        auto radio = std::make_unique<BasicRadio>(dab_params, total_radio_threads);
         auto view_controller = std::make_unique<BasicRadioViewController>(*(radio.get()));
         auto instance = std::make_unique<RadioInstance>(
             std::move(radio), 
@@ -333,6 +335,7 @@ void usage() {
     fprintf(stderr, 
         "radio_app, Complete radio app with device selector, demodulator, dab decoding\n\n"
         "\t[-t total ofdm demod threads (default: 1)]\n"
+        "\t[-T total radio threads (default: 1)]\n"
         "\t[-v Enable logging (default: false)]\n"
         "\t[-C toggle coarse frequency correction (default: true)]\n"
         "\t[-h (show usage)]\n"
@@ -342,14 +345,18 @@ void usage() {
 INITIALIZE_EASYLOGGINGPP
 int main(int argc, char **argv) {
     int total_demod_threads = 1;
+    int total_radio_threads = 1;
     bool is_logging = false;
     bool is_coarse_freq_correction = true;
 
     int opt; 
-    while ((opt = getopt_custom(argc, argv, "t:vCh")) != -1) {
+    while ((opt = getopt_custom(argc, argv, "t:T:vCh")) != -1) {
         switch (opt) {
         case 't':
             total_demod_threads = (int)(atof(optarg));
+            break;
+        case 'T':
+            total_radio_threads = (int)(atof(optarg));
             break;
         case 'v':
             is_logging = true;
@@ -380,7 +387,7 @@ int main(int argc, char **argv) {
     el::Helpers::setThreadName("main-thread");
 
     auto port_audio_handler = ScopedPaHandler();
-    auto app = App(total_demod_threads);
+    auto app = App(total_demod_threads, total_radio_threads);
     auto& config = app.GetOFDMDemodulator().GetConfig();
     config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
 

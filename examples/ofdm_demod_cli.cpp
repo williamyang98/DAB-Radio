@@ -124,7 +124,7 @@ void usage() {
         "\t[-o output filename (default: None)]\n"
         "\t    If no file is provided then stdout is used\n"
         "\t[-M dab transmission mode (default: 1)]\n"
-        "\t[-t total ofdm demod threads (default: auto)]\n"
+        "\t[-t total ofdm demod threads (default: 1)]\n"
         "\t[-D (disable output)]\n"
         "\t[-C (disable coarse frequency correction)]\n"
         "\t[-h (show usage)]\n"
@@ -132,7 +132,7 @@ void usage() {
 }
 
 int main(int argc, char** argv) {
-    int total_demod_threads = 0;
+    int total_demod_threads = 1;
     int block_size = 8192;
     int transmission_mode = 1;
     bool is_output = true;
