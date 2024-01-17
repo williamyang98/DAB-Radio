@@ -15,7 +15,7 @@
 #include "utility/joint_allocate.h"
 
 #define PROFILE_ENABLE 1
-#include "utility/profiler.h"
+#include "./profiler.h"
 
 // NOTE: Determine correct alignment for FFTW3 buffers
 #if defined(__ARCH_X86__)

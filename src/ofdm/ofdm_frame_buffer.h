@@ -1,7 +1,7 @@
 #pragma once
 
 #include "utility/span.h"
-#include "ofdm_params.h"
+#include "./ofdm_params.h"
 #include <algorithm>
 #include <assert.h>
 

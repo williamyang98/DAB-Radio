@@ -8,7 +8,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
-#include "utility/double_buffer.h"
+#include "./double_buffer.h"
 
 #ifdef _WIN32
 #include <io.h>

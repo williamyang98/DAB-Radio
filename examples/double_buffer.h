@@ -3,7 +3,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
-#include "span.h"
+#include "utility/span.h"
 
 template <typename T>
 class DoubleBuffer 

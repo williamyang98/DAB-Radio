@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #define PROFILE_ENABLE 1
-#include "utility/profiler.h"
+#include "./profiler.h"
 
 // Pipeline thread
 OFDM_Demod_Pipeline::OFDM_Demod_Pipeline(const size_t _start, const size_t _end) 

@@ -9,8 +9,8 @@
 
 #include "./ofdm_params.h"
 #include "./ofdm_frame_buffer.h"
-#include "utility/reconstruction_buffer.h"
-#include "utility/circular_buffer.h"
+#include "./reconstruction_buffer.h"
+#include "./circular_buffer.h"
 #include "utility/observable.h"
 #include "utility/span.h"
 #include "utility/joint_allocate.h"

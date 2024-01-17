@@ -5,7 +5,7 @@
 #include <complex>
 #include <thread>
 #include <memory>
-#include "utility/double_buffer.h"
+#include "./double_buffer.h"
 
 #ifdef _WIN32
 #include <io.h>
