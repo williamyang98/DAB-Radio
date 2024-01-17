@@ -13,7 +13,7 @@ private:
     size_t m_total_used = 0;
 public:
     template <typename... Args>
-    RingBuffer(Args... args): m_data(std::forward<Args>(args)...) {}
+    explicit RingBuffer(Args... args): m_data(std::forward<Args>(args)...) {}
 
     size_t get_size() const { return m_data.size(); }
     size_t get_total_used() const { return m_total_used; }

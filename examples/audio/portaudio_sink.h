@@ -32,7 +32,7 @@ private:
     const std::string m_device_name;
     AudioPipelineSink::Callback m_callback;
 public:
-    PortAudioSink(float sample_rate, size_t frames_per_buffer, const std::string&& device_name)
+    explicit PortAudioSink(float sample_rate, size_t frames_per_buffer, const std::string&& device_name)
     : m_sample_rate(sample_rate), m_frames_per_buffer(frames_per_buffer), m_device_name(device_name) {}
     ~PortAudioSink() override;
     PortAudioSink(const PortAudioSink&) = delete;

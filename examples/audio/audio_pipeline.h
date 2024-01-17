@@ -39,7 +39,7 @@ private:
     std::mutex m_mutex_ring_buffer;
     std::condition_variable m_cv_ring_buffer;
 public:
-    AudioPipelineSource(float sampling_rate=DEFAULT_AUDIO_SAMPLE_RATE, size_t buffer_length=DEFAULT_AUDIO_SOURCE_SAMPLES);
+    explicit AudioPipelineSource(float sampling_rate=DEFAULT_AUDIO_SAMPLE_RATE, size_t buffer_length=DEFAULT_AUDIO_SOURCE_SAMPLES);
     void read_from_source(tcb::span<const Frame<int16_t>> src, float src_sampling_rate, bool is_blocking); 
     bool write_to_dest(tcb::span<Frame<float>> dest);
     float get_sampling_rate() const { return m_sampling_rate; }
