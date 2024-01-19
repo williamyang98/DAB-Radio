@@ -235,7 +235,7 @@ public:
 #define PROFILE_ENABLE_TRACE_LOGGING(is_log) (void)0
 #define PROFILE_ENABLE_TRACE_LOGGING_CONTINUOUS(is_continuous) (void)0
 #else
-#define PROFILE_BEGIN_FUNC() auto timer_##__PRETTY_FUNCTION__ = InstrumentationTimer(__PRETTY_FUNCTION__)
+#define PROFILE_BEGIN_FUNC() auto timer_func = InstrumentationTimer(__PRETTY_FUNCTION__)
 #define PROFILE_BEGIN(label) auto timer_##label = InstrumentationTimer(#label)
 #define PROFILE_END(label) timer_##label.Stop()
 #define PROFILE_TAG_THREAD(label) Instrumentor::Get().GetInstrumentorThread().SetLabel(label)

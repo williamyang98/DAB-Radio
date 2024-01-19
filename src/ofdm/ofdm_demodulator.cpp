@@ -877,28 +877,12 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_b
 
 void OFDM_Demod::CalculateFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
     PROFILE_BEGIN_FUNC();
-    // Guarantee alignment for FFTW3 SIMD
-    // For all DAB transmission modes we have a power of 2 FFT so this should ideally be true 
-    assert((uintptr_t)fft_in.data() % ALIGN_AMOUNT == 0);
-    assert((uintptr_t)fft_out.data() % ALIGN_AMOUNT == 0);
-
-    fftwf_execute_dft(
-        fft_plan,
-        (fftwf_complex*)fft_in.data(),
-        (fftwf_complex*)fft_out.data());
+    fftwf_execute_dft(fft_plan, (fftwf_complex*)fft_in.data(), (fftwf_complex*)fft_out.data());
 }
 
 void OFDM_Demod::CalculateIFFT(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> fft_out) {
     PROFILE_BEGIN_FUNC();
-    // Guarantee alignment for FFTW3 SIMD
-    // For all DAB transmission modes we have a power of 2 FFT so this should ideally be true 
-    assert((uintptr_t)fft_in.data() % ALIGN_AMOUNT == 0);
-    assert((uintptr_t)fft_out.data() % ALIGN_AMOUNT == 0);
-
-    fftwf_execute_dft(
-        ifft_plan,
-        (fftwf_complex*)fft_in.data(),
-        (fftwf_complex*)fft_out.data());
+    fftwf_execute_dft(ifft_plan, (fftwf_complex*)fft_in.data(), (fftwf_complex*)fft_out.data());
 }
 
 void OFDM_Demod::CalculateRelativePhase(tcb::span<const std::complex<float>> fft_in, tcb::span<std::complex<float>> arg_out) {
