@@ -938,6 +938,7 @@ void OFDM_Demod::UpdateSignalAverage(tcb::span<const std::complex<float>> block)
     PROFILE_BEGIN_FUNC();
     const size_t N = block.size();
     const size_t K = (size_t)cfg.signal_l1.nb_samples;
+    if (N < K) return;
     const size_t M = N-K;
     const size_t L = K*cfg.signal_l1.nb_decimate;
     const float beta = cfg.signal_l1.update_beta;
