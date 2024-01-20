@@ -64,7 +64,7 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
         const bool replace_decoder = 
             (aac_audio_decoder == NULL) ||
             (aac_audio_decoder->GetParams() != audio_params);
-        
+ 
         if (replace_decoder) {
             aac_audio_decoder = std::make_unique<AAC_Audio_Decoder>(audio_params);
         }
@@ -115,10 +115,8 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
     });
 
     pad_processor.OnMOTUpdate().Attach([this](MOT_Entity entity) {
-        auto* res = slideshow_manager->Process_MOT_Entity(entity);
-        if (res != NULL) {
-            obs_slideshow.Notify(*res);
-        } else {
+        auto slideshow = slideshow_manager->Process_MOT_Entity(entity);
+        if (slideshow == nullptr) {
             obs_MOT_entity.Notify(entity);
         }
     });

@@ -13,6 +13,9 @@ find_package(implot REQUIRED)
 set(viterbi_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/viterbi_decoder)
 find_package(viterbi CONFIG REQUIRED)
 
+set(ARGPARSE_INSTALL OFF CACHE BOOL "Include an install target" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor/argparse)
+
 if(WIN32) 
     set(rtlsdr_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/librtlsdr)
     find_package(rtlsdr CONFIG REQUIRED)

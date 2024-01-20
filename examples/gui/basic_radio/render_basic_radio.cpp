@@ -1,22 +1,21 @@
 #include "./render_basic_radio.h"
 
-#include "basic_radio/basic_radio.h"
-#include "basic_radio/basic_slideshow.h"
-#include "dab/database/dab_database.h"
-#include "dab/database/dab_database_updater.h"
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui.h>
+#include <imgui_internal.h>
 
 #include <stdint.h>
 #include <inttypes.h>
 #include <fmt/core.h>
 #include <algorithm>
-#include "./formatters.h"
-
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui_internal.h>
-#include <imgui.h>
 #include "../font_awesome_definitions.h"
-#include "../imgui_extensions.h"
+#include "./formatters.h"
 #include "./render_common.h"
+
+#include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_slideshow.h"
+#include "dab/database/dab_database.h"
+#include "dab/database/dab_database_updater.h"
 
 template <typename T, typename F>
 static T* find_by_callback(std::vector<T>& vec, F&& func) {
@@ -26,20 +25,16 @@ static T* find_by_callback(std::vector<T>& vec, F&& func) {
     return nullptr;
 }
 
-void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& controller);
-void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& controller);
+static void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& controller, ServiceComponent& component);
+static void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_DAB_Plus_Channel& channel, const subchannel_id_t subchannel_id);
+static void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller);
+static void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& controller, const LinkService& link_service);
+static void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio);
 
-void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
-void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& controller, ServiceComponent& component);
-
-void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_DAB_Plus_Channel& channel, const subchannel_id_t subchannel_id);
-void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller);
-
-void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
-void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& controller, const LinkService& link_service);
-void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio);
-
-// Render a list of the services
 void RenderBasicRadio(BasicRadio& radio, BasicRadioViewController& controller) {
     auto lock = std::scoped_lock(radio.GetMutex());
     auto& db = radio.GetDatabase();
@@ -54,13 +49,13 @@ void RenderBasicRadio(BasicRadio& radio, BasicRadioViewController& controller) {
     RenderSimple_ServiceList(radio, controller);
     RenderSimple_Service(radio, controller, selected_service);
 
+    RenderOtherEnsembles(radio);
     RenderEnsemble(radio);
     RenderDateTime(radio);
     RenderDatabaseStatistics(radio);
 
     RenderSimple_BasicSlideshowSelected(radio, controller);
     RenderSimple_GlobalBasicAudioChannelControls(radio);
-    RenderOtherEnsembles(radio);
     RenderSimple_LinkServices(radio, controller, selected_service);
     RenderSimple_ServiceComponentList(radio, controller, selected_service);
 }
@@ -69,7 +64,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
     auto& db = radio.GetDatabase();
     const auto window_title = fmt::format("Services ({})###Services panel", db.services.size());
     if (ImGui::Begin(window_title.c_str())) {
-        auto& search_filter = controller.services_filter;
+        auto& search_filter = *(controller.services_filter.get());
         search_filter.Draw("###Services search filter", -1.0f);
         if (ImGui::BeginListBox("###Services list", ImVec2(-1,-1))) {
             static std::vector<Service*> service_list;
@@ -348,29 +343,31 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
     ImGui::Text("Dynamic label: %.*s", int(label.length()), label.c_str());
 
     auto& slideshow_manager = channel.GetSlideshowManager();
-    auto lock = std::scoped_lock(slideshow_manager.GetMutex());
-    auto& slideshows = slideshow_manager.GetSlideshows();
-
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize;
-    if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), true, window_flags)) {
+    ImGuiChildFlags child_flags = ImGuiChildFlags_Border;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
+    if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), child_flags, window_flags)) {
         ImGuiStyle& style = ImGui::GetStyle();
+        static std::vector<std::shared_ptr<Basic_Slideshow>> slideshows;
+        {
+            auto lock = std::unique_lock(slideshow_manager.GetSlideshowsMutex());
+            slideshows.clear();
+            for (auto& slideshow: slideshow_manager.GetSlideshows()) {
+                slideshows.push_back(slideshow);
+            }
+        }
+
         const float window_width = ImGui::GetWindowContentRegionMax().x;
         float curr_x = 0.0f;
         int slideshow_id = 0;
-
         for (auto& slideshow: slideshows) {
-            auto* texture = controller.AddTexture(subchannel_id, slideshow.transport_id, slideshow.image_data);
-            if (texture == nullptr) {
-                continue;
-            }
-
+            auto& texture = controller.GetTexture(subchannel_id, slideshow->transport_id, slideshow->image_data);
             // Determine size of thumbnail
-            const auto texture_id = reinterpret_cast<ImTextureID>(texture->GetTextureID());
+            const auto texture_id = reinterpret_cast<ImTextureID>(texture.GetTextureID());
             const float target_height = 200.0f;
-            const float scale = target_height / static_cast<float>(texture->GetHeight());
+            const float scale = target_height / static_cast<float>(texture.GetHeight());
             const auto texture_size = ImVec2(
-                static_cast<float>(texture->GetWidth()) * scale, 
-                static_cast<float>(texture->GetHeight()) * scale
+                static_cast<float>(texture.GetWidth()) * scale, 
+                static_cast<float>(texture.GetHeight()) * scale
             );
 
             // Determine if the thumbnail needs to be on a new line
@@ -386,10 +383,10 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
             ImGui::PushID(slideshow_id++);
             ImGui::Image(texture_id, texture_size);
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%.*s", int(slideshow.name.length()), slideshow.name.c_str());
+                ImGui::SetTooltip("%.*s", int(slideshow->name.length()), slideshow->name.c_str());
             }
             if (ImGui::IsItemClicked()) {
-                controller.SetSelectedSlideshow({ subchannel_id, &slideshow });
+                controller.selected_slideshow = std::optional<SlideshowView>({ subchannel_id, slideshow });
             }
             ImGui::PopID();
         }
@@ -398,13 +395,12 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
 }
 
 void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller) {
-    auto selection = controller.GetSelectedSlideshow();
-    auto* slideshow = selection.slideshow;
-    if (slideshow == nullptr) {
+    if (!controller.selected_slideshow.has_value()) {
         return;
     }
-
-    auto* texture = controller.GetTexture(selection.subchannel_id, slideshow->transport_id);
+    auto& selection = controller.selected_slideshow.value();
+    auto& slideshow = selection.slideshow;
+    auto& texture = controller.GetTexture(selection.subchannel_id, slideshow->transport_id, slideshow->image_data);
 
     bool is_open = true;
     if (ImGui::Begin("Slideshow Viewer", &is_open)) {
@@ -413,14 +409,12 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewContro
 
         ImGuiWindowFlags image_flags = ImGuiWindowFlags_HorizontalScrollbar;
         if (ImGui::Begin("Image Viewer", nullptr, image_flags)) {
-            if (texture != nullptr) {
-                const auto texture_id = reinterpret_cast<ImTextureID>(texture->GetTextureID());
-                const auto texture_size = ImVec2(
-                    static_cast<float>(texture->GetWidth()), 
-                    static_cast<float>(texture->GetHeight())
-                );
-                ImGui::Image(texture_id, texture_size);
-            }
+            const auto texture_id = reinterpret_cast<ImTextureID>(texture.GetTextureID());
+            const auto texture_size = ImVec2(
+                static_cast<float>(texture.GetWidth()), 
+                static_cast<float>(texture.GetHeight())
+            );
+            ImGui::Image(texture_id, texture_size);
         }
         ImGui::End();
 
@@ -454,11 +448,9 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewContro
                 FIELD_MACRO("Alt Location URL", "%.*s", int(slideshow->alt_location_url.length()), slideshow->alt_location_url.c_str());
                 FIELD_MACRO("Size", "%zu Bytes", slideshow->image_data.size());
 
-                if (texture != nullptr) {
-                    FIELD_MACRO("Resolution", "%u x %u", texture->GetWidth(), texture->GetHeight());
-                    FIELD_MACRO("Internal Texture ID", "%" PRIuPTR, uintptr_t(texture->GetTextureID()));
-                }
-                
+                FIELD_MACRO("Resolution", "%u x %u", texture.GetWidth(), texture.GetHeight());
+                FIELD_MACRO("Internal Texture ID", "%" PRIuPTR, uintptr_t(texture.GetTextureID()));
+
                 #undef FIELD_MACRO
                 ImGui::EndTable();
             }
@@ -468,7 +460,7 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewContro
     ImGui::End();
 
     if (!is_open) {
-        controller.SetSelectedSlideshow({0,nullptr});
+        controller.selected_slideshow = std::nullopt;
     }
 }
 

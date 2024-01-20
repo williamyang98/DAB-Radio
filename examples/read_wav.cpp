@@ -4,12 +4,12 @@
 #include <string.h>
 #include "utility/span.h"
 
-#ifdef _WIN32
+#if _WIN32
 #include <io.h>
 #include <fcntl.h>
 #endif
 
-#include "./getopt/getopt.h"
+#include <argparse/argparse.hpp>
 
 // Source: http://soundfile.sapp.org/doc/WaveFormat/
 struct WavHeader {
@@ -30,74 +30,84 @@ struct WavHeader {
     int32_t  Subchunk2Size;
 } header;
 
-bool validate_wav_header(WavHeader& header);
+static bool validate_wav_header(WavHeader& header);
 
-void usage() {
-    fprintf(stderr, 
-        "read_wav, Reads a wav file and dumps data to output\n\n"
-        "\t[-b block size (default: 65536)\n"
-        "\t[-i input filename (default: None)]\n"
-        "\t    If no file is provided then stdin is used\n"
-        "\t[-o output filename (default: None)]\n"
-        "\t    If no file is provided then stdout is used\n"
-        "\t[-h (show usage)]\n"
-    );
+void init_parser(argparse::ArgumentParser& parser) {
+    parser.add_argument("-n", "--block-size")
+        .default_value(size_t(8192)).scan<'u', size_t>()
+        .metavar("BLOCK_SIZE")
+        .nargs(1).required()
+        .help("Number of bytes to read from the wav file in chunks");
+    parser.add_argument("-i", "--input")
+        .default_value(std::string(""))
+        .metavar("INPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of input to converter (defaults to stdin)");
+    parser.add_argument("-o", "--output")
+        .default_value(std::string(""))
+        .metavar("OUTPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of output from converter (defaults to stdout)");
 }
 
+struct Args {
+    size_t block_size;
+    std::string input_filename;
+    std::string output_filename;
+};
+
+Args get_args_from_parser(const argparse::ArgumentParser& parser) {
+    Args args;
+    args.block_size = parser.get<size_t>("--block-size");
+    args.input_filename = parser.get<std::string>("--input");
+    args.output_filename = parser.get<std::string>("--output");
+    return args;
+}
+
+
 int main(int argc, char** argv) {
-    int block_size = 65536;
-    char* rd_filename = NULL;
-    char* wr_filename = NULL;
-
-    int opt; 
-    while ((opt = getopt_custom(argc, argv, "b:i:o:h")) != -1) {
-        switch (opt) {
-        case 'b':
-            block_size = (int)(atof(optarg));
-            break;
-        case 'i':
-            rd_filename = optarg;
-            break;
-        case 'o':
-            wr_filename = optarg;
-            break;
-        case 'h':
-        default:
-            usage();
-            return 0;
-        }
+    auto parser = argparse::ArgumentParser("read_wav", "0.1.0");
+    parser.add_description("Reads a wav file and outputs raw data");
+    parser.add_epilog("Useful for reading captured radio 8bit IQ data that was stored in a wav file");
+    init_parser(parser);
+    try {
+        parser.parse_args(argc, argv);
+    } catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
+        std::cerr << parser;
+        return 1;
     }
+    const auto args = get_args_from_parser(parser);
 
-    if (block_size <= 0) {
-        fprintf(stderr, "Block size must be positive got %d\n", block_size);
+    if (args.block_size == 0) {
+        fprintf(stderr, "Block size cannot be zero\n");
         return 1;
     }
 
     FILE* fp_in = stdin;
-    if (rd_filename != NULL) {
-        fp_in = fopen(rd_filename, "rb");
-        if (fp_in == NULL) {
-            fprintf(stderr, "Failed to open file for reading\n");
+    if (!args.input_filename.empty()) { 
+        fp_in = fopen(args.input_filename.c_str(), "rb");
+        if (fp_in == nullptr) {
+            fprintf(stderr, "Failed to open input file: '%s'\n", args.input_filename.c_str());
             return 1;
         }
     }
 
     FILE* fp_out = stdout;
-    if (wr_filename != NULL) {
-        fp_out = fopen(wr_filename, "wb+");
-        if (fp_out == NULL) {
-            fprintf(stderr, "Failed to open file for writing\n");
+    if (!args.output_filename.empty()) {
+        fp_out = fopen(args.output_filename.c_str(), "wb+");
+        if (fp_out == nullptr) {
+            fprintf(stderr, "Failed to open output file: '%s'\n", args.output_filename.c_str());
             return 1;
         }
     }
 
-#ifdef _WIN32
+#if _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
 #endif
 
     size_t nb_read;
-
     WavHeader header;
     const size_t header_size = sizeof(header);
     nb_read = fread(&header, sizeof(uint8_t), header_size, fp_in);
@@ -122,7 +132,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Running conversion from 16bit to 8bit pcm\n");
     }
 
-    const size_t N = (size_t)block_size;
+    const size_t N = args.block_size;
     auto block = std::vector<uint8_t>(N);
 
     bool is_running = true;

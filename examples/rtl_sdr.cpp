@@ -25,8 +25,9 @@
 #include <vector>
 #include <limits>
 #include <algorithm>
+#include <optional>
 
-#if defined(_WIN32)
+#if _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -34,43 +35,33 @@
 #include <fcntl.h>
 #endif
 
-#include "./getopt/getopt.h"
+#include <argparse/argparse.hpp>
 #include "./block_frequencies.h"
 
 extern "C" {
 #include <rtl-sdr.h>
 }
 
-constexpr int DEFAULT_SAMPLE_RATE = 2048000;
-constexpr int DEFAULT_BUF_LENGTH = 16*16384;
-constexpr int MINIMAL_BUF_LENGTH = 512;
-constexpr int MAXIMAL_BUF_LENGTH = 256*16384;
-constexpr int AUTOMATIC_GAIN = 0;
-
 struct GlobalContext {
     bool is_user_exit = false;
-    rtlsdr_dev_t *device = NULL;
+    rtlsdr_dev_t *device = nullptr;
 };
 
 static GlobalContext global_context {};
+static int read_sync(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read);
+static int read_async(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read);
+static int find_nearest_gain(rtlsdr_dev_t *dev, int target_gain);
+static int verbose_set_frequency(rtlsdr_dev_t *dev, uint32_t frequency);
+static int verbose_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate);
+static int verbose_direct_sampling(rtlsdr_dev_t *dev, int on);
+static int verbose_offset_tuning(rtlsdr_dev_t *dev);
+static int verbose_auto_gain(rtlsdr_dev_t *dev);
+static int verbose_gain_set(rtlsdr_dev_t *dev, int gain);
+static int verbose_ppm_set(rtlsdr_dev_t *dev, int ppm_error);
+static int verbose_reset_buffer(rtlsdr_dev_t *dev);
+static int verbose_device_search(const char *search_str);
 
-int read_sync(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read);
-int read_async(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read);
-double atofs(char *s);
-double atoft(char *s);
-double atofp(char *s);
-int find_nearest_gain(rtlsdr_dev_t *dev, int target_gain);
-int verbose_set_frequency(rtlsdr_dev_t *dev, uint32_t frequency);
-int verbose_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate);
-int verbose_direct_sampling(rtlsdr_dev_t *dev, int on);
-int verbose_offset_tuning(rtlsdr_dev_t *dev);
-int verbose_auto_gain(rtlsdr_dev_t *dev);
-int verbose_gain_set(rtlsdr_dev_t *dev, int gain);
-int verbose_ppm_set(rtlsdr_dev_t *dev, int ppm_error);
-int verbose_reset_buffer(rtlsdr_dev_t *dev);
-int verbose_device_search(const char *search_str);
-
-#if defined(_WIN32)
+#if _WIN32
 BOOL WINAPI sighandler(DWORD signum) {
     if (signum == CTRL_C_EVENT) {
         fprintf(stderr, "Signal caught, exiting!\n");
@@ -88,219 +79,226 @@ void sighandler(int signum) {
 }
 #endif
 
-struct Arguments {
-    const char *channel = "9C";
-    int frequency = 0;
-    int samp_rate = DEFAULT_SAMPLE_RATE;
-    char *filename = NULL;
-    int dev_index = 0;
-    bool is_dev_given = false;
-    int gain = int(22.9f * 10.0f);
-    int ppm_error = 0;
-    int out_block_size = DEFAULT_BUF_LENGTH;
-    int bytes_to_read = 0;
-    bool sync_mode = false;
-    int direct_sampling = 0;    // 0: IQ, 1: 1/I, 2: 2/Q 
-    bool is_offset_tuning = false;
-    bool is_enable_bias_tee = false;
+void init_parser(argparse::ArgumentParser& parser) {
+    parser.add_argument("-c", "--channel")
+        .default_value(std::string(""))
+        .metavar("CHANNEL")
+        .nargs(1).required()
+        .help("DAB channel to tune to (use --list-channels to show valid channel blocks)");
+    parser.add_argument("--list-channels")
+        .default_value(false).implicit_value(true)
+        .help("List all DAB channels");
+    parser.add_argument("-f", "--frequency")
+        .default_value(float(0.0f)).scan<'e', float>()
+        .metavar("FREQUENCY")
+        .nargs(1).required()
+        .help("Frequency to tune to (defaults to --channel argument if not specified)");
+    parser.add_argument("-s", "--sampling-rate")
+        .default_value(float(2'048'000)).scan<'e', float>()
+        .metavar("SAMPLING_RATE")
+        .nargs(1).required()
+        .help("Sampling rate of receiver in Hz");
+    parser.add_argument("-o", "--output")
+        .default_value(std::string(""))
+        .metavar("OUTPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of output (defaults to stdout)");
+    parser.add_argument("-d", "--device")
+        .default_value(int(0)).scan<'i', int>()
+        .metavar("INDEX")
+        .nargs(1).required()
+        .help("Index from all connected devices");
+    parser.add_argument("-g", "--gain")
+        .default_value(float(19.0f)).scan<'g', float>()
+        .metavar("GAIN")
+        .nargs(1).required()
+        .help("Gain of receiver in dB");
+    parser.add_argument("--auto-gain")
+        .default_value(false).implicit_value(true)
+        .help("Enable automatic gain");
+    parser.add_argument("-p", "--ppm")
+        .default_value(int(0)).scan<'i', int>()
+        .metavar("PPM")
+        .nargs(1).required()
+        .help("Parts per million of center frequency to adjust tuning frequency");
+    parser.add_argument("-b", "--block-size")
+        .default_value(size_t(65536)).scan<'u', size_t>()
+        .metavar("BLOCK_SIZE")
+        .nargs(1).required()
+        .help("Number of bytes to read in a block from device");
+    parser.add_argument("-n", "--total-bytes")
+        .default_value(size_t(0)).scan<'u', size_t>()
+        .metavar("TOTAL_BYTES")
+        .nargs(1).required()
+        .help("Number of bytes to read from receiver (0 defaults to continuous reading)");
+    parser.add_argument("--sync")
+        .default_value(false).implicit_value(true)
+        .help("Read samples in the main thread synchronously instead of asynchronously through a callback");
+    parser.add_argument("--sampling-mode")
+        .default_value(std::string("iq"))
+        .choices("iq", "direct_i", "direct_q")
+        .metavar("MODE")
+        .nargs(1).required()
+        .help("Use direct sampling to receive lower frequencies");
+    parser.add_argument("--offset-tuning")
+        .default_value(false).implicit_value(true)
+        .help("Enable offset tuning");
+    parser.add_argument("--enable-bias-tee")
+        .default_value(false).implicit_value(true)
+        .help("Enable bias-T which supplies DC voltage usually to an active antenna");
+}
+
+enum class SamplingMode: uint32_t {
+    IQ=0, 
+    DIRECT_I=1, 
+    DIRECT_Q=2,
 };
 
-void usage(void) {
-    Arguments args;
+struct Args {
+    std::optional<std::string> channel;
+    bool is_list_channels;
+    std::optional<float> frequency_Hz;
+    float sampling_rate;
+    std::string output_filename;
+    std::optional<int> device_index;
+    float manual_gain;
+    bool is_automatic_gain;
+    int ppm;
+    size_t block_size;
+    size_t bytes_to_read;
+    bool is_sync;
+    SamplingMode sampling_mode;
+    bool is_offset_tuning;
+    bool is_enable_bias_tee;
+};
 
-    const char* format_string = 
-        "rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n"
-        "Usage: [-c <channel_to_tune_to> (default: %s)]\n"
-        "       [-f <frequency_to_tune_to> (default: 206.352MHz @ %s)]\n"
-        "       [-s <samplerate> (default: %d Hz)]\n"
-        "       [-o <filename> (default: stdout)\n"
-        "       [-d <device_index> (default: %d)]\n"
-        "       [-g <gain> (default: %.1fdB) (0 for auto)]\n"
-        "       [-p <ppm_error> (default: %d)]\n"
-        "       [-b <output_block_size> (default: %d)]\n"
-        "       [-n <number_of_samples_to_read> (default: %d, infinite)]\n"
-        "       [-S force sync output (default: %s)]\n"
-        "       [-E enable_option (default: none)]\n"
-        "           use multiple -E to enable multiple options\n"
-        "           direct:  enable direct sampling 1 (usually I)\n"
-        "           direct2: enable direct sampling 2 (usually Q)\n"
-        "           offset:  enable offset tuning\n"
-        "       [-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n"
-        "       [-L lists DAB channel]\n"
-        "       [-h shows help]\n"
-    ;
-
-    fprintf(
-        stderr, format_string,
-        args.channel,
-        args.channel,
-        args.samp_rate,
-        args.dev_index,
-        float(args.gain)/10.0f,
-        args.ppm_error,
-        args.out_block_size,
-        args.bytes_to_read,
-        args.sync_mode ? "sync" : "async"
-    );
+Args get_args_from_parser(const argparse::ArgumentParser& parser) {
+    Args args;
+    const std::string channel = parser.get<std::string>("--channel");
+    args.channel = std::nullopt;
+    if (parser.is_used("--channel")) {
+        args.channel = std::optional(channel);
+    }
+    args.is_list_channels = parser.get<bool>("--list-channels");
+    const float frequency_Hz = parser.get<float>("--frequency");
+    args.frequency_Hz = std::nullopt;
+    if (parser.is_used("--frequency")) {
+        args.frequency_Hz = std::optional(frequency_Hz);
+    }
+    args.sampling_rate = parser.get<float>("--sampling-rate");
+    args.output_filename = parser.get<std::string>("--output"); 
+    const int device_index = parser.get<int>("--device");
+    args.device_index = std::nullopt;
+    if (parser.is_used("--device")) {
+        args.device_index = std::optional(device_index);
+    } 
+    args.manual_gain = parser.get<float>("--gain");
+    args.is_automatic_gain = parser.get<bool>("--auto-gain");
+    args.ppm = parser.get<int>("--ppm");
+    args.block_size = parser.get<size_t>("--block-size");
+    args.bytes_to_read = parser.get<size_t>("--total-bytes");
+    args.is_sync = parser.get<bool>("--sync");
+    const auto sampling_mode = parser.get<std::string>("--sampling-mode");
+    args.sampling_mode = SamplingMode::IQ;
+    if (sampling_mode.compare("direct_i") == 0) {
+        args.sampling_mode = SamplingMode::DIRECT_I;
+    } else if (sampling_mode.compare("direct_q") == 0) {
+        args.sampling_mode = SamplingMode::DIRECT_Q;
+    }
+    args.is_offset_tuning = parser.get<bool>("--offset-tuning");
+    args.is_enable_bias_tee = parser.get<bool>("--enable-bias-tee");
+    return args;
 }
 
-void list_channels(void) {
+static void list_channels() {
     struct Channel {
-        const char *key;
-        uint32_t frequency;
-        Channel(const char *_key, const uint32_t _frequency): key(_key), frequency(_frequency) {}
+        const char *name;
+        uint32_t frequency_Hz;
     };
-
     // Sort by frequency
     std::vector<Channel> channels;
-    for (const auto& [key, value]: block_frequencies) {
-        channels.emplace_back(key.c_str(), value);
+    for (const auto& [channel, frequency_Hz]: block_frequencies) {
+        channels.push_back({ channel.c_str(), frequency_Hz });
     }
-    std::sort(channels.begin(), channels.end(), [] (const Channel& a, const Channel& b) {
-        return a.frequency < b.frequency;
+    std::sort(channels.begin(), channels.end(), [](const auto& a, const auto& b) {
+        return a.frequency_Hz < b.frequency_Hz;
     });
-
     fprintf(stderr, "Block |    Frequency\n");
     for (const auto& channel: channels) {
-        fprintf(stderr, "%*s | %8.3f MHz\n", 5, channel.key, float(channel.frequency) * 1e-6f);
+        const float frequency_MHz = float(channel.frequency_Hz) * 1e-6f;
+        fprintf(stderr, "%*s | %8.3f MHz\n", 5, channel.name, frequency_MHz);
     }
-}
-
-int parse_arguments(Arguments& args, int argc, char **argv) {
-    // IQ has 8bits per component
-    constexpr int bytes_per_sample = 2;
-
-    while (true) {
-        const int opt = getopt_custom(argc, argv, "c:f:s:o:d:g:p:b:n:SE:TLh"); 
-        if (opt == -1) {
-            break;
-        }
-        switch (opt) {
-        case 'c':
-            args.channel = optarg;
-            break;
-        case 'f':
-            args.frequency = int(atofs(optarg));
-            args.channel = NULL;
-            break;
-        case 's':
-            args.samp_rate = int(atofs(optarg));
-            break;
-        case 'o':
-            args.filename = optarg;
-            break;
-        case 'd':
-            args.dev_index = verbose_device_search(optarg);
-            args.is_dev_given = true;
-            break;
-        case 'g':
-            args.gain = int(atof(optarg) * 10); /* tenths of a dB */
-            break;
-        case 'p':
-            args.ppm_error = atoi(optarg);
-            break;
-        case 'b':
-            args.out_block_size = int(atof(optarg));
-            break;
-        case 'n':
-            args.bytes_to_read = int(atof(optarg)) * bytes_per_sample;
-            break;
-        case 'S':
-            args.sync_mode = true;
-            break;
-        case 'E':
-            if (strncmp(optarg, "direct", 7) == 0) {
-                args.direct_sampling = 1;
-            } else if (strncmp(optarg, "direct2", 8) == 0) {
-                args.direct_sampling = 2;
-            } else if (strncmp(optarg, "offset", 7) == 0) {
-                args.is_offset_tuning = true;
-            } else {
-                fprintf(stderr, "Unknown option for -E '%s'\n\n", optarg);
-                return 1;
-            }
-            break;
-        case 'T':
-            args.is_enable_bias_tee = true;
-            break;
-        case 'L':
-            list_channels();
-            return 1;
-        case 'h':
-        case '?':
-        default:
-            usage();
-            return 1;
-        }
-    }
-
-    if (args.channel != NULL) {
-        auto res = block_frequencies.find(args.channel);
-        if (res == block_frequencies.end()) {
-            fprintf(stderr, "Invalid channel block '%s'. Refer to -l to list valid blocks.\n", args.channel);
-            return 1;
-        }
-        args.frequency = int(res->second);
-    }
-
-    if (args.frequency < 0) {
-        fprintf(stderr, "Center frequency must be positive (%d < 0).\n", args.frequency);
-        return 1;
-    }
-
-    if (args.samp_rate <= 0) {
-        fprintf(stderr, "Sampling rate must be positive (%d <= 0).\n", args.samp_rate);
-        return 1;
-    }
-
-    if (args.bytes_to_read < 0) {
-        fprintf(stderr, "Number of bytes to read must be positive (%d < 0).\n", args.bytes_to_read);
-        return 1;
-    }
-
-    if ((args.out_block_size < MINIMAL_BUF_LENGTH) || (args.out_block_size > MAXIMAL_BUF_LENGTH)) {
-        fprintf(stderr, "Output block size wrong value, falling back to default\n");
-        fprintf(stderr, "Minimal length: %u\n", MINIMAL_BUF_LENGTH);
-        fprintf(stderr, "Maximal length: %u\n", MAXIMAL_BUF_LENGTH);
-        args.out_block_size = DEFAULT_BUF_LENGTH;
-    }
-
-    if (args.dev_index < 0) {
-        fprintf(stderr, "Got a negative device index (%d)\n", args.dev_index);
-        return 1;
-    }
-
-    return 0;
 }
 
 int main(int argc, char **argv) {
-    Arguments args; 
-    {
-        const int res = parse_arguments(args, argc, argv);
-        if (res > 0) {
-            return res;
+    const char* PROGRAM_NAME = "rtl_sdr";
+    const char* PROGRAM_VERSION_NAME = "0.1.0";
+    auto parser = argparse::ArgumentParser("rtl_sdr", "0.1.0");
+    parser.add_description("An I/Q recorder for RTL2832 based DVB-T receivers");
+    init_parser(parser);
+    try {
+        parser.parse_args(argc, argv);
+    } catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    const auto args = get_args_from_parser(parser);
+    if (args.is_list_channels) {
+        fprintf(stderr, "Valid DAB channels are:\n");
+        list_channels();
+        return 1;
+    }
+    if (args.block_size == 0) {
+        fprintf(stderr, "Block size cannot be zero\n");
+        return 1;
+    }
+    if (args.sampling_rate <= 0.0f) {
+        fprintf(stderr, "Sampling rate must be positive (%.3f)\n", args.sampling_rate);
+        return 1;
+    }
+    // get center frequency
+    uint32_t frequency_Hz = 0;
+    if (args.channel.has_value()) {
+        const auto channel = args.channel.value();
+        auto res = block_frequencies.find(channel); 
+        if (res == block_frequencies.end()) {
+            fprintf(stderr, "Invalid channel block '%s'. Refer to --list-channels for valid blocks\n", channel.c_str());
+            list_channels();
+            return 1;
         }
+        frequency_Hz = res->second;
+        fprintf(stderr, "Selected channel %s @ %.3f MHz.\n", channel.c_str(), float(frequency_Hz) * 1e-6f);
+    } else if (args.frequency_Hz.has_value()) {
+        const float frequency = args.frequency_Hz.value();
+        if (frequency <= 0.0f) {
+            fprintf(stderr, "Frequency must be positive (%.3f)\n", frequency);
+            return 1;
+        }
+        frequency_Hz = uint32_t(frequency);
+        fprintf(stderr, "Selected manual frequency at %.3f MHz.\n", float(frequency_Hz) * 1e-6f);
+    } else {
+        fprintf(stderr, "Must specify either a channel block or specific frequency value to tune to. Set --channel or --frequency.\n");
+        return 1;
     }
 
-    FILE *file = stdout;
-    if (args.filename != NULL) {
-        file = fopen(args.filename, "wb+");
-        if (file == NULL) {
-            fprintf(stderr, "Failed to open '%s'\n", args.filename);
+    FILE* fp_out = stdout;
+    if (!args.output_filename.empty()) {
+        fp_out = fopen(args.output_filename.c_str(), "wb+");
+        if (fp_out == nullptr) {
+            fprintf(stderr, "Failed to open output file: '%s'\n", args.output_filename.c_str());
             return 1;
         }
     }
 
-    #if defined(_WIN32)
-    _setmode(_fileno(file), _O_BINARY);
-    #endif
+#if _WIN32
+    _setmode(_fileno(fp_out), _O_BINARY);
+#endif
 
-    if (args.channel != NULL) {
-        fprintf(stderr, "Selected %s @ %.3f MHz.\n", args.channel, float(args.frequency) * 1e-6f);
-    }
-
-    int device_index = args.dev_index;
-    if (!args.is_dev_given) {
+    int device_index = 0;
+    if (args.device_index.has_value()) {
+        device_index = args.device_index.value();
+    } else {
         device_index = verbose_device_search("0");
     }
 
@@ -319,51 +317,52 @@ int main(int argc, char **argv) {
     }
 
     // NOTE: Set sig handler after device is open for cleanup
-    #if !defined(_WIN32)
+#if !_WIN32
     {
         struct sigaction sigact;
         sigact.sa_handler = sighandler;
         sigemptyset(&sigact.sa_mask);
         sigact.sa_flags = 0;
-        sigaction(SIGINT, &sigact, NULL);
-        sigaction(SIGTERM, &sigact, NULL);
-        sigaction(SIGQUIT, &sigact, NULL);
-        sigaction(SIGPIPE, &sigact, NULL);
+        sigaction(SIGINT, &sigact, nullptr);
+        sigaction(SIGTERM, &sigact, nullptr);
+        sigaction(SIGQUIT, &sigact, nullptr);
+        sigaction(SIGPIPE, &sigact, nullptr);
     }
-    #else
+#else
     SetConsoleCtrlHandler(sighandler, TRUE);
-    #endif
+#endif
 
-    verbose_set_sample_rate(device, uint32_t(args.samp_rate));
-    verbose_set_frequency(device, uint32_t(args.frequency));
+    verbose_set_sample_rate(device, uint32_t(args.sampling_rate));
+    verbose_set_frequency(device, frequency_Hz);
 
     rtlsdr_set_bias_tee(device, args.is_enable_bias_tee ? 1 : 0);
     if (args.is_enable_bias_tee) {
         fprintf(stderr, "Activated bias-T on GPIO PIN 0.\n");
     }
 
-    verbose_ppm_set(device, args.ppm_error);
-    verbose_direct_sampling(device, args.direct_sampling);
+    verbose_ppm_set(device, args.ppm);
+    verbose_direct_sampling(device, static_cast<uint32_t>(args.sampling_mode));
     if (args.is_offset_tuning) {
         verbose_offset_tuning(device);
     }
 
-    if (args.gain == AUTOMATIC_GAIN) {
+    if (args.is_automatic_gain) {
         verbose_auto_gain(device);
     } else {
-        const int nearest_gain = find_nearest_gain(device, args.gain);
+        const int user_gain = int(args.manual_gain * 10.0f);
+        const int nearest_gain = find_nearest_gain(device, user_gain);
         verbose_gain_set(device, nearest_gain);
     }
 
     verbose_reset_buffer(device);
 
     int read_result = 0;
-    if (args.sync_mode) {
+    if (args.is_sync) {
         fprintf(stderr, "Reading samples in sync mode...\n");
-        read_result = read_sync(file, uint32_t(args.out_block_size), uint32_t(args.bytes_to_read));
+        read_result = read_sync(fp_out, uint32_t(args.block_size), uint32_t(args.bytes_to_read));
     } else {
         fprintf(stderr, "Reading samples in async mode...\n");
-        read_result = read_async(file, uint32_t(args.out_block_size), uint32_t(args.bytes_to_read));
+        read_result = read_async(fp_out, uint32_t(args.block_size), uint32_t(args.bytes_to_read));
     }
 
     if (global_context.is_user_exit) {
@@ -372,9 +371,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "\nLibrary error %d, exiting...\n", read_result);
     }
 
-    fclose(file);
+    fclose(fp_out);
     rtlsdr_close(global_context.device);
-
     return (read_result >= 0) ? read_result : -read_result;
 }
 
@@ -422,12 +420,12 @@ int read_async(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read
     context.file_out = file;
 
     auto rtlsdr_callback = [](unsigned char *buf, uint32_t len, void *user_data) {
-        if (user_data == NULL) {
+        if (user_data == nullptr) {
             return;
         }
 
         auto &local_context = *reinterpret_cast<context_t*>(user_data);
-        if (local_context.file_out == NULL) {
+        if (local_context.file_out == nullptr) {
             return;
         }
 
@@ -457,77 +455,6 @@ int read_async(FILE *file, const uint32_t out_block_size, uint32_t bytes_to_read
     return res;
 }
 
-double atofs(char *s) {
-    const size_t len = strlen(s);
-    const char last = s[len-1];
-    s[len-1] = '\0';
-
-    /* standard suffixes */
-    double suff = 1.0;
-    switch (last) {
-        case 'g':
-        case 'G':
-            suff *= 1e3;
-            /* fall-through */
-        case 'm':
-        case 'M':
-            suff *= 1e3;
-            /* fall-through */
-        case 'k':
-        case 'K':
-            suff *= 1e3;
-            suff *= atof(s);
-            s[len-1] = last;
-            return suff;
-    }
-    s[len-1] = last;
-    return atof(s);
-}
-
-double atoft(char *s) {
-    const size_t len = strlen(s);
-    const char last = s[len-1];
-    s[len-1] = '\0';
-
-    /* time suffixes, returns seconds */
-    double suff = 1.0;
-    switch (last) {
-        case 'h':
-        case 'H':
-            suff *= 60;
-            /* fall-through */
-        case 'm':
-        case 'M':
-            suff *= 60;
-            /* fall-through */
-        case 's':
-        case 'S':
-            suff *= atof(s);
-            s[len-1] = last;
-            return suff;
-    }
-    s[len-1] = last;
-    return atof(s);
-}
-
-double atofp(char *s) {
-    const size_t len = strlen(s);
-    const char last = s[len-1];
-    s[len-1] = '\0';
-
-    /* percent suffixes */
-    double suff = 1.0;
-    switch (last) {
-        case '%':
-            suff *= 0.01;
-            suff *= atof(s);
-            s[len-1] = last;
-            return suff;
-    }
-    s[len-1] = last;
-    return atof(s);
-}
-
 int find_nearest_gain(rtlsdr_dev_t *dev, int target_gain) {
     const int res = rtlsdr_set_tuner_gain_mode(dev, 1);
     if (res < 0) {
@@ -535,7 +462,7 @@ int find_nearest_gain(rtlsdr_dev_t *dev, int target_gain) {
         return res;
     }
 
-    const int count = rtlsdr_get_tuner_gains(dev, NULL);
+    const int count = rtlsdr_get_tuner_gains(dev, nullptr);
     if (count <= 0) {
         return 0;
     }
@@ -651,7 +578,7 @@ int verbose_reset_buffer(rtlsdr_dev_t *dev) {
 }
 
 int verbose_device_search(const char *search_str) {
-    if (search_str == NULL) {
+    if (search_str == nullptr) {
         fprintf(stderr, "No device string provided.\n");
         return -1;
     }
@@ -677,7 +604,7 @@ int verbose_device_search(const char *search_str) {
 
     // does string look like raw id number
     {
-        char *s_end = NULL;
+        char *s_end = nullptr;
         const int device = int(strtol(search_str, &s_end, 0));
         if ((s_end[0] == '\0') && (device >= 0) && (device < device_count)) {
             fprintf(stderr, "Using device %d: %s\n", device, rtlsdr_get_device_name(uint32_t(device)));

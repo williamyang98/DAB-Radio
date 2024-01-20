@@ -1,7 +1,7 @@
 #include "./render_portaudio_controls.h"
-#include "audio/portaudio_sink.h"
-
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
+#include "audio/portaudio_sink.h"
 
 void RenderPortAudioControls(PaDeviceList& device_list, AudioPipeline& pipeline) {
     auto& devices = device_list.GetDevices();
@@ -13,6 +13,7 @@ void RenderPortAudioControls(PaDeviceList& device_list, AudioPipeline& pipeline)
 
     ImGui::Text("Output Devices (%d)", int(devices.size()));
     ImGui::PushItemWidth(-1.0f);
+    if (devices.size() == 0) ImGui::BeginDisabled();
     if (ImGui::BeginCombo("###Output Devices", selected_name, ImGuiComboFlags_None)) {
         for (auto& device: devices) {
             ImGui::PushID(device.index);
@@ -24,6 +25,7 @@ void RenderPortAudioControls(PaDeviceList& device_list, AudioPipeline& pipeline)
         }
         ImGui::EndCombo();
     }
+    if (devices.size() == 0) ImGui::EndDisabled();
     ImGui::PopItemWidth();
 
     auto& volume_gain = pipeline.get_global_gain();

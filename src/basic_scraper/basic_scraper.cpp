@@ -16,8 +16,7 @@
 #define LOG_ERROR(...) CLOG(ERROR, "basic-scraper") << fmt::format(__VA_ARGS__)
 
 #undef GetCurrentTime
-
-std::string GetCurrentTime(void) {
+static std::string GetCurrentTime(void) {
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
     return fmt::format("{:04}-{:02}-{:02}T{:02}-{:02}-{:02}", 
@@ -25,60 +24,67 @@ std::string GetCurrentTime(void) {
         tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-BasicScraper::BasicScraper(BasicRadio& _radio, const char* _root_directory) 
-: radio(_radio), root_directory(_root_directory) 
-{
-    using namespace std::placeholders;
+void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio) {
+    if (scraper == nullptr) return;
+    auto root_directory = scraper->root_directory;
     radio.On_DAB_Plus_Channel().Attach(
-        std::bind(&BasicScraper::Connect_DAB_Plus_Channel, this, _1, _2));
+        [scraper, root_directory, &radio](subchannel_id_t id, Basic_DAB_Plus_Channel& channel) {
+            // determine root folder
+            auto& db = radio.GetDatabase();
+            ServiceComponent* component = nullptr;
+            for (auto& e: db.service_components) {
+                if (e.subchannel_id == id) {
+                    component = &e;
+                    break;
+                };
+            }
+            if (component == nullptr) {
+                return;
+            }
+            const auto service_id = component->service_reference;
+            const auto component_id = component->component_id;
+            const auto root_folder = fmt::format("{:s}", root_directory);
+            const auto child_folder = fmt::format("service_{}_component_{}", service_id, component_id);
+            auto base_path = fs::path(root_folder) / fs::path(child_folder);
+            auto abs_path = fs::absolute(base_path);
+
+            auto dab_plus_scraper = std::make_shared<Basic_DAB_Plus_Scraper>(abs_path);
+            scraper->scrapers.push_back(dab_plus_scraper);
+            Basic_DAB_Plus_Scraper::attach_to_channel(dab_plus_scraper, channel);
+        }
+    );
 }
 
-void BasicScraper::Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_Channel& channel) {
-    auto& controls = channel.GetControls();
-    controls.SetIsDecodeAudio(true);
-    controls.SetIsDecodeData(true);
-    controls.SetIsPlayAudio(false);
-
-    auto& db = radio.GetDatabase();
-    ServiceComponent* component = nullptr;
-    for (auto& e: db.service_components) {
-        if (e.subchannel_id == id) {
-            component = &e;
-            break;
-        };
-    }
-    if (component == nullptr) {
-        return;
-    }
-
-    const auto service_id = component->service_reference;
-    const auto component_id = component->component_id;
-
-    const auto root_folder = fmt::format("{:s}", root_directory);
-    const auto service_folder = fmt::format("service_{}", service_id);
-    const auto component_folder = fmt::format("component_{}", component_id);
-
-    auto base_path = fs::path(root_folder) / fs::path(service_folder) / fs::path(component_folder);
-    auto abs_path = fs::absolute(base_path);
-    scrapers.emplace_back(std::make_unique<Basic_DAB_Plus_Scraper>(abs_path, channel));
-}
-
-Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_Plus_Channel& channel) 
+Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir) 
 : dir(_dir), 
   audio_scraper(_dir / "audio"), 
   slideshow_scraper(_dir / "slideshow"),
   mot_scraper(_dir / "MOT")
 {
     LOG_MESSAGE("[DAB+] Opened directory {}", dir.string());
-    using namespace std::placeholders;
+}
+
+void Basic_DAB_Plus_Scraper::attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Scraper> scraper, Basic_DAB_Plus_Channel& channel) {
+    if (scraper == nullptr) return;
     channel.OnAudioData().Attach(
-        std::bind(&BasicAudioScraper::OnAudioData, &audio_scraper, _1, _2));
-
-    channel.OnSlideshow().Attach(
-        std::bind(&BasicSlideshowScraper::OnSlideshow, &slideshow_scraper, _1));
-
+        [scraper](BasicAudioParams params, tcb::span<const uint8_t> data) {
+            scraper->audio_scraper.OnAudioData(params, data);
+        }
+    );
+    channel.GetSlideshowManager().OnNewSlideshow().Attach(
+        [scraper](std::shared_ptr<Basic_Slideshow>& slideshow) {
+            scraper->slideshow_scraper.OnSlideshow(*slideshow);
+        }
+    );
     channel.OnMOTEntity().Attach(
-        std::bind(&BasicMOTScraper::OnMOTEntity, &mot_scraper, _1));
+        [scraper](MOT_Entity mot) {
+            scraper->mot_scraper.OnMOTEntity(mot);
+        }
+    );
+    auto& controls = channel.GetControls();
+    controls.SetIsDecodeAudio(true);
+    controls.SetIsDecodeData(true);
+    controls.SetIsPlayAudio(false);
 }
 
 BasicAudioScraper::~BasicAudioScraper() {
@@ -216,7 +222,7 @@ void BasicSlideshowScraper::OnSlideshow(Basic_Slideshow& slideshow) {
     LOG_MESSAGE("[slideshow] Wrote file {}", filepath_str);
 }
 
-void BasicMOTScraper::OnMOTEntity(MOT_Entity& mot) {
+void BasicMOTScraper::OnMOTEntity(MOT_Entity mot) {
     auto& content_name_str = mot.header.content_name;
     std::string content_name;
     if (content_name_str.exists) {

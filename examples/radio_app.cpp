@@ -1,407 +1,490 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unordered_map>
-#include <thread>
-#include <string>
+#include <algorithm>
+#include <functional>
+#include <iostream>
 #include <memory>
-#include "./double_buffer.h"
+#include <string>
+#include <thread>
 
-#ifdef _WIN32
-#include <io.h>
-#include <fcntl.h>
-#endif
-
-#include "ofdm/ofdm_demodulator.h"
-#include "ofdm/dab_ofdm_params_ref.h"
-#include "ofdm/dab_prs_ref.h"
-#include "ofdm/dab_mapper_ref.h"
-#include "ofdm/ofdm_helpers.h"
-#include "basic_radio/basic_radio.h"
-
-#include "./audio/audio_pipeline.h"
-#include "./audio/portaudio_sink.h"
-#include "./audio/portaudio_utility.h"
-#include "./device/device_selector.h"
-
-#include <GLFW/glfw3.h>
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
-#include <implot.h>
-#include "gui/imgui_skeleton.h"
-#include "gui/font_awesome_definitions.h"
-#include "gui/device/render_device_selector.h"
-#include "gui/ofdm/render_ofdm_demod.h"
-#include "gui/basic_radio/render_basic_radio.h"
-#include "gui/audio/render_portaudio_controls.h"
-#include "gui/profiler/render_profiler.h"
-
-#include "./block_frequencies.h"
-#include "./getopt/getopt.h"
-
+#include <argparse/argparse.hpp>
 #include <easylogging++.h>
 #include <fmt/core.h>
 #include "dab/logging.h"
+#include "basic_scraper/basic_scraper.h"
+#include "./block_frequencies.h"
+#include "./app_helpers/app_io_buffers.h"
+#include "./app_helpers/app_ofdm_blocks.h"
+#include "./app_helpers/app_radio_blocks.h"
+#include "./app_helpers/app_viterbi_convert_block.h"
+#include "./app_helpers/app_audio.h"
+#include "./app_helpers/app_common_gui.h"
+#include "./audio/portaudio_sink.h"
+#include "./device/device.h"
+#include "./device/device_list.h"
+#include "./gui/ofdm/render_ofdm_demod.h"
+#include "./gui/ofdm/render_profiler.h"
+#include "./gui/basic_radio/render_basic_radio.h"
+#include "./gui/audio/render_portaudio_controls.h"
+#include "./gui/device/render_devices.h"
 
-class RadioInstance 
+void init_parser(argparse::ArgumentParser& parser) {
+    parser.add_argument("--input")
+        .default_value(std::string(""))
+        .metavar("INPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of input to radio (defaults to stdin)");
+    parser.add_argument("--transmission-mode")
+        .default_value(int(1)).scan<'i', int>()
+        .choices(1,2,3,4)
+        .metavar("MODE")
+        .nargs(1).required()
+        .help("Dab transmission mode");
+    parser.add_argument("--tuner-default-channel")
+        .default_value(std::string("9C"))
+        .metavar("CHANNEL")
+        .nargs(1).required()
+        .help("Tuner will automatically switch to this channel on startup");
+    parser.add_argument("--tuner-manual-gain")
+        .default_value(19.0f).scan<'g', float>()
+        .metavar("GAIN")
+        .nargs(1).required()
+        .help("Tuner will use this gain on startup");
+    parser.add_argument("--tuner-auto-gain")
+        .default_value(false).implicit_value(true)
+        .help("Tuner will use auto gain instead of manual gain");
+    parser.add_argument("--tuner-device-index")
+        .default_value(size_t(0)).scan<'u', size_t>()
+        .metavar("DEVICE_INDEX")
+        .nargs(1).required()
+        .help("Index of tuner to select from list automatically");
+    parser.add_argument("--tuner-no-auto-select")
+        .default_value(false).implicit_value(true)
+        .help("Do not automatically select tuner on startup");
+    parser.add_argument("--ofdm-block-size")
+        .default_value(size_t(65536)).scan<'u', size_t>()
+        .metavar("BLOCK_SIZE")
+        .nargs(1).required()
+        .help("Number of bytes the OFDM demodulator will read in each block");
+    parser.add_argument("--ofdm-total-threads")
+        .default_value(size_t(1)).scan<'u', size_t>()
+        .metavar("TOTAL_THREADS")
+        .nargs(1).required()
+        .help("Number of OFDM demodulator threads (0 = max number of threads)");
+    parser.add_argument("--ofdm-disable-coarse-freq")
+        .default_value(false).implicit_value(true)
+        .help("Disable OFDM coarse frequency correction");
+    parser.add_argument("--radio-total-threads")
+        .default_value(size_t(1)).scan<'u', size_t>()
+        .metavar("TOTAL_THREADS")
+        .nargs(1).required()
+        .help("Number of basic radio threads (0 = max number of threads)");
+    parser.add_argument("--radio-enable-logging")
+        .default_value(false).implicit_value(true)
+        .help("Enable verbose logging for radio");
+    parser.add_argument("--scraper-enable")
+        .default_value(false).implicit_value(true)
+        .help("Radio scraper will be used to save radio data to a directory");
+    parser.add_argument("--scraper-output")
+        .default_value(std::string("data/scraper_tuner"))
+        .metavar("OUTPUT_FOLDER")
+        .nargs(1).required()
+        .help("Output folder for scraper");
+    parser.add_argument("--scraper-disable-logging")
+        .default_value(false).implicit_value(true)
+        .help("Disable verbose logging for scraper");
+    parser.add_argument("--scraper-disable-auto")
+        .default_value(false).implicit_value(true)
+        .help("Disable automatic scraping of new channels");
+    parser.add_argument("--audio-no-auto-select")
+        .default_value(false).implicit_value(true)
+        .help("Disable automatic selection of output audio device");
+    parser.add_argument("--list-channels")
+        .default_value(false).implicit_value(true)
+        .help("List all DAB channels");
+}
+
+struct Args {
+    std::string input_file; 
+    int transmission_mode;
+    std::string tuner_default_channel;
+    float tuner_manual_gain;
+    bool tuner_auto_gain;
+    size_t tuner_device_index;
+    bool tuner_no_auto_select;
+    size_t ofdm_block_size;
+    size_t ofdm_total_threads;
+    bool ofdm_disable_coarse_freq;
+    size_t radio_total_threads;
+    bool radio_enable_logging;
+    bool scraper_enable;
+    std::string scraper_output;
+    bool scraper_disable_logging;
+    bool scraper_disable_auto;
+    bool audio_no_auto_select;
+    bool is_list_channels;
+};
+
+Args get_args_from_parser(const argparse::ArgumentParser& parser) {
+    Args args;
+    args.input_file = parser.get<std::string>("--input");
+    args.transmission_mode = parser.get<int>("--transmission-mode");
+    args.tuner_default_channel = parser.get<std::string>("--tuner-default-channel");
+    args.tuner_manual_gain = parser.get<float>("--tuner-manual-gain");
+    args.tuner_auto_gain = parser.get<bool>("--tuner-auto-gain");
+    args.tuner_device_index = parser.get<size_t>("--tuner-device-index");
+    args.tuner_no_auto_select = parser.get<bool>("--tuner-no-auto-select");
+    args.ofdm_block_size = parser.get<size_t>("--ofdm-block-size");
+    args.ofdm_total_threads = parser.get<size_t>("--ofdm-total-threads");
+    args.ofdm_disable_coarse_freq = parser.get<bool>("--ofdm-disable-coarse-freq");
+    args.radio_total_threads = parser.get<size_t>("--radio-total-threads");
+    args.radio_enable_logging = parser.get<bool>("--radio-enable-logging");
+    args.scraper_enable = parser.get<bool>("--scraper-enable");
+    args.scraper_output = parser.get<std::string>("--scraper-output");
+    args.scraper_disable_logging = parser.get<bool>("--scraper-disable-logging");
+    args.scraper_disable_auto = parser.get<bool>("--scraper-disable-auto");
+    args.audio_no_auto_select = parser.get<bool>("--audio-no-auto-select");
+    args.is_list_channels = parser.get<bool>("--list-channels");
+    return args;
+}
+
+class Radio_Instance {
+private:
+    const std::string m_name;
+    BasicRadio m_radio;
+    BasicRadioViewController m_view_controller;
+public:
+    template <typename... T>
+    Radio_Instance(std::string_view name, T... args): m_name(name), m_radio(std::forward<T>(args)...) {}
+    auto& get_radio() { return m_radio; }
+    auto& get_view_controller() { return m_view_controller; }
+    std::string_view get_name() const { return m_name; }
+};
+
+class Basic_Radio_Switcher 
 {
 private:
-    std::unique_ptr<BasicRadio> radio;
-    std::unique_ptr<BasicRadioViewController> view_controller;    
-    PaDeviceList& pa_devices;
-    AudioPipeline& audio_pipeline;
+    DAB_Parameters m_dab_params;
+    std::shared_ptr<InputBuffer<viterbi_bit_t>> m_input_stream = nullptr;
+    std::vector<viterbi_bit_t> m_bits_buffer;
+    std::map<std::string, std::shared_ptr<Radio_Instance>> m_instances;
+    std::shared_ptr<Radio_Instance> m_selected_instance = nullptr;
+    std::mutex m_mutex_selected_instance;
+    size_t m_flush_reads = 0;
+    std::function<std::shared_ptr<Radio_Instance>(const DAB_Parameters&,std::string_view)> m_create_instance;
 public:
-    RadioInstance(
-        std::unique_ptr<BasicRadio> _radio, std::unique_ptr<BasicRadioViewController> _view_controller,
-        PaDeviceList& _pa_devices, AudioPipeline& _audio_pipeline
-    ):  radio(std::move(_radio)),
-        view_controller(std::move(_view_controller)),
-        pa_devices(_pa_devices), 
-        audio_pipeline(_audio_pipeline)
+    template <typename F>
+    Basic_Radio_Switcher(int transmission_mode, F&& create_instance)
+    : m_dab_params(get_dab_parameters(transmission_mode)),
+      m_create_instance(create_instance)
     {
-        using namespace std::placeholders;
-        radio->On_DAB_Plus_Channel().Attach(std::bind(&RadioInstance::Attach_DAB_Plus_Audio_Player, this, _1, _2));
+        m_bits_buffer.resize(m_dab_params.nb_frame_bits);
     }
-    // We bind callbacks to this instance so we can't move or copy it
-    RadioInstance(const RadioInstance &) = delete;
-    RadioInstance(RadioInstance &&) = delete;
-    RadioInstance &operator=(const RadioInstance &) = delete;
-    RadioInstance &operator=(RadioInstance &&) = delete;
-    auto& GetRadio() { return *(radio.get()); }
-    auto& GetViewController() { return *(view_controller.get()); }
-private:
-    void Attach_DAB_Plus_Audio_Player(subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
-        auto& controls = channel.GetControls();
-        auto audio_source = std::make_shared<AudioPipelineSource>();
-        audio_pipeline.add_source(audio_source);
-        channel.OnAudioData().Attach([this, &controls, audio_source](BasicAudioParams params, tcb::span<const uint8_t> buf) {
-            if (!controls.GetIsPlayAudio()) {
-                return;
+    void set_input_stream(std::shared_ptr<InputBuffer<viterbi_bit_t>> stream) { 
+        m_input_stream = stream; 
+    }
+    void flush_input_stream() {
+        m_flush_reads = 5;
+    }
+    void switch_instance(std::string_view key) {
+        auto lock = std::unique_lock(m_mutex_selected_instance);
+        auto res = m_instances.find(std::string(key));
+        std::shared_ptr<Radio_Instance> new_instance = nullptr;
+        if (res != m_instances.end()) {
+            new_instance = res->second;
+        } else {
+            new_instance = m_create_instance(m_dab_params, key);
+            m_instances.insert({ std::string(key), new_instance });
+        }
+        if (m_selected_instance != new_instance) {
+            flush_input_stream();
+        }
+        m_selected_instance = new_instance;
+    }
+    std::shared_ptr<Radio_Instance> get_instance() {
+        auto lock = std::unique_lock(m_mutex_selected_instance);
+        return m_selected_instance;
+    }
+    void run() {
+        if (m_input_stream == nullptr) return;
+        while (true) {
+            const size_t length = m_input_stream->read(m_bits_buffer);
+            if (length != m_bits_buffer.size()) return;
+
+            auto lock = std::unique_lock(m_mutex_selected_instance);
+            if (m_flush_reads > 0) {
+                m_flush_reads -= 1;
+                continue;
             }
-            tcb::span<const Frame<int16_t>> rd_buf = {
-                reinterpret_cast<const Frame<int16_t>*>(buf.data()),
-                (size_t)(buf.size() / sizeof(Frame<int16_t>))
-            };
-            const bool is_blocking = audio_pipeline.get_sink() != nullptr;
-            audio_source->read_from_source(rd_buf, float(params.frequency), is_blocking);
-        });
-    }
-};
-
-// Class to glue all of the components together
-class App 
-{
-private:
-    const int transmission_mode = 1;
-    const int total_radio_threads;
-    // When switching between block frequencies, interrupt the data flow so we dont have data from 
-    // the previous block frequency entering the data models for the new block frequency
-    int demodulator_cooldown_max = 10;
-    int demodulator_cooldown = 0;
-    std::unique_ptr<DeviceSelector> device_selector;
-    std::unique_ptr<OFDM_Demod> ofdm_demod;
-    // Have a unique radio/view controller for each block frequency
-    std::string selected_radio;    // name of radio is the block frequency key
-    std::unordered_map<std::string, std::unique_ptr<RadioInstance>> basic_radios;
-    // Double buffer data flow
-    // rtlsdr_device -> double_buffer -> ofdm_demodulator -> double_buffer -> basic_radio
-    std::unique_ptr<DoubleBuffer<std::complex<float>>> raw_double_buffer;
-    std::unique_ptr<DoubleBuffer<viterbi_bit_t>> frame_double_buffer;
-    // rtlsdr_device, ofdm_demodulator, basic_radio all operate on separate threads
-    std::unique_ptr<std::thread> ofdm_demod_thread;
-    std::unique_ptr<std::thread> basic_radio_thread;
-
-    PaDeviceList pa_devices;
-    AudioPipeline audio_pipeline;
-public:
-    explicit App(const int _total_demod_threads, const int _total_radio_threads) 
-    :   device_selector(std::make_unique<DeviceSelector>()),
-        total_radio_threads(_total_radio_threads)
-    {
-        const auto dab_params = get_dab_parameters(transmission_mode);
-        ofdm_demod = Create_OFDM_Demodulator(transmission_mode, _total_demod_threads);
-
-        frame_double_buffer = std::make_unique<DoubleBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits);
-        raw_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(0);
-
-        #ifdef _WIN32
-        const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
-        const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
-        #else
-        const auto target_device_index = Pa_GetDefaultOutputDevice();
-        #endif
-
-        auto audio_sink_res = PortAudioSink::create_from_index(target_device_index);
-        audio_pipeline.set_sink(std::move(audio_sink_res.sink));
-
-        device_selector->OnDeviceChange().Attach([this](Device* device) {
-            if (device == NULL) {
-                return;
-            }
-            using namespace std::placeholders;
-
-            const int N = device->GetTotalSamples();
-            OnTotalSamplesChanged(N);
-
-            device->OnData().Attach(std::bind(&App::OnData, this, _1));
-            device->OnFrequencyChange().Attach(std::bind(&App::OnFrequencyChange, this, _1, _2));
-            device->SetCenterFrequency("9C", block_frequencies.at("9C"));
-        });
-
-        ofdm_demod->On_OFDM_Frame().Attach([this](tcb::span<const viterbi_bit_t> buf) {
-            auto* inactive_buf = frame_double_buffer->AcquireInactiveBuffer();        
-            if (inactive_buf == NULL) {
-                return;
-            }
-            const size_t N = frame_double_buffer->GetLength();
-            for (int i = 0; i < N; i++) {
-                inactive_buf[i] = buf[i];
-            }
-            frame_double_buffer->ReleaseInactiveBuffer();
-        });
-
-        basic_radio_thread = std::make_unique<std::thread>([this]() {
-            while (true) {
-                auto* active_buf = frame_double_buffer->AcquireActiveBuffer();
-                if (active_buf == NULL) {
-                    return;
-                }
-                const size_t N = frame_double_buffer->GetLength();
-                auto instance = GetSelectedRadio();
-                if ((instance != NULL) && (demodulator_cooldown == 0)) {
-                    instance->GetRadio().Process({active_buf, N});
-                }
-
-                frame_double_buffer->ReleaseActiveBuffer();
-            }
-        });
-    }    
-    ~App() {
-        raw_double_buffer->Close();
-        frame_double_buffer->Close();
-        // NOTE: OFDM thread might not be created if device wasn't found
-        if (ofdm_demod_thread != NULL) {
-            ofdm_demod_thread->join();
-        }
-        basic_radio_thread->join();
-        // NOTE: Close device since the callback could call deleted data
-        device_selector = NULL;
-    }
-    RadioInstance* GetSelectedRadio() {
-        auto res = basic_radios.find(selected_radio);
-        if (res == basic_radios.end()) {
-            return NULL;
-        }
-        
-        return res->second.get();
-    }
-    auto& GetOFDMDemodulator(void) { return *(ofdm_demod.get()); }
-    auto& GetInputBuffer(void) { return *(raw_double_buffer.get()); }
-    auto& GetDeviceSelector(void) { return *(device_selector.get()); }
-    auto& GetAudioPipeline() { return audio_pipeline; }
-    auto& GetPaDevices() { return pa_devices; }
-private:
-    void OnTotalSamplesChanged(const int N) {
-        if (raw_double_buffer->GetLength() == N) {
-            return;
-        }
-
-        raw_double_buffer->Close();
-        if (ofdm_demod_thread != NULL) {
-            ofdm_demod_thread->join();
-        }
-
-        raw_double_buffer = std::make_unique<DoubleBuffer<std::complex<float>>>(N);
-        ofdm_demod_thread = std::make_unique<std::thread>([this]() {
-            while (true) {
-                auto* active_buf = raw_double_buffer->AcquireActiveBuffer();
-                if (active_buf == NULL) {
-                    return;
-                }
-                const size_t N = raw_double_buffer->GetLength();
-                ofdm_demod->Process({active_buf, N});
-                raw_double_buffer->ReleaseActiveBuffer();
-            }
-        });
-    }
-    void OnFrequencyChange(const std::string& label, const uint32_t freq) {
-        demodulator_cooldown = demodulator_cooldown_max;
-
-        auto res = basic_radios.find(label);
-        if (res == basic_radios.end()) {
-            CreateRadio(label);
-        }
-        selected_radio = label;
-    }
-    void OnData(tcb::span<const std::complex<uint8_t>> data) {
-        const int N = (int)data.size();
-        if (demodulator_cooldown > 0) {
-            demodulator_cooldown--;
-            ofdm_demod->Reset();
-            return;
-        }
-
-        auto* inactive_buf = raw_double_buffer->AcquireInactiveBuffer();
-        if (inactive_buf == NULL) {
-            return;
-        }
-        for (int i = 0; i < N; i++) {
-            const float I = static_cast<float>(data[i].real()) - 127.0f;
-            const float Q = static_cast<float>(data[i].imag()) - 127.0f;
-            inactive_buf[i] = std::complex<float>(I, Q);
-        }
-        raw_double_buffer->ReleaseInactiveBuffer();
-    }
-private:
-    void CreateRadio(const std::string& key) {
-        const auto dab_params = get_dab_parameters(transmission_mode);
-        auto radio = std::make_unique<BasicRadio>(dab_params, total_radio_threads);
-        auto view_controller = std::make_unique<BasicRadioViewController>(*(radio.get()));
-        auto instance = std::make_unique<RadioInstance>(
-            std::move(radio), 
-            std::move(view_controller),
-            pa_devices, 
-            audio_pipeline
-        );
-        basic_radios.insert({key, std::move(instance)});
-    }
-};
-
-class Renderer: public ImguiSkeleton 
-{
-private:
-    App& app;
-public:
-    explicit Renderer(App& _app): app(_app) {}
-public:
-    GLFWwindow* Create_GLFW_Window() override {
-        return glfwCreateWindow(
-            1280, 720, 
-            "Radio App", 
-            NULL, NULL);
-    }
-    void AfterImguiContextInit() override {
-        ImPlot::CreateContext();
-        ImguiSkeleton::AfterImguiContextInit();
-
-        auto& io = ImGui::GetIO();
-        io.IniFilename =  "imgui_radio_app.ini";
-        io.Fonts->AddFontFromFileTTF("res/Roboto-Regular.ttf", 15.0f);
-        {
-            static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA };
-            ImFontConfig icons_config;
-            icons_config.MergeMode = true;
-            icons_config.PixelSnapH = true;
-            io.Fonts->AddFontFromFileTTF("res/font_awesome.ttf", 16.0f, &icons_config, icons_ranges);
-        }
-        ImGuiSetupCustomConfig();
-    }
-    void AfterShutdown() override {
-        ImPlot::DestroyContext();
-    }
-    void Render() override {
-        RenderProfiler();
-
-        if (ImGui::Begin("Demodulator Controls")) {
-            ImGui::DockSpace(ImGui::GetID("Demodulator Dockspace"));
-            RenderDeviceSelector(app.GetDeviceSelector(), block_frequencies);
-            {
-                auto& double_buffer = app.GetInputBuffer();
-                auto* buf = double_buffer.AcquireInactiveBuffer();
-                if (buf != NULL) {
-                    const size_t N = double_buffer.GetLength();
-                    RenderSourceBuffer({buf, N});
-                }
-            }
-            RenderOFDMDemodulator(app.GetOFDMDemodulator());
-        }
-        ImGui::End();
-
-        auto* instance = app.GetSelectedRadio();
-        if (instance != NULL) {
-            if (ImGui::Begin("Simple View")) {
-                ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
-                ImGui::DockSpace(dockspace_id);
-                if (ImGui::Begin("Audio Controls")) {
-                    RenderPortAudioControls(app.GetPaDevices(), app.GetAudioPipeline());
-                }
-                ImGui::End();
-                RenderBasicRadio(instance->GetRadio(), instance->GetViewController());
-            }
-            ImGui::End();
+            if (m_selected_instance == nullptr) continue;
+            m_selected_instance->get_radio().Process(m_bits_buffer);
         }
     }
 };
 
-void usage() {
-    fprintf(stderr, 
-        "radio_app, Complete radio app with device selector, demodulator, dab decoding\n\n"
-        "\t[-t total ofdm demod threads (default: 1)]\n"
-        "\t[-T total radio threads (default: 1)]\n"
-        "\t[-v Enable logging (default: false)]\n"
-        "\t[-C toggle coarse frequency correction (default: true)]\n"
-        "\t[-h (show usage)]\n"
-    );
+class DeviceSource {
+private:
+    std::shared_ptr<Device> m_device = nullptr;
+    std::mutex m_mutex_device;
+    std::function<void(std::shared_ptr<Device>)> m_device_change_callback;
+public:
+    template <typename F>
+    DeviceSource(F&& device_change_callback)
+    : m_device_change_callback(device_change_callback) 
+    {}
+    std::shared_ptr<Device> get_device() { 
+        auto lock = std::unique_lock(m_mutex_device);
+        return m_device;
+    }
+    void set_device(std::shared_ptr<Device> device) {
+        auto lock = std::unique_lock(m_mutex_device);
+        m_device = device;
+        m_device_change_callback(m_device);
+    }
+};
+
+static void list_channels() {
+    struct Channel {
+        const char *name;
+        uint32_t frequency_Hz;
+    };
+    // Sort by frequency
+    std::vector<Channel> channels;
+    for (const auto& [channel, frequency_Hz]: block_frequencies) {
+        channels.push_back({ channel.c_str(), frequency_Hz });
+    }
+    std::sort(channels.begin(), channels.end(), [](const auto& a, const auto& b) {
+        return a.frequency_Hz < b.frequency_Hz;
+    });
+    fprintf(stderr, "Block |    Frequency\n");
+    for (const auto& channel: channels) {
+        const float frequency_MHz = float(channel.frequency_Hz) * 1e-6f;
+        fprintf(stderr, "%*s | %8.3f MHz\n", 5, channel.name, frequency_MHz);
+    }
 }
 
 INITIALIZE_EASYLOGGINGPP
-int main(int argc, char **argv) {
-    int total_demod_threads = 1;
-    int total_radio_threads = 1;
-    bool is_logging = false;
-    bool is_coarse_freq_correction = true;
+int main(int argc, char** argv) {
+    const char* PROGRAM_NAME = "radio_app";
+    const char* PROGRAM_DESCRIPTION = "Radio app that connects to tuner";
+    const char* PROGRAM_VERSION_NAME = "0.1.0";
+    auto parser = argparse::ArgumentParser(PROGRAM_NAME, PROGRAM_VERSION_NAME);
+    parser.add_description(PROGRAM_DESCRIPTION);
+    init_parser(parser);
+    try {
+        parser.parse_args(argc, argv);
+    } catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    const auto args = get_args_from_parser(parser);
 
-    int opt; 
-    while ((opt = getopt_custom(argc, argv, "t:T:vCh")) != -1) {
-        switch (opt) {
-        case 't':
-            total_demod_threads = (int)(atof(optarg));
-            break;
-        case 'T':
-            total_radio_threads = (int)(atof(optarg));
-            break;
-        case 'v':
-            is_logging = true;
-            break;
-        case 'C':
-            is_coarse_freq_correction = false;
-            break;
-        case 'h':
-        default:
-            usage();
-            return 0;
-        }
+    if (args.is_list_channels) {
+        fprintf(stderr, "Valid DAB channels are:\n");
+        list_channels();
+        return 1;
     }
 
-#ifdef _WIN32
-    _setmode(_fileno(stdout), _O_BINARY);
-#endif
+    if (args.ofdm_block_size == 0) {
+        fprintf(stderr, "OFDM block size cannot be zero\n");
+        return 1;
+    }
 
+    const auto tuner_default_channel = args.tuner_default_channel;
+    if (block_frequencies.find(tuner_default_channel) == block_frequencies.end()) {
+        fprintf(stderr, "Invalid channel block '%s'. Refer to --list-channels for valid blocks\n", tuner_default_channel.c_str());
+        list_channels();
+        return 1;
+    }
+
+    // setup logging
+    el::Helpers::setThreadName("main-thread");
+    const char* logging_format = "[%level] [%thread] [%logger] %msg";
     auto dab_loggers = RegisterLogging();
     auto basic_radio_logger = el::Loggers::getLogger("basic-radio");
+    el::Configurations config;
+    config.setToDefault();
+    config.setGlobally(el::ConfigurationType::Enabled, args.radio_enable_logging ? "true" : "false");
+    config.setGlobally(el::ConfigurationType::Format, logging_format);
+    el::Loggers::reconfigureAllLoggers(config);
+    if (args.scraper_enable) {
+        auto basic_scraper_logger = el::Loggers::getLogger("basic-scraper");
+        el::Configurations config;
+        config.setGlobally(el::ConfigurationType::Enabled, args.scraper_disable_logging ? "false" : "true");
+        config.setGlobally(el::ConfigurationType::Format, logging_format);
+        basic_scraper_logger->configure(config);
+    }
 
-    el::Configurations defaultConf;
-    const char* logging_level = is_logging ? "true" : "false";
-    defaultConf.setToDefault();
-    defaultConf.setGlobally(el::ConfigurationType::Enabled, logging_level);
-    defaultConf.setGlobally(el::ConfigurationType::Format, "[%level] [%thread] [%logger] %msg");
-    el::Loggers::reconfigureAllLoggers(defaultConf);
-    el::Helpers::setThreadName("main-thread");
-
-    auto port_audio_handler = ScopedPaHandler();
-    auto app = App(total_demod_threads, total_radio_threads);
-    auto& config = app.GetOFDMDemodulator().GetConfig();
-    config.sync.is_coarse_freq_correction = is_coarse_freq_correction;
-
-    auto renderer = Renderer(app);
-    // Automatically select the first rtlsdr dongle we find
-    auto init_command_thread = std::thread([&app]() {
-        auto& device_selector = app.GetDeviceSelector();
-        device_selector.SearchDevices();
-        if (device_selector.GetDeviceList().size() > 0) {
-            device_selector.SelectDevice(0);
+    const auto dab_params = get_dab_parameters(args.transmission_mode);
+    // ofdm
+    auto ofdm_block = std::make_shared<OFDM_Block>(args.transmission_mode, args.ofdm_total_threads);
+    auto& ofdm_config = ofdm_block->get_ofdm_demod().GetConfig();
+    ofdm_config.sync.is_coarse_freq_correction = !args.ofdm_disable_coarse_freq;
+    // radio switcher
+    auto audio_pipeline = std::make_shared<AudioPipeline>();
+    auto radio_switcher = std::make_shared<Basic_Radio_Switcher>(
+        args.transmission_mode,
+        [args, audio_pipeline](const DAB_Parameters& params, std::string_view channel) -> auto {
+            auto instance = std::make_shared<Radio_Instance>(channel, params, args.radio_total_threads);
+            auto& radio = instance->get_radio(); 
+            attach_audio_pipeline_to_radio(audio_pipeline, radio);
+            if (args.scraper_enable) {
+                auto dir = fmt::format("{}/{}", args.scraper_output, channel);
+                auto scraper = std::make_shared<BasicScraper>(dir);
+                fprintf(stderr, "basic_scraper is writing to folder '%s'\n", dir.c_str()); 
+                BasicScraper::attach_to_radio(scraper, radio);
+                if (!args.scraper_disable_auto) {
+                    radio.On_DAB_Plus_Channel().Attach(
+                        [](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+                            auto& controls = channel.GetControls();
+                            controls.SetIsDecodeAudio(true);
+                            controls.SetIsDecodeData(true);
+                            controls.SetIsPlayAudio(false);
+                        }
+                    );
+                }
+            }
+            return instance;
         }
-    });
-    RenderImguiSkeleton(&renderer);
-    init_command_thread.join();
+    );
+    // ofdm input
+    auto device_output_buffer = std::make_shared<ThreadedRingBuffer<RawIQ>>(args.ofdm_block_size*sizeof(RawIQ));
+    auto ofdm_convert_raw_iq = std::make_shared<OFDM_Convert_RawIQ>();
+    ofdm_convert_raw_iq->set_input_stream(device_output_buffer);
+    ofdm_block->set_input_stream(ofdm_convert_raw_iq);
+    // connect ofdm to radio_switcher
+    auto ofdm_to_radio_buffer = std::make_shared<ThreadedRingBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits*2);
+    ofdm_block->set_output_stream(ofdm_to_radio_buffer);
+    radio_switcher->set_input_stream(ofdm_to_radio_buffer);
+    // device to ofdm
+    auto device_list = std::make_shared<DeviceList>();
+    auto device_source = std::make_shared<DeviceSource>(
+        [device_output_buffer, radio_switcher, args]
+        (std::shared_ptr<Device> device) {
+            radio_switcher->flush_input_stream();
+            if (device == nullptr) return;
+            if (args.tuner_auto_gain) {
+                device->SetAutoGain();
+            } else {
+                device->SetNearestGain(args.tuner_manual_gain);
+            }
+            device->SetDataCallback([device_output_buffer](tcb::span<const uint8_t> bytes) {
+                constexpr size_t BYTES_PER_SAMPLE = sizeof(RawIQ);
+                const size_t total_bytes = bytes.size() - (bytes.size() % BYTES_PER_SAMPLE);
+                const size_t total_samples = total_bytes / BYTES_PER_SAMPLE;
+                auto raw_iq = tcb::span(
+                    reinterpret_cast<const RawIQ*>(bytes.data()),
+                    total_samples
+                );
+                const size_t total_read_samples = device_output_buffer->write(raw_iq);
+                const size_t total_read_bytes = total_read_samples * BYTES_PER_SAMPLE;
+                return total_read_bytes;
+            });
+            device->SetFrequencyChangeCallback([radio_switcher](const std::string& label, const uint32_t freq) {
+                radio_switcher->switch_instance(label);
+            });
+            device->SetCenterFrequency(args.tuner_default_channel, block_frequencies.at(args.tuner_default_channel));
+        }
+    ); 
+    // audio
+    auto port_audio_handler = std::make_unique<ScopedPaHandler>();
+    auto portaudio_device_list = std::make_shared<PaDeviceList>();
+    // gui
+    CommonGui gui;
+    gui.window_title = "Radio App";
+    gui.render_callback = [ofdm_block, radio_switcher, portaudio_device_list, audio_pipeline, device_source, device_list] () {
+        if (ImGui::Begin("OFDM Demodulator")) {
+            ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
+            ImGui::DockSpace(dockspace_id);
+            RenderSourceBuffer(ofdm_block->get_buffer());
+            RenderOFDMDemodulator(ofdm_block->get_ofdm_demod());
+            RenderProfiler();
+            if (ImGui::Begin("Tuner Controls")) {
+                auto device = device_source->get_device();
+                auto selected_device = RenderDeviceList(*(device_list.get()), device.get());
+                if (device != nullptr) {
+                    RenderDevice(*(device.get()), block_frequencies);
+                }
+                if (selected_device != nullptr) {
+                    device_source->set_device(selected_device);
+                }
+            }
+            ImGui::End();
+        }
+        ImGui::End();
 
-    return 0;
+        auto instance = radio_switcher->get_instance();
+        if (instance != nullptr) {
+            auto window_label = fmt::format("Simple View ({})###simple_view", instance->get_name()); 
+            if (ImGui::Begin(window_label.c_str())) {
+                ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
+                ImGui::DockSpace(dockspace_id);
+                if (ImGui::Begin("Audio Controls")) {
+                    RenderPortAudioControls(*(portaudio_device_list.get()), *(audio_pipeline.get()));
+                }
+                ImGui::End();
+                    auto& radio = instance->get_radio();
+                    auto& view_controller = instance->get_view_controller();
+                    RenderBasicRadio(radio, view_controller);
+            }
+            ImGui::End();
+        }
+    };
+    // threads
+    std::unique_ptr<std::thread> thread_select_default_audio = nullptr;
+    if (!args.audio_no_auto_select) {
+        thread_select_default_audio = std::make_unique<std::thread>([audio_pipeline]() {
+            auto res = PortAudioSink::create_from_index(get_default_portaudio_device_index());
+            audio_pipeline->set_sink(std::move(res.sink));
+        });
+    }
+    std::unique_ptr<std::thread> thread_select_default_tuner = nullptr;
+    if (!args.tuner_no_auto_select) {
+        const size_t default_device_index = args.tuner_device_index;
+        thread_select_default_tuner = std::make_unique<std::thread>([device_list, device_source, default_device_index]() {
+            device_list->refresh();
+            size_t total_descriptors = 0;
+            {
+                auto lock = std::unique_lock(device_list->get_mutex_descriptors());
+                auto descriptors = device_list->get_descriptors();
+                total_descriptors = descriptors.size();
+            }
+            if (default_device_index >= total_descriptors) {
+                fprintf(stderr, "ERROR: Device index is greater than the number of devices (%zu >= %zu)\n", default_device_index, total_descriptors);
+                return;
+            }
+            auto device = device_list->get_device(default_device_index);
+            if (device == nullptr) return;
+            device_source->set_device(device);
+        });
+    }
+    const size_t ofdm_block_size = args.ofdm_block_size;
+    auto thread_ofdm_run = std::thread([ofdm_block, ofdm_block_size, ofdm_to_radio_buffer]() {
+        ofdm_block->run(ofdm_block_size);
+        fprintf(stderr, "ofdm thread finished\n");
+        if (ofdm_to_radio_buffer != nullptr) ofdm_to_radio_buffer->close();
+    });
+    auto thread_radio_switcher = std::thread([radio_switcher]() {
+        radio_switcher->run();
+        fprintf(stderr, "radio_switcher thread finished\n");
+    });
+    // shutdown
+    const int gui_retval = render_common_gui_blocking(gui);
+    device_output_buffer->close();
+    ofdm_to_radio_buffer->close();
+    if (thread_select_default_audio != nullptr) thread_select_default_audio->join();
+    if (thread_select_default_tuner != nullptr) thread_select_default_tuner->join();
+    thread_ofdm_run.join();
+    thread_radio_switcher.join();
+    ofdm_block = nullptr;
+    radio_switcher = nullptr;
+    portaudio_device_list = nullptr;
+    audio_pipeline = nullptr;
+    // NOTE: need to shutdown portaudio global handler at the end
+    port_audio_handler = nullptr;
+    return gui_retval;
 }

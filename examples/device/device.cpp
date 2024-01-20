@@ -5,40 +5,58 @@ extern "C" {
 }
 
 #include <fmt/core.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-Device::Device(rtlsdr_dev_t* _device, const DeviceDescriptor& _descriptor, const int block_multiple)
+Device::Device(rtlsdr_dev_t* _device, const DeviceDescriptor& _descriptor, const int _block_size)
 : device(_device), descriptor(_descriptor),
-  total_samples(16384*block_multiple),
-  total_bytes(total_samples*sizeof(std::complex<uint8_t>))
+  block_size(_block_size)
 {
+    is_running = true;
     is_gain_manual = true;
     selected_gain = 0.0f;
 
     SearchGains();
-    // SetAutoGain();
     SetNearestGain(19.0f);
     SetSamplingFrequency(2048000);
-    rtlsdr_set_bias_tee(device, 0);
-    rtlsdr_reset_buffer(device);
+
+    int status = 0;
+    status = rtlsdr_set_bias_tee(device, 0);
+    if (status < 0) error_list.push_back(fmt::format("Failed to disable bias tee ({})", status));
+    status = rtlsdr_reset_buffer(device);
+    if (status < 0) error_list.push_back(fmt::format("Failed to reset buffer ({})", status));
 
     runner_thread = std::make_unique<std::thread>([this]() {
-        rtlsdr_read_async(
+        const int status = rtlsdr_read_async(
             device, 
-            &Device::rtlsdr_callback, 
-            reinterpret_cast<void*>(this), 0, total_bytes);
+            &Device::rtlsdr_callback, reinterpret_cast<void*>(this), 
+            0, block_size
+        );
+        fprintf(stderr, "[device] rtlsdr_read_sync exited with %d\n", status);
     });
 }
 
 Device::~Device() {
-    rtlsdr_cancel_async(device);
+    Close();
+    // FIXME: Depending on the USB driver installed the following may occur
+    //        1. Segmentation fault in driver
+    //        2. Driver goes into an infinite loop
+    //        3. runner_thread doesn't exit and destructor is stuck at thread join
+    //        4. It works but rtlsdr_read_async returns a negative status code
     runner_thread->join();
     rtlsdr_close(device);
+    device = nullptr;
+}
+
+void Device::Close() {
+    is_running = false;
+    rtlsdr_cancel_async(device);
 }
 
 void Device::SetAutoGain(void) {
-    int r = rtlsdr_set_tuner_gain_mode(device, 0);
-    if (r < 0) {
-        error_list.push_back("Couldn't set tuner gain mode to automatic");
+    const int status = rtlsdr_set_tuner_gain_mode(device, 0);
+    if (status < 0) {
+        error_list.push_back(fmt::format("Failed to set tuner gain mode to automatic ({})", status));
         return;
     }
     is_gain_manual = false;
@@ -60,15 +78,15 @@ void Device::SetNearestGain(const float target_gain) {
 
 void Device::SetGain(const float gain) {
     const int qgain = static_cast<int>(gain*10.0f);
-    int r;
-    r = rtlsdr_set_tuner_gain_mode(device, 1);
-    if (r < 0) {
-        error_list.push_back("Couldn't set tuner gain mode to manual");
+    int status = 0;
+    status = rtlsdr_set_tuner_gain_mode(device, 1);
+    if (status < 0) {
+        error_list.push_back(fmt::format("Failed to set tuner gain mode to manual ({})", status));
         return;
     }
-    r = rtlsdr_set_tuner_gain(device, qgain);
-    if (r < 0) {
-        error_list.push_back(fmt::format("Couldn't set manual gain to {:.1f}dB", gain));
+    status = rtlsdr_set_tuner_gain(device, qgain);
+    if (status < 0) {
+        error_list.push_back(fmt::format("Failed to set manual gain to {:.1f}dB ({})", gain, status));
         return;
     }
     is_gain_manual = true;
@@ -76,9 +94,9 @@ void Device::SetGain(const float gain) {
 }
 
 void Device::SetSamplingFrequency(const uint32_t freq) {
-    const int r = rtlsdr_set_sample_rate(device, freq);
-    if (r < 0) {
-        error_list.push_back(fmt::format("Couldn't set sampling frequency to {}", freq));
+    const int status = rtlsdr_set_sample_rate(device, freq);
+    if (status < 0) {
+        error_list.push_back(fmt::format("Failed to set sampling frequency to {} Hz ({})", freq, status));
         return;
     }
 }
@@ -88,12 +106,16 @@ void Device::SetCenterFrequency(const uint32_t freq) {
 }
 
 void Device::SetCenterFrequency(const std::string& label, const uint32_t freq) {
-    obs_on_center_frequency.Notify(label, freq);
-    const int r = rtlsdr_set_center_freq(device, freq);
-    if (r < 0) {
-        error_list.push_back(fmt::format("Couldn't set center frequency to {}:{}", label, freq));
+    if (callback_on_center_frequency != nullptr) {
+        callback_on_center_frequency(label, freq);
+    }
+    const int status = rtlsdr_set_center_freq(device, freq);
+    if (status < 0) {
+        error_list.push_back(fmt::format("Failed to set center frequency to {}@{}Hz ({})", label, freq, status));
         // Resend notification with original frequency
-        obs_on_center_frequency.Notify(selected_frequency_label, selected_frequency);
+        if (callback_on_center_frequency != nullptr) {
+            callback_on_center_frequency(selected_frequency_label, selected_frequency);
+        }
         return;
     }
     selected_frequency_label = label;
@@ -101,29 +123,32 @@ void Device::SetCenterFrequency(const std::string& label, const uint32_t freq) {
 }
 
 void Device::SearchGains(void) {
-    const int nb_gains = rtlsdr_get_tuner_gains(device, NULL);
-    if (nb_gains <= 0) {
+    const int total_gains = rtlsdr_get_tuner_gains(device, NULL);
+    if (total_gains <= 0) {
         return;
     }
-    gain_list.clear();
-    static std::vector<int> gains;
-    gains.resize(nb_gains);
-    rtlsdr_get_tuner_gains(device, gains.data());
-    for (int g: gains) {
-        gain_list.push_back(static_cast<float>(g) * 0.1f);
+    auto qgains = std::vector<int>(size_t(total_gains));
+    gain_list.resize(size_t(total_gains));
+    rtlsdr_get_tuner_gains(device, qgains.data());
+    for (size_t i = 0; i < size_t(total_gains); i++) {
+        const int qgain = qgains[i];
+        const float gain = static_cast<float>(qgain) * 0.1f;
+        gain_list[i] = gain;
     }
-}    
+}
 
-void Device::UpdateDataAsync(tcb::span<uint8_t> buf) {
-    const int len = (int)buf.size();
-    if (len != total_bytes) {
-        error_list.push_back(fmt::format("Got mismatching buffer size {}!={}", len, total_bytes));
+void Device::OnData(tcb::span<const uint8_t> buf) {
+    if (!is_running) return;
+    if (callback_on_data == nullptr) return;
+    const size_t total_bytes = callback_on_data(buf);
+    if (total_bytes != buf.size()) {
+        fprintf(stderr, "Short write, samples lost, %zu/%zu, shutting down device!\n", total_bytes, buf.size());
+        Close();
     }
-    auto* data = reinterpret_cast<std::complex<uint8_t>*>(buf.data());
-    obs_on_data.Notify({data, (size_t)total_samples});
 }
 
 void Device::rtlsdr_callback(uint8_t* buf, uint32_t len, void* ctx) {
-    auto* instance = reinterpret_cast<Device*>(ctx);
-    instance->UpdateDataAsync({buf, (size_t)len});
+    auto* device = reinterpret_cast<Device*>(ctx);
+    auto data = tcb::span<const uint8_t>(buf, size_t(len));
+    device->OnData(data);
 }

@@ -6,49 +6,41 @@ Applications that use the OFDM and DAB code.
 | --- | --- |
 | **radio_app** | **The complete radio app with controls for the tuner** |
 | rtl_sdr | Reads raw 8bit IQ values from your rtl-sdr dongle to stdout |
-| ofdm_demod_cli | Demodulates a raw 8bit IQ stream into digital OFDM frames |
-| ofdm_demod_gui | Demodulates a raw 8bit IQ stream into digital OFDM frames with a GUI |
-| basic_radio_app | Complete app that reads raw 8bit IQ stream and demodulates and decodes it into a basic radio |
-| basic_radio_app_no_demod | Reads in a digital OFDM frame from ofdm_demod_gui or ofdm_demod_cli and decodes it for a basic radio |
-| basic_radio_scraper | Reads raw 8bit IQ stream, demodulates and decodes the data, then saves it to disk |
-| basic_radio_scraper_no_demod | Reads in a digital OFDM frame from ofdm_demod_gui or ofdm_demod_cli, decodes the data then saves it to disk |
+| basic_radio_app | OFDM demodulator and/or radio decoder that reads from a file with a gui |
+| basic_radio_app_cli | OFDM demodulator and/or radio decoder that reads from a file without a gui |
 | read_wav | Reads in a wav file which can be 8bit or 16bit PCM and dumps raw data to output as 8bit |
 | apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
 | convert_viterbi | Decodes/encodes between a viterbi_bit_t array of soft decision bits to a packed byte |
 | simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an 8bit IQ stream to stdout. |
 
 ## Example usage scenarios (using git-bash on Windows)
-### 1. Run the complete radio app with rtlsdr tuner controls
-<code>./radio_app</code>
+Refer to ```-h``` or ```--help``` for more information on each application.
 
-### 2. Run the radio app on a DAB ensemble while reading from rtl_sdr
+### GUI Radio app with built in rtlsdr tuner controls
+```./radio_app```
 
-<code>./rtl_sdr | ./basic_radio_app</code>
+### Tuner => OFDM => Radio => Audio
+```./rtl_sdr -c [CHANNEL] | ./basic_radio_app```
 
-### 3. Run data scraper
+### Tuner => OFDM => Radio => Audio & Scraper
+```./rtl_sdr -c [CHANNEL] | ./basic_radio_app --scraper-enable --scraper-output [DIRECTORY]```
 
-<code>./rtl_sdr | ./basic_radio_scraper -o ./data/9C_2/</code>
+### Tuner => OFDM => File_Soft
+```./rtl_sdr -c [CHANNEL] | ./basic_radio_app --configuration ofdm --ofdm-enable-output > [FILENAME]```
 
-### 4. Run OFDM demod while saving undecoded OFDM frame bits
+### File_Soft => Radio => Audio
+```./basic_radio_app -i [FILENAME] --configuration dab```
 
-<code>./rtl_sdr | ./ofdm_demod_gui > ./data/frame_bits_9C.bin</code>
+### Tuner => OFDM => Soft_to_Hard => File_Hard
+```./rtl_sdr -c [CHANNEL] | ./basic_radio_app --configuration ofdm --ofdm-enable-output | ./convert_viterbi --type soft_to_hard > [FILENAME]```
 
-### 5. Run OFDM demod while saving undecoded OFDM frame as packed bytes for 8x less space
+An OFDM frame consists of 8bits values that represent a number from -127 to +127. We can instead represent them as -1 or +1 as a single bit. This reduces the amount of space by 8 times.
 
-<code>./rtl_sdr | ./ofdm_demod_gui | ./convert_viterbi > ./data/frame_bytes_9C.bin</code>
+### File_Hard => Hard_to_Soft => Radio => Audio
+```./convert_viterbi -i [FILENAME] | ./basic_radio_app --configuration dab```
 
-### 6. Unpack packed bytes into OFDM frame bits and run DAB radio app
+### Tuner => OFDM => (Soft_to_Hard => File_Hard), (Radio => Audio)
+```./rtl_sdr -c [CHANNEL] | ./basic_radio_app --configuration ofdm --ofdm-enable-output | tee >(./convert_viterbi --type soft_to_hard > [FILENAME]) | ./basic_radio_app --configuration dab```
 
-<code>./convert_viterbi -d -i ./data/frame_bytes_9C.bin | ./basic_radio_app_no_demod</code>
-
-**NOTE**: This is useful for testing changes to your DAB decoding implementation by replaying packed byte OFDM frames that you recorded previously. 
-
-### 7. Play radio with GUI while storing OFDM frames as packed bytes
-
-<code>./rtl_sdr | ./ofdm_demod_gui | ./convert_viterbi | tee ./data/frame_bytes_9C.bin | ./convert_viterbi -d | ./basic_radio_app_no_demod</code>
-
-**NOTE**: <code>tee</code> is a unix application that reads in stdin and outputs to stdout and the specified filepath.
-
-### 8. Run data scraper with OFDM demodulator GUI while storing OFDM frames as packed bytes
-
-<code>./rtl_sdr | ./ofdm_demod_gui | ./convert_viterbi | tee ./data/frame_bytes_9C.bin | ./convert_viterbi -d | ./basic_radio_scraper_no_demod</code>
+- ```tee [...]``` is a command that copies stdin to multiple output files and stdout.
+- ```>([command])``` is process substitution for bash shells. The command can then be used as a file descriptor (such as an argument for ```tee```).

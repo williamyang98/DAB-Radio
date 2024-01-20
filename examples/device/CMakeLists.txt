@@ -8,7 +8,7 @@ if(NOT DEFINED RTLSDR_LIBS)
 endif()
 
 add_library(device_lib STATIC
-    ${SRC_DIR}/device_selector.cpp
+    ${SRC_DIR}/device_list.cpp
     ${SRC_DIR}/device.cpp
 )
 target_include_directories(device_lib PRIVATE ${SRC_DIR} ${ROOT_DIR})

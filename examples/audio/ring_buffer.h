@@ -21,7 +21,7 @@ public:
     bool is_full() const { return m_total_used == get_size(); }
     bool is_empty() const { return m_total_used == 0; }
 
-    void write_from_src_with_overwrite(const tcb::span<const T> full_src) {
+    void write_forcefully(const tcb::span<const T> full_src) {
         auto src = full_src;
         if (src.size() > get_size()) {
             const size_t phantom_write_length = src.size() - get_size();
@@ -49,14 +49,14 @@ public:
         }
     }
 
-    size_t write_from_src_until_full(tcb::span<const T> src) {
+    size_t write(tcb::span<const T> src) {
         const size_t total_free = get_total_free();
         const size_t write_length = (src.size() > total_free) ? total_free : src.size();
-        write_from_src_with_overwrite(src.first(write_length));
+        write_forcefully(src.first(write_length));
         return write_length;
     }
 
-    size_t read_to_dest(tcb::span<T> dest) {
+    size_t read(tcb::span<T> dest) {
         const size_t total_used = get_total_used();
         const size_t full_read_length = (dest.size() > total_used) ? total_used : dest.size();
 

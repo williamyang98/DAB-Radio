@@ -59,7 +59,7 @@ AudioPipelineSource::AudioPipelineSource(float sampling_rate, size_t buffer_leng
 : m_sampling_rate(sampling_rate), m_ring_buffer(buffer_length)
 {}
 
-void AudioPipelineSource::read_from_source(tcb::span<const Frame<int16_t>> src, float src_sampling_rate, bool is_blocking) {
+void AudioPipelineSource::write(tcb::span<const Frame<int16_t>> src, float src_sampling_rate, bool is_blocking) {
     const float gain = m_gain / float(std::numeric_limits<int16_t>::max());
     const size_t resample_length = size_t(float(src.size()) * m_sampling_rate / src_sampling_rate);
     m_resampling_buffer.resize(resample_length);
@@ -82,13 +82,13 @@ void AudioPipelineSource::read_from_source(tcb::span<const Frame<int16_t>> src, 
 
     auto lock = std::unique_lock(m_mutex_ring_buffer);
     if (!is_blocking) {
-        m_ring_buffer.write_from_src_with_overwrite(m_resampling_buffer);
+        m_ring_buffer.write_forcefully(m_resampling_buffer);
         return;
     }
 
     auto read_buffer = tcb::span<const Frame<float>>(m_resampling_buffer);
     while (true) {
-        const size_t total_read = m_ring_buffer.write_from_src_until_full(read_buffer);
+        const size_t total_read = m_ring_buffer.write(read_buffer);
         read_buffer = read_buffer.subspan(total_read);
         if (read_buffer.empty()) break;
         m_cv_ring_buffer.wait(lock, [this]{ 
@@ -97,12 +97,12 @@ void AudioPipelineSource::read_from_source(tcb::span<const Frame<int16_t>> src, 
     }
 }
 
-bool AudioPipelineSource::write_to_dest(tcb::span<Frame<float>> dest) {
+bool AudioPipelineSource::read(tcb::span<Frame<float>> dest) {
     auto lock = std::unique_lock(m_mutex_ring_buffer);
     if (m_ring_buffer.get_total_used() < dest.size()) {
         return false;
     }
-    m_ring_buffer.read_to_dest(dest);
+    m_ring_buffer.read(dest);
     lock.unlock();
     m_cv_ring_buffer.notify_one();
     return true;
@@ -126,7 +126,7 @@ void AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest
         const size_t N_src = size_t(float(N_dest) * src_sampling_rate / dest_sampling_rate);
         m_read_buffer.resize(N_src);
 
-        if (!source->write_to_dest(m_read_buffer)) {
+        if (!source->read(m_read_buffer)) {
             continue;
         }
 

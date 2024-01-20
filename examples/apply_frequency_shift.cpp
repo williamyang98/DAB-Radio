@@ -5,119 +5,149 @@
 #include <vector>
 #include "utility/span.h"
 
-#ifdef _WIN32
+#if _WIN32
 #include <io.h>
 #include <fcntl.h>
 #endif
 
+#include <argparse/argparse.hpp>
 #include "ofdm/dsp/apply_pll.h"
-#include "./getopt/getopt.h"
 
 constexpr float DC_LEVEL = 127.0f;
 constexpr float SCALE = 128.0f;
 constexpr float Fs = 2.048e6f;
 constexpr float Ts = 1.0f/Fs;
 
-void ByteToFloat(tcb::span<const std::complex<uint8_t>> x, tcb::span<std::complex<float>> y);
-void FloatToByte(tcb::span<const std::complex<float>> x, tcb::span<std::complex<uint8_t>> y);
+struct RawIQ {
+    uint8_t I;
+    uint8_t Q;
+};
 
-void usage() {
-    fprintf(stderr, 
-        "apply_frequency_shift, applies frequency shift to raw IQ values\n\n"
-        "\t[-f frequency shift in Hz (default: 0)\n"
-        "\t[-b block size (default: 8192)\n"
-        "\t[-i input filename (default: None)]\n"
-        "\t    If no file is provided then stdin is used\n"
-        "\t[-o output filename (default: None)]\n"
-        "\t    If no file is provided then stdout is used\n"
-        "\t[-h (show usage)]\n"
+static std::complex<float> raw_iq_to_c32(RawIQ x) {
+    return std::complex<float>(
+        (float(x.I) - DC_LEVEL) / SCALE,
+        (float(x.Q) - DC_LEVEL) / SCALE
     );
 }
 
+static RawIQ c32_to_raw_iq(std::complex<float> x) {
+    RawIQ y;
+    y.I = uint8_t(x.real()*SCALE + DC_LEVEL);
+    y.Q = uint8_t(x.imag()*SCALE + DC_LEVEL);
+    return y;
+}
+
+void init_parser(argparse::ArgumentParser& parser) {
+    parser.add_argument("-f", "--frequency")
+        .default_value(float(0.0f)).scan<'g', float>()
+        .metavar("FREQUENCY")
+        .nargs(1).required()
+        .help("Amount of Hz to shift 8bit IQ signal");
+    parser.add_argument("-n", "--block-size")
+        .default_value(size_t(8192)).scan<'u', size_t>()
+        .metavar("BLOCK_SIZE")
+        .nargs(1).required()
+        .help("Number of IQ samples to read at once");
+    parser.add_argument("-i", "--input")
+        .default_value(std::string(""))
+        .metavar("INPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of input to converter (defaults to stdin)");
+    parser.add_argument("-o", "--output")
+        .default_value(std::string(""))
+        .metavar("OUTPUT_FILENAME")
+        .nargs(1).required()
+        .help("Filename of output from converter (defaults to stdout)");
+}
+
+struct Args {
+    float frequency;
+    size_t block_size;
+    std::string input_filename;
+    std::string output_filename;
+};
+
+Args get_args_from_parser(const argparse::ArgumentParser& parser) {
+    Args args;
+    args.frequency = parser.get<float>("--frequency");
+    args.block_size = parser.get<size_t>("--block-size");
+    args.input_filename = parser.get<std::string>("--input");
+    args.output_filename = parser.get<std::string>("--output");
+    return args;
+}
+
 int main(int argc, char** argv) {
-    float frequency_shift = 0;
-    int block_size = 8192;
-    char* rd_filename = NULL;
-    char* wr_filename = NULL;
-
-    int opt; 
-    while ((opt = getopt_custom(argc, argv, "f:b:i:o:h")) != -1) {
-        switch (opt) {
-        case 'f':
-            frequency_shift = (float)(atof(optarg));
-            break;
-        case 'b':
-            block_size = (int)(atof(optarg));
-            break;
-        case 'i':
-            rd_filename = optarg;
-            break;
-        case 'o':
-            wr_filename = optarg;
-            break;
-        case 'h':
-        default:
-            usage();
-            return 0;
-        }
+    auto parser = argparse::ArgumentParser("apply_frequency_shift", "0.1.0");
+    parser.add_description("Shifts an 8bit IQ signal by a set frequency");
+    init_parser(parser);
+    try {
+        parser.parse_args(argc, argv);
+    } catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
+        std::cerr << parser;
+        return 1;
     }
+    const auto args = get_args_from_parser(parser);
 
-    if (block_size <= 0) {
-        fprintf(stderr, "Block size must be positive got %d\n", block_size);
+    const float max_frequency_shift = 200e3f;
+    if ((args.frequency < -max_frequency_shift) || (args.frequency > max_frequency_shift)) {
+        fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", args.frequency, max_frequency_shift);
         return 1;
     }
 
-    const float max_frequency_shift = 100e3f;
-    if ((frequency_shift < -max_frequency_shift) || (frequency_shift > max_frequency_shift)) {
-        fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", frequency_shift, max_frequency_shift);
+    if (args.block_size == 0) {
+        fprintf(stderr, "Block size cannot be zero\n");
         return 1;
     }
 
     FILE* fp_in = stdin;
-    if (rd_filename != NULL) {
-        fp_in = fopen(rd_filename, "rb");
-        if (fp_in == NULL) {
-            fprintf(stderr, "Failed to open file for reading\n");
+    if (!args.input_filename.empty()) { 
+        fp_in = fopen(args.input_filename.c_str(), "rb");
+        if (fp_in == nullptr) {
+            fprintf(stderr, "Failed to open input file: '%s'\n", args.input_filename.c_str());
             return 1;
         }
     }
 
     FILE* fp_out = stdout;
-    if (wr_filename != NULL) {
-        fp_out = fopen(wr_filename, "wb+");
-        if (fp_out == NULL) {
-            fprintf(stderr, "Failed to open file for writing\n");
+    if (!args.output_filename.empty()) {
+        fp_out = fopen(args.output_filename.c_str(), "wb+");
+        if (fp_out == nullptr) {
+            fprintf(stderr, "Failed to open output file: '%s'\n", args.output_filename.c_str());
             return 1;
         }
     }
 
-#ifdef _WIN32
+#if _WIN32
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_out), _O_BINARY);
 #endif
 
-    auto rx_in = std::vector<std::complex<uint8_t>>(block_size);
-    auto rx_float = std::vector<std::complex<float>>(block_size);
+    const size_t N = args.block_size;
+    const float frequency_shift = args.frequency;
+    auto rx_in = std::vector<RawIQ>(N);
+    auto rx_float = std::vector<std::complex<float>>(N);
     float dt = 0.0f;
     while (true) {
-        const size_t N = rx_in.size();
-        const size_t nb_read = fread(rx_in.data(), sizeof(std::complex<uint8_t>), N, fp_in);
+        const size_t nb_read = fread(rx_in.data(), sizeof(RawIQ), N, fp_in);
         if (nb_read != N) {
             fprintf(stderr, "Failed to read in block %zu/%zu\n", nb_read, N);
             break;
         }
-
-        ByteToFloat(rx_in, rx_float);
+        for (size_t i = 0; i < N; i++) {
+            rx_float[i] = raw_iq_to_c32(rx_in[i]);
+        }
 
         apply_pll_auto(rx_float, rx_float, frequency_shift, dt);
         // NOTE: Manually compute the next dt since floating point inaccuracies result in 
         //       a discontinuity
         dt += 2.0f * (float)M_PI *  frequency_shift * Ts * (float)N;
         dt = std::fmod(dt, 2.0f*(float)M_PI);
-
-        FloatToByte(rx_float, rx_in);
-
-        const size_t nb_write = fwrite(rx_in.data(), sizeof(std::complex<uint8_t>), N, fp_out);
+ 
+        for (size_t i = 0; i < N; i++) {
+            rx_in[i] = c32_to_raw_iq(rx_float[i]);
+        }
+        const size_t nb_write = fwrite(rx_in.data(), sizeof(RawIQ), N, fp_out);
         if (nb_write != N) {
             fprintf(stderr, "Failed to write out frame %zu/%zu\n", nb_write, N);
             break;
@@ -125,23 +155,4 @@ int main(int argc, char** argv) {
     }
 
     return 0;
-}
-
-void ByteToFloat(tcb::span<const std::complex<uint8_t>> x, tcb::span<std::complex<float>> y) {
-    const size_t N = x.size();
-    for (int i = 0; i < N; i++) {
-        y[i] = std::complex<float>(
-            (float)(x[i].real()) - DC_LEVEL,
-            (float)(x[i].imag()) - DC_LEVEL);
-        y[i] /= SCALE;
-    }
-}
-
-void FloatToByte(tcb::span<const std::complex<float>> x, tcb::span<std::complex<uint8_t>> y) {
-    const size_t N = x.size();
-    for (int i = 0; i < N; i++) {
-        y[i] = std::complex<uint8_t>(
-            (uint8_t)(x[i].real()*SCALE + DC_LEVEL),
-            (uint8_t)(x[i].imag()*SCALE + DC_LEVEL));
-    }
 }

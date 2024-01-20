@@ -29,10 +29,7 @@ private:
     int total_bytes_written = 0;
     const fs::path dir;    
 public:
-    BasicAudioScraper(const fs::path& _dir): dir(_dir) {
-        fp_wav = NULL;
-        total_bytes_written = 0;
-    }
+    BasicAudioScraper(const fs::path& _dir): dir(_dir) {}
     ~BasicAudioScraper();
     BasicAudioScraper(BasicAudioScraper&) = delete;
     BasicAudioScraper(BasicAudioScraper&&) = delete;
@@ -60,7 +57,7 @@ private:
     const fs::path dir;
 public:
     BasicMOTScraper(const fs::path& _dir): dir(_dir) {}
-    void OnMOTEntity(MOT_Entity& mot);
+    void OnMOTEntity(MOT_Entity mot);
 };
 
 class Basic_DAB_Plus_Scraper
@@ -71,21 +68,17 @@ private:
     BasicSlideshowScraper slideshow_scraper;
     BasicMOTScraper mot_scraper;
 public:
-    Basic_DAB_Plus_Scraper(const fs::path& _dir, Basic_DAB_Plus_Channel& channel);
-    Basic_DAB_Plus_Scraper(Basic_DAB_Plus_Scraper&) = delete;
-    Basic_DAB_Plus_Scraper(Basic_DAB_Plus_Scraper&&) = delete;
-    Basic_DAB_Plus_Scraper& operator=(Basic_DAB_Plus_Scraper&) = delete;
-    Basic_DAB_Plus_Scraper& operator=(Basic_DAB_Plus_Scraper&&) = delete;
+    Basic_DAB_Plus_Scraper(const fs::path& _dir);
+    static void attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Scraper> scraper, Basic_DAB_Plus_Channel& channel);
 };
 
 class BasicScraper 
 {
 private:
-    BasicRadio& radio;
     std::string root_directory;
-    std::vector<std::unique_ptr<Basic_DAB_Plus_Scraper>> scrapers;
+    std::vector<std::shared_ptr<Basic_DAB_Plus_Scraper>> scrapers;
 public:
-    BasicScraper(BasicRadio& _radio, const char* _root_directory);
-private:
-    void Connect_DAB_Plus_Channel(subchannel_id_t id, Basic_DAB_Plus_Channel& channel);
+    template <typename T>
+    BasicScraper(T _root_directory): root_directory(_root_directory) {}
+    static void attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio);
 };

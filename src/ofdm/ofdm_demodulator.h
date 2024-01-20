@@ -36,17 +36,12 @@ struct OFDM_Demod_Config {
         float fine_freq_update_beta = 0.9f;
         // coarse freq sync
         bool is_coarse_freq_correction = true;
-        int max_coarse_freq_correction = 20000;
+        int max_coarse_freq_correction = 200000;
         float coarse_freq_slow_beta = 0.1f;
         // fine time sync
         float impulse_peak_threshold_db = 20.0f;
         float impulse_peak_distance_probability = 0.15f;
     } sync;
-    bool is_update_tii_sym_mag = false;
-    struct {
-        bool is_update = false;
-        float update_beta = 0.1f;
-    } data_sym_mag;
 };
 
 class OFDM_Demod 

@@ -19,8 +19,7 @@ For those who are interested only in parts of the implementation refer to the fo
 | src/ofdm          | OFDM demodulation code |
 | src/dab           | DAB digital decoding core algorithms |
 | src/basic_radio   | Combines all of the DAB core algorithms into a cohesive example app |
-| src/basic_scraper | Attaches itself via callbacks to a basic_radio instance to save audio/slideshow/MOT data to disk |
-| src/utility       | Small helper template library for general purpose use |
+| src/basic_scraper | Listens to basic_radio instance to save audio/slideshow/MOT data to disk |
 | examples/*.cpp    | All our sample applications |
 
 # Gallery
@@ -31,13 +30,13 @@ For those who are interested only in parts of the implementation refer to the fo
 1. Download the ZIP archive from the releases page. 
 2. Setup rtlsdr radio drivers according to [here](https://www.rtl-sdr.com/rtl-sdr-quick-start-guide/)
 3. Plug in your RTLSDR Blog v3 dongle
-4. Run <code>./radio_app.exe</code>
-5. Go to the simple_view tab and select a service from the list. 
+4. Run ```./radio_app.exe```
+5. Go to the "Simple View" tab and select a service from the list. 
 6. Click "Run All" to listen to the channel and receive slideshows.
 
-[Wohnort](http://www.wohnort.org/dab/) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are <code>[9A,9B,9C]</code>.
+[Wohnort](http://www.wohnort.org/dab/) has an excellent website for viewing the list of DAB ensembles across the work. In Australia where I am, the blocks being used in Sydney are ```[9A,9B,9C]```.
 
-Refer to <code>src/examples/README.md</code> for other example applications.
+Refer to ```src/examples/README.md``` for other example applications.
 
 If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page [here](https://github.com/FiendChain/DAB-Radio/releases/tag/raw-iq-data). These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
 
@@ -63,7 +62,7 @@ Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#is
 
 ```./toolchains/windows/README.md``` has steps for configuring the right files to build for older CPUs.
 
-# Inspirations
+# Similar apps
 - The welle.io open source radio has an excellent implementation of DAB radio. Their implementation is much more featureful and optimised than mine. Their repository can be found [here](https://github.com/albrechtl/welle.io). They also have a youtube video showcasing their wonderful software [here](https://www.youtube.com/watch?v=IJcgdmud-AI). 
 
 - There is a large community of rtl-sdr projects which can be found at [rtl-sdr.com](https://www.rtl-sdr.com/tag/dab/). This link points to a webpage showcasing several open source community projects that aim to decode DAB signals.
@@ -76,12 +75,6 @@ Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#is
 - [RJVB/sse_mathfun](https://github.com/RJVB/sse_mathfun) for their SSE2 implementations of _mm_cos_pd
 
 # TODO
-- For OFDM demodulator the hand written SIMD might perform extremely poorly when compiling on gcc or clang.
 - For DAB+ determine how to perform error correction on the firecode CRC16 in the AAC super frame.
-- Replace imgui with a retain mode alternative.
-- Automatically scan DAB ensembles and channels and persistent them on the user's drive.
-- Support the rest of the DAB standard.
-    - MPEG-II audio for DAB channels.
-    - Handle strings with utf-8, utf-16 character sets. 
+- Decode MPEG-II audio for DAB channels.
 - Add TII (transmitter identificaton information) decoding
-- Add SNR meter

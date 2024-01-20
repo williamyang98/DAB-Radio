@@ -1,8 +1,10 @@
 #include "./render_ofdm_demod.h"
+#include "./render_profiler.h"
 #include "ofdm/ofdm_demodulator.h"
 
-#include "imgui.h"
-#include "implot.h"
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui.h>
+#include <implot.h>
 #include <cmath>
 #include <vector>
 
@@ -31,7 +33,6 @@ void RenderPlots(OFDM_Demod& demod) {
 void RenderSourceBuffer(tcb::span<const std::complex<float>> buf_raw)
 {
     const size_t block_size = buf_raw.size();
-    static double x = 0.0f;
     if (ImGui::Begin("Sampling buffer")) {
         if (ImPlot::BeginPlot("Block")) {
             const auto* buf = reinterpret_cast<const float*>(buf_raw.data());
@@ -53,23 +54,16 @@ void RenderControls(OFDM_Demod& demod) {
         if (ImGui::Button("Reset")) {
             demod.Reset();
         }
-
-        ImGui::Checkbox("Update data symbol mag", &cfg.data_sym_mag.is_update);
-        ImGui::SameLine();
-        ImGui::Checkbox("Update tii symbol mag", &cfg.is_update_tii_sym_mag);
         ImGui::SameLine();
         ImGui::Checkbox("Coarse frequency correction", &cfg.sync.is_coarse_freq_correction);
-
         ImGui::SliderFloat("Fine frequency beta", &cfg.sync.fine_freq_update_beta, 0.0f, 1.0f, "%.2f");
         if (ImGui::SliderInt("Max coarse frequency (Hz)", &cfg.sync.max_coarse_freq_correction, 0, 100000)) {
             const int N = cfg.sync.max_coarse_freq_correction / (int)params.freq_carrier_spacing;
             cfg.sync.max_coarse_freq_correction = N * (int)params.freq_carrier_spacing;
         }
         ImGui::SliderFloat("Coarse freq slow beta", &cfg.sync.coarse_freq_slow_beta, 0.0f, 1.0f);
-
         ImGui::SliderFloat("Impulse peak threshold (dB)", &cfg.sync.impulse_peak_threshold_db, 0, 100.0f, "%.f");
         ImGui::SliderFloat("Impulse peak distance weight", &cfg.sync.impulse_peak_distance_probability, 0.0f, 1.0f, "%.3f");
-
         static float null_threshold[2] = {0,0};
         null_threshold[0] = cfg.null_l1_search.thresh_null_start;
         null_threshold[1] = cfg.null_l1_search.thresh_null_end;
@@ -79,8 +73,6 @@ void RenderControls(OFDM_Demod& demod) {
             cfg.null_l1_search.thresh_null_start = null_threshold[0];
             cfg.null_l1_search.thresh_null_end = null_threshold[1];
         }
-
-        ImGui::SliderFloat("Data sym mag update beta", &cfg.data_sym_mag.update_beta, 0.0f, 1.0f, "%.2f");
         ImGui::SliderFloat("L1 signal update beta", &cfg.signal_l1.update_beta, 0.0f, 1.0f, "%.2f");
     }
     ImGui::End();
@@ -115,8 +107,6 @@ void RenderState(OFDM_Demod& demod) {
 
 void RenderDemodulatedSymbols(OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
-    auto& cfg = demod.GetConfig();
-
     const int total_symbols = (int)params.nb_frame_symbols;
     const int total_dqpsk_symbols = total_symbols-1;
     static int symbol_index = 0;
@@ -154,7 +144,11 @@ void RenderDemodulatedSymbols(OFDM_Demod& demod) {
                 auto sym_bits = syms_bits_data.subspan(symbol_index*nb_sym_bits, nb_sym_bits);
 
                 static const int NB_REFERENCE = 4;
-                static const std::complex<viterbi_bit_t> REFERENCE_CONSTELLATION[NB_REFERENCE] = {
+                struct Point {
+                    viterbi_bit_t I; 
+                    viterbi_bit_t Q;
+                };
+                static const Point REFERENCE_CONSTELLATION[NB_REFERENCE] = {
                     { SOFT_DECISION_VITERBI_LOW , SOFT_DECISION_VITERBI_LOW  },
                     { SOFT_DECISION_VITERBI_LOW , SOFT_DECISION_VITERBI_HIGH },
                     { SOFT_DECISION_VITERBI_HIGH, SOFT_DECISION_VITERBI_LOW  },
@@ -167,13 +161,12 @@ void RenderDemodulatedSymbols(OFDM_Demod& demod) {
                     ImPlot::SetupAxisLimits(ImAxis_Y1, -A, A, ImPlotCond_Once);
 
                     auto* buf = sym_bits.data();
-                    auto* ref_buf = reinterpret_cast<const viterbi_bit_t*>(REFERENCE_CONSTELLATION);
 
                     const float marker_size = 2.0f;
                     ImPlot::SetNextMarkerStyle(ImPlotMarker_Plus, marker_size);
                     ImPlot::PlotScatter("IQ", &buf[0], &buf[nb_data_carriers], (int)nb_data_carriers, 0, 0, sizeof(buf[0]));
 
-                    ImPlot::PlotScatter("Reference", &ref_buf[0], &ref_buf[1], NB_REFERENCE, 0, 0, 2*sizeof(ref_buf[0]));
+                    ImPlot::PlotScatter("Reference", &REFERENCE_CONSTELLATION[0].I, &REFERENCE_CONSTELLATION[0].Q, NB_REFERENCE, 0, 0, sizeof(Point));
                     ImPlot::EndPlot();
                 }
                 ImGui::EndTabItem();
@@ -251,7 +244,6 @@ void RenderSynchronisation(OFDM_Demod& demod) {
     ImGui::End();
 
     if (ImGui::Begin("Coarse frequency response")) {
-        static bool show_markers = true;
         if (ImPlot::BeginPlot("Coarse frequency response")) {
             auto buf = demod.GetCoarseFrequencyResponse();
             ImPlot::SetupAxisLimits(ImAxis_Y1, 180, 260, ImPlotCond_Once);

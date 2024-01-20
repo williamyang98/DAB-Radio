@@ -1,11 +1,12 @@
 #include "./render_common.h"
-#include "./formatters.h"
+
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui.h>
+#include <fmt/core.h>
 #include "basic_radio/basic_radio.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
-
-#include <imgui.h>
-#include <fmt/core.h>
+#include "./formatters.h"
 
 template <typename T, typename F>
 static T* find_by_callback(std::vector<T>& vec, F&& func) {

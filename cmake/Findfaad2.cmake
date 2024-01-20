@@ -109,17 +109,9 @@ target_include_directories(faad2 PRIVATE ${FAAD_SRC_DIR})
 target_include_directories(faad2 PUBLIC ${FAAD_HEADER_DIR})
 set_target_properties(faad2 PROPERTIES CXX_STANDARD 17)
 
-if(WIN32)
-# win32_ver.h is required to set the package version string
-configure_file(${CMAKE_CURRENT_LIST_DIR}/faad2_win32_ver.h.in ${FAAD_SRC_DIR}/win32_ver.h)
-target_compile_definitions(faad2 PRIVATE
-    HAVE_STDINT_H
-    HAVE_STRING_H
-    HAVE_MEMCPY)
-else()
 target_compile_definitions(faad2 PRIVATE
     PACKAGE_VERSION="libfaad2"
     HAVE_STDINT_H
     HAVE_STRING_H
-    HAVE_MEMCPY)
-endif()
+    HAVE_MEMCPY
+)

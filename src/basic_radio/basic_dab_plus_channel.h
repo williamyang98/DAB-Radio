@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 
@@ -18,7 +19,7 @@ class AAC_Audio_Decoder;
 class AAC_Data_Decoder;
 struct MOT_Entity;
 
-class Basic_Slideshow;
+struct Basic_Slideshow;
 class Basic_Slideshow_Manager;
 
 class Basic_DAB_Plus_Controls 
@@ -61,9 +62,8 @@ private:
     std::unique_ptr<Basic_Slideshow_Manager> slideshow_manager;
     // callbacks
     Observable<BasicAudioParams, tcb::span<const uint8_t>> obs_audio_data;
-    Observable<std::string&> obs_dynamic_label;
-    Observable<Basic_Slideshow&> obs_slideshow;
-    Observable<MOT_Entity&> obs_MOT_entity;
+    Observable<std::string_view> obs_dynamic_label;
+    Observable<MOT_Entity> obs_MOT_entity;
     // decoder values
     SuperFrameHeader super_frame_header;
     bool is_firecode_error = false;
@@ -73,25 +73,13 @@ private:
 public:
     Basic_DAB_Plus_Channel(const DAB_Parameters& _params, const Subchannel _subchannel);
     ~Basic_DAB_Plus_Channel();
-
-    // We use callbacks to glue all the components together
-    // this pointer is passed as a parameter on creation, and thus cannot be changed
-    Basic_DAB_Plus_Channel(Basic_DAB_Plus_Channel&) = delete;
-    Basic_DAB_Plus_Channel(Basic_DAB_Plus_Channel&&) = delete;
-    Basic_DAB_Plus_Channel& operator=(Basic_DAB_Plus_Channel&) = delete;
-    Basic_DAB_Plus_Channel& operator=(Basic_DAB_Plus_Channel&&) = delete;
-
     void Process(tcb::span<const viterbi_bit_t> msc_bits_buf);
-
     auto& GetControls(void) { return controls; }
     const auto& GetDynamicLabel(void) const { return dynamic_label; }
     auto& GetSlideshowManager(void) { return *slideshow_manager; }
-
     auto& OnAudioData(void) { return obs_audio_data; }
     auto& OnDynamicLabel(void) { return obs_dynamic_label; }
-    auto& OnSlideshow(void) { return obs_slideshow; }
     auto& OnMOTEntity(void) { return obs_MOT_entity; }
-
     const auto& GetSuperFrameHeader() const { return super_frame_header; }
     bool IsFirecodeError() const { return is_firecode_error; }
     bool IsRSError() const { return is_rs_error; }

@@ -1,5 +1,7 @@
 #include "./render_profiler.h"
 #include "ofdm/profiler.h"
+
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <stdint.h>
 #include <inttypes.h>
