@@ -23,7 +23,7 @@ static float chebyshev_sine(float x) {
     // Calculate f(x) = g(x) * (x-0.5) * (x+0.5) * x
     //           f(x) = g(x) * (x^2 - 0.25) * x
     //           f(x) = g(x) * (z-0.25) * x
-    return b0 * (z-0.25) * x;
+    return b0 * (z-0.25f) * x;
 }
 
 // x86
@@ -39,7 +39,7 @@ static inline __m128 _mm_chebyshev_sine(__m128 x) {
     const __m128 A4 = _mm_set1_ps(-14.049663543701171875f);
     const __m128 A5 = _mm_set1_ps( 3.161602020263671875f);
     // Calculate g(x) = a5*x^10 + a4*x^8 + a3*x^6 + a2*x^4 + a1*x^2 + a0
-    #if __FMA__
+    #if defined(__FMA__)
         #define __muladd(a,b,c) _mm_fmadd_ps(a,b,c)
     #else
         #define __muladd(a,b,c) _mm_add_ps(_mm_mul_ps(a,b),c)
@@ -69,7 +69,7 @@ static inline __m256 _mm256_chebyshev_sine(__m256 x) {
     const __m256 A4 = _mm256_set1_ps(-14.049663543701171875f);
     const __m256 A5 = _mm256_set1_ps( 3.161602020263671875f);
     // Calculate g(x) = a5*x^10 + a4*x^8 + a3*x^6 + a2*x^4 + a1*x^2 + a0
-    #if __FMA__
+    #if defined(__FMA__)
         #define __muladd(a,b,c) _mm256_fmadd_ps(a,b,c)
     #else
         #define __muladd(a,b,c) _mm256_add_ps(_mm256_mul_ps(a,b),c)
