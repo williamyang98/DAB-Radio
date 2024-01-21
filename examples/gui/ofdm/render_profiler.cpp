@@ -26,6 +26,7 @@ void RenderProfiler() {
             ImGui::TableHeadersRow();
 
             int row_id = 0;
+            auto lock = std::unique_lock(instrumentor.GetMutexThreadsList());
             for (auto& [thread_id, instrumentor_thread]: instrumentor.GetThreadsList()) {
                 const bool is_selected = (thread == &instrumentor_thread);
                 const size_t thread_id_hash = thread_id_hasher(thread_id);

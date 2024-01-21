@@ -153,6 +153,7 @@ class Instrumentor
 private:
     std::unordered_map<std::thread::id, InstrumentorThread> threads;
     std::vector<std::pair<std::thread::id, InstrumentorThread&>> threads_ref_list;
+    std::mutex mutex_threads_list;
     int64_t base_dt;
 private:
     Instrumentor()
@@ -164,9 +165,8 @@ public:
     InstrumentorThread& GetInstrumentorThread(std::thread::id id) {
         auto res = threads.find(id);
         if (res == threads.end()) {
-            // threads.emplace(id);
             res = threads.try_emplace(id).first;
-            // res = threads.insert({id, {}}).first;
+            auto lock = std::unique_lock(mutex_threads_list);
             threads_ref_list.push_back({id, res->second});
         }
         return res->second;
@@ -174,14 +174,10 @@ public:
     InstrumentorThread& GetInstrumentorThread(void) {
         return GetInstrumentorThread(std::this_thread::get_id());
     }
-    auto& GetThreadsList() {
-        return threads_ref_list;
-    }
-    const auto& GetBase() {
-        return base_dt;
-    }
-    static Instrumentor& Get()
-    {
+    auto& GetMutexThreadsList() { return mutex_threads_list; }
+    auto& GetThreadsList() { return threads_ref_list; }
+    const auto& GetBase() { return base_dt; }
+    static Instrumentor& Get() {
         static Instrumentor instance;
         return instance;
     }
