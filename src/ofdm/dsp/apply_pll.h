@@ -3,8 +3,8 @@
 #include <complex>
 #include "utility/span.h"
 
-float apply_pll_auto(
-    tcb::span<const std::complex<float>> x0, 
-    tcb::span<std::complex<float>> y, 
-    const float freq_offset, const float dt0=0.0f
+// freq_norm = frequency/sampling_rate
+void apply_pll_auto(
+    tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y,
+    const float freq_norm, const float dt_norm=0.0f
 );

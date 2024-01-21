@@ -95,12 +95,6 @@ int main(int argc, char** argv) {
     }
     const auto args = get_args_from_parser(parser);
 
-    const float max_frequency_shift = 200e3f;
-    if ((args.frequency < -max_frequency_shift) || (args.frequency > max_frequency_shift)) {
-        fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", args.frequency, max_frequency_shift);
-        return 1;
-    }
-
     FILE* fp_out = stdout;
     if (!args.output_filename.empty()) {
         fp_out = fopen(args.output_filename.c_str(), "wb+");
@@ -149,7 +143,9 @@ int main(int argc, char** argv) {
     }
  
     if (args.frequency != 0.0f) {
-        apply_pll_auto(frame_out_buf, frame_out_buf, args.frequency);
+        const float Fs = 2.048e6f; // DAB sampling frequency
+        const float frequency_norm = args.frequency / Fs;
+        apply_pll_auto(frame_out_buf, frame_out_buf, frequency_norm);
     }
 
     for (int i = 0; i < frame_size; i++) {

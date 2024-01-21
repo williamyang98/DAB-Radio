@@ -36,7 +36,7 @@ struct OFDM_Demod_Config {
         float fine_freq_update_beta = 0.9f;
         // coarse freq sync
         bool is_coarse_freq_correction = true;
-        int max_coarse_freq_correction = 200000;
+        float max_coarse_freq_correction_norm = 0.5f; // normalised to sampling frequency
         float coarse_freq_slow_beta = 0.1f;
         // fine time sync
         float impulse_peak_threshold_db = 20.0f;
@@ -149,9 +149,6 @@ private:
     bool CoordinatorThread();
     bool PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pipeline* dependent_thread_data);
 private:
-    float ApplyPLL(
-        tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
-        const float freq_offset, const float dt0=0);
     float CalculateTimeOffset(const size_t i, const float freq_offset);
     float CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym);
     float CalculateFineFrequencyError(const float cyclic_phase_error);

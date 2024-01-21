@@ -89,12 +89,12 @@ void init_parser(argparse::ArgumentParser& parser) {
         .default_value(false).implicit_value(true)
         .help("List all DAB channels");
     parser.add_argument("-f", "--frequency")
-        .default_value(float(0.0f)).scan<'e', float>()
+        .default_value(float(0.0f)).scan<'g', float>()
         .metavar("FREQUENCY")
         .nargs(1).required()
         .help("Frequency to tune to (defaults to --channel argument if not specified)");
     parser.add_argument("-s", "--sampling-rate")
-        .default_value(float(2'048'000)).scan<'e', float>()
+        .default_value(float(2'048'000)).scan<'g', float>()
         .metavar("SAMPLING_RATE")
         .nargs(1).required()
         .help("Sampling rate of receiver in Hz");

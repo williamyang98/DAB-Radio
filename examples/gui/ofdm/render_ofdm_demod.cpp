@@ -8,15 +8,15 @@
 #include <cmath>
 #include <vector>
 
-void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
+static void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
+static void RenderControls(OFDM_Demod& demod);
+static void RenderState(OFDM_Demod& demod);
+static void RenderPlots(OFDM_Demod& demod);
+static void RenderMagnitudeSpectrum(OFDM_Demod& demod);
+static void RenderDemodulatedSymbols(OFDM_Demod& demod);
+static void RenderSynchronisation(OFDM_Demod& demod);
 
-void RenderControls(OFDM_Demod& demod);
-void RenderState(OFDM_Demod& demod);
-
-void RenderPlots(OFDM_Demod& demod);
-void RenderMagnitudeSpectrum(OFDM_Demod& demod);
-void RenderDemodulatedSymbols(OFDM_Demod& demod);
-void RenderSynchronisation(OFDM_Demod& demod);
+constexpr float Fs = 2.048e6f; // OFDM sampling frequency
 
 void RenderOFDMDemodulator(OFDM_Demod& demod) {
     RenderState(demod);
@@ -57,9 +57,11 @@ void RenderControls(OFDM_Demod& demod) {
         ImGui::SameLine();
         ImGui::Checkbox("Coarse frequency correction", &cfg.sync.is_coarse_freq_correction);
         ImGui::SliderFloat("Fine frequency beta", &cfg.sync.fine_freq_update_beta, 0.0f, 1.0f, "%.2f");
-        if (ImGui::SliderInt("Max coarse frequency (Hz)", &cfg.sync.max_coarse_freq_correction, 0, 100000)) {
-            const int N = cfg.sync.max_coarse_freq_correction / (int)params.freq_carrier_spacing;
-            cfg.sync.max_coarse_freq_correction = N * (int)params.freq_carrier_spacing;
+        {
+            float frequency_offset_Hz = cfg.sync.max_coarse_freq_correction_norm * Fs;
+            if (ImGui::SliderFloat("Max coarse frequency (Hz)", &frequency_offset_Hz, 0.0f, Fs/2.0f)) {
+                cfg.sync.max_coarse_freq_correction_norm = frequency_offset_Hz / Fs;
+            }
         }
         ImGui::SliderFloat("Coarse freq slow beta", &cfg.sync.coarse_freq_slow_beta, 0.0f, 1.0f);
         ImGui::SliderFloat("Impulse peak threshold (dB)", &cfg.sync.impulse_peak_threshold_db, 0, 100.0f, "%.f");
@@ -93,9 +95,9 @@ void RenderState(OFDM_Demod& demod) {
         ImGui::Text("State: Unknown"); 
             break;
         }
-        ImGui::Text("Fine freq: %.2f Hz", demod.GetFineFrequencyOffset());
-        ImGui::Text("Coarse freq: %.2f Hz", demod.GetCoarseFrequencyOffset());
-        ImGui::Text("Net freq: %.2f Hz", demod.GetNetFrequencyOffset());
+        ImGui::Text("Fine freq: %.2f Hz", demod.GetFineFrequencyOffset() * Fs);
+        ImGui::Text("Coarse freq: %.2f Hz", demod.GetCoarseFrequencyOffset() * Fs);
+        ImGui::Text("Net freq: %.2f Hz", demod.GetNetFrequencyOffset() * Fs);
         ImGui::Text("Signal level: %.2f", demod.GetSignalAverage());
         ImGui::Text("Frames read: %d", demod.GetTotalFramesRead());
         ImGui::Text("Frames desynced: %d", demod.GetTotalFramesDesync());
@@ -250,9 +252,9 @@ void RenderSynchronisation(OFDM_Demod& demod) {
             ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
 
             // Plot useful markers for coarse freq sync using freq correlation
-            const int coarse_freq_offset = (int)std::round(demod.GetCoarseFrequencyOffset());
-            const int max_coarse_freq_offset = cfg.sync.max_coarse_freq_correction;
-            const int freq_fft_bin = (int)params.freq_carrier_spacing;
+            const int coarse_freq_offset = (int)std::round(demod.GetCoarseFrequencyOffset() * Fs);
+            const int max_coarse_freq_offset = cfg.sync.max_coarse_freq_correction_norm * Fs;
+            const int freq_fft_bin = int(Fs / float(params.nb_fft));
             const int peak_offset_x = -coarse_freq_offset / freq_fft_bin;
             const int max_offset_x = max_coarse_freq_offset / freq_fft_bin;
 

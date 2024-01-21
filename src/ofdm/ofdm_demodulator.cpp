@@ -5,7 +5,6 @@
 
 #include "./ofdm_demodulator.h"
 #include "./ofdm_demodulator_threads.h"
-#include "./ofdm_constants.h"
 #include "./dsp/apply_pll.h"
 #include "./dsp/complex_conj_mul_sum.h"
 
@@ -37,6 +36,8 @@
     constexpr size_t ALIGN_AMOUNT = 16;
 #endif
 
+constexpr float TWO_PI = float(M_PI) * 2.0f;
+
 
 // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
 // NOTE: Unless specified otherwise all clauses referenced belong to the above documentation
@@ -62,6 +63,12 @@ viterbi_bit_t convert_to_viterbi_bit(const float x) {
     constexpr float scale = (float)(SOFT_DECISION_VITERBI_HIGH);
     const float v = -x*scale;
     return (viterbi_bit_t)(v);
+}
+
+template <typename ... T>
+static void ApplyPLL(T... args) {
+    PROFILE_BEGIN_FUNC();
+    apply_pll_auto(std::forward<T>(args)...);
 }
 
 OFDM_Demod::OFDM_Demod(
@@ -281,7 +288,6 @@ void OFDM_Demod::Reset() {
     freq_coarse_offset = 0;
     freq_fine_offset = 0;
     fine_time_offset = 0;
-    signal_l1_average = 0;
 }
 
 size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
@@ -392,12 +398,15 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
 
     // Step 7: Find the peak in our maximum coarse frequency error window
     // NOTE: A zero frequency error corresponds to a peak at nb_fft/2
-    const int max_carrier_offset = cfg.sync.max_coarse_freq_correction / (int)params.freq_carrier_spacing;
-    const int M = (int)params.nb_fft/2;
+    int max_carrier_offset = int(cfg.sync.max_coarse_freq_correction_norm * float(params.nb_fft));
+    const int M = int(params.nb_fft/2);
+    if (max_carrier_offset < 0) max_carrier_offset = 0;
+    if (max_carrier_offset > M) max_carrier_offset = M;
     int max_index = -max_carrier_offset;
     float max_value = correlation_frequency_response[max_index+M];
     for (int i = -max_carrier_offset; i <= max_carrier_offset; i++) {
         const int fft_index = i+M;
+        if (fft_index == params.nb_fft) continue;
         const float value = correlation_frequency_response[fft_index];
         if (value > max_value) {
             max_value = value;
@@ -407,8 +416,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
 
     // Step 8: Determine the coarse frequency offset 
     // NOTE: We get the frequency offset in terms of FFT bins which we convert to Hz
-    const float ofdm_freq_spacing = (float)(params.freq_carrier_spacing);
-    const float predicted_freq_coarse_offset = -(float)max_index * ofdm_freq_spacing;
+    const float predicted_freq_coarse_offset = -float(max_index) / float(params.nb_fft);
     const float error = predicted_freq_coarse_offset-freq_coarse_offset;
 
     // Step 9: Determine if this is an large or small correction
@@ -418,7 +426,8 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     //         This is because we may end up in a state where the offset lies between two adjacent FFT bins
     //         This can cause the coarse frequency correction to oscillate between those two adjacent bins
     //         We can reduce the update rate so the coarse frequency correction doesn't fluctuate too much
-    const bool is_large_correction = std::abs(error) > ofdm_freq_spacing*1.5f;
+    const float large_offset_threshold = 1.5f / float(params.nb_fft);
+    const bool is_large_correction = std::abs(error) > large_offset_threshold;
 
     // NOTE: We only do this gradual update if the coarse frequency offset was already found
     //       If we are getting the initial estimate we need the update to be instant
@@ -581,7 +590,7 @@ bool OFDM_Demod::CoordinatorThread() {
             const float cyclic_error = pipeline->GetAveragePhaseError();
             average_cyclic_error += cyclic_error;
         }
-        average_cyclic_error /= (float)(params.nb_frame_symbols);
+        average_cyclic_error /= float(params.nb_frame_symbols);
         // Calculate adjustments to fine frequency offset 
         const float fine_freq_error = CalculateFineFrequencyError(average_cyclic_error);
         const float beta = cfg.sync.fine_freq_update_beta;
@@ -645,7 +654,7 @@ bool OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pip
     for (int i = symbol_start; i < symbol_end; i++) {
         auto sym_buf = active_buffer.GetDataSymbol(i);
         const int sample_offset = i*(int)params.nb_symbol_period;
-        const float dt_start = CalculateTimeOffset(sample_offset, frequency_offset);
+        const float dt_start = float(sample_offset) * frequency_offset;
         ApplyPLL(sym_buf, sym_buf, frequency_offset, dt_start); 
     }
     PROFILE_END(apply_pll);
@@ -737,22 +746,6 @@ bool OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pip
     return true;
 }
 
-float OFDM_Demod::ApplyPLL(
-    tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
-    const float freq_offset, const float dt0)
-{
-    PROFILE_BEGIN_FUNC();
-    return apply_pll_auto(x, y, freq_offset, dt0);
-}
-
-// Since we may be breaking up the PLL calculation over multiple threads
-// We need to make sure that the end of one PLL matches with the start of the next PLL
-float OFDM_Demod::CalculateTimeOffset(const size_t i, const float freq_offset) {
-    PROFILE_BEGIN_FUNC();
-    const float dt = 2.0f * (float)M_PI * freq_offset* Ts * (float)i;
-    return std::fmod(dt, 2.0f*(float)M_PI);
-}
-
 float OFDM_Demod::CalculateCyclicPhaseError(tcb::span<const std::complex<float>> sym) {
     PROFILE_BEGIN_FUNC();
     // Clause 3.13.1 - Fraction frequency offset estimation
@@ -768,46 +761,47 @@ float OFDM_Demod::CalculateFineFrequencyError(const float cyclic_phase_error) {
     PROFILE_BEGIN_FUNC();
     // Clause 3.13.1 - Fraction frequency offset estimation
     /*  Derivation of fine frequency error
-
         // Definition of cyclic prefix
-        wd = OFDM frequency spacing = FFT bin width
-        Let w0 be a subcarrier, w0=k1*wd, k1 is an integer
         Prefix = e^jw0(t+T), Data = e^jw0t
         Since the prefix is equal to the data in an OFDM symbol
-        w0(t+T) = w0t + 2*k2*pi, k2 is an integer
-        T = k2*(2*pi)/w0                 (equ 1) 
-        
+        w0(t+T) = w0t + 2*k*pi, k is an integer
+        T = k*(2*pi)/w0                 (equ 1) 
+     
         // Calculation of phase error (no frequency error)
-        phi = conj(prefix)*data
+        phi = conj(prefix) * data
         phi = e^-jw0(t+T) * e^jw0t
-        phi = e^-jw0T = e^(-j*k2*2*pi)
-        error = arg(phi) = -2*pi*k2 = 0
-        
+        phi = e^-jw0T = e^(-j*k*2*pi), where k is an integer
+        error = arg(phi) = -2*pi*k = 0
+    
         // Calculate of phase error (with frequency offset)
-        Let w1 = frequency offset
+        Let w1 = fine frequency offset (w1 < w0)
         Prefix = e^jw0(t+T) * e^jw1(t+T) = e^j(w0+w1)(t+T)
         Data   = e^jw0t     * e^jw1t     = e^j(w0+w1)t
         phi = conj(prefix)*data
         phi = e^-j(w0+w1)(t+T) * e^j(w0+w1)t
         phi = e^-j(w0+w1)T
         error = arg(phi) 
-        error = (w0+w1)T
-        error = (w0+w1)/w0 * k2 * 2*pi, using (equ 1)
-        error = k2*2*pi + (w1/w0)*k2*2*pi
-        error = k2 * w1/w0 * 2*pi
-        error = w1/w0 * 2*pi,            (since |error| <= pi, then k2=1)
-        error = w1/(k1*wd) * 2*pi,       (w0=k1*wd)
-        w1 = k1 * wd/2 * error/pi       
-        
-        // Since |w1| <= wd/2 due to coarse frequency correction
-        w1 = wd/2 * error/pi,            (k1=1)
-        
-        // Since |error| <= pi then our fine frequency correction range is
-        w1 = [-wd/2, wd/2] 
+        error = (w0+w1)T,
+        error = (w0+w1)/w0 * 2*k*pi, substitute T using (equ 1)
+        error = 2*k*pi + (w1/w0)*2*k*pi
+        error = w1/w0 * 2*k*pi
+
+        since |error| <= 2*pi and (w1/w0) < 1
+        error = w1/w0 * 2*pi            (equ 2)
+     
+        // data (including prefix) is generated from ifft/fft on modulator side
+        // wd = fft carrier frequency normalised to sampling frequency
+        w0 = K*wd, where K is an integer
+        error = w1/(K*wd) * 2*pi, substitute w0 using (equ 2)
+        w1 = K * wd * error/(2*pi)
+
+        since |w1| < wd, then K = 1
+        w1 = wd * error/(2*pi)
+
     */
-    const float w_d = (float)(params.freq_carrier_spacing);
-    const float w_error = w_d/2.0f * cyclic_phase_error/(float)(M_PI);
-    return w_error;
+    const float fft_bin_spacing = 1.0f/float(params.nb_fft);
+    const float fine_frequency_error = fft_bin_spacing * cyclic_phase_error/TWO_PI;
+    return fine_frequency_error;
 }
 
 // Two threads may try to update the fine frequency offset simulataneously 
@@ -815,15 +809,15 @@ float OFDM_Demod::CalculateFineFrequencyError(const float cyclic_phase_error) {
 // Coordinator thread: Joins phase errors from pipeline thread and calculates average adjustment for fine frequency offset
 void OFDM_Demod::UpdateFineFrequencyOffset(const float delta) {
     PROFILE_BEGIN_FUNC();
-    auto lock = std::scoped_lock(mutex_freq_fine_offset);
-
-    const float ofdm_freq_spacing = (float)(params.freq_carrier_spacing);
-    freq_fine_offset += delta;
-
+    const float fft_bin_spacing = 1.0f/float(params.nb_fft);
     // NOTE: If the fine frequency adjustment is just on the edge of overflowing
     //       We add enough margin to stop this from occuring
-    const float overflow_margin = 10.0f;
-    freq_fine_offset = std::fmod(freq_fine_offset, ofdm_freq_spacing/2.0f + overflow_margin);
+    const float fft_bin_margin = 1.01f;
+    const float fft_bin_wrap = 0.5f * fft_bin_spacing * fft_bin_margin;
+
+    auto lock = std::scoped_lock(mutex_freq_fine_offset);
+    freq_fine_offset += delta;
+    freq_fine_offset = std::fmod(freq_fine_offset, fft_bin_wrap);
 }
 
 void OFDM_Demod::CalculateDQPSK(

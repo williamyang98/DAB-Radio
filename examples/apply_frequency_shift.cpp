@@ -15,8 +15,6 @@
 
 constexpr float DC_LEVEL = 127.0f;
 constexpr float SCALE = 128.0f;
-constexpr float Fs = 2.048e6f;
-constexpr float Ts = 1.0f/Fs;
 
 struct RawIQ {
     uint8_t I;
@@ -43,6 +41,11 @@ void init_parser(argparse::ArgumentParser& parser) {
         .metavar("FREQUENCY")
         .nargs(1).required()
         .help("Amount of Hz to shift 8bit IQ signal");
+    parser.add_argument("-s", "--sampling-rate")
+        .default_value(float(2'048'000)).scan<'g', float>()
+        .metavar("SAMPLING_RATE")
+        .nargs(1).required()
+        .help("Sampling rate of data in Hz");
     parser.add_argument("-n", "--block-size")
         .default_value(size_t(8192)).scan<'u', size_t>()
         .metavar("BLOCK_SIZE")
@@ -62,6 +65,7 @@ void init_parser(argparse::ArgumentParser& parser) {
 
 struct Args {
     float frequency;
+    float sampling_rate;
     size_t block_size;
     std::string input_filename;
     std::string output_filename;
@@ -70,6 +74,7 @@ struct Args {
 Args get_args_from_parser(const argparse::ArgumentParser& parser) {
     Args args;
     args.frequency = parser.get<float>("--frequency");
+    args.sampling_rate = parser.get<float>("--sampling-rate");
     args.block_size = parser.get<size_t>("--block-size");
     args.input_filename = parser.get<std::string>("--input");
     args.output_filename = parser.get<std::string>("--output");
@@ -89,9 +94,8 @@ int main(int argc, char** argv) {
     }
     const auto args = get_args_from_parser(parser);
 
-    const float max_frequency_shift = 200e3f;
-    if ((args.frequency < -max_frequency_shift) || (args.frequency > max_frequency_shift)) {
-        fprintf(stderr, "Frequency shift our of maximum range |%.2f| > %.2f\n", args.frequency, max_frequency_shift);
+    if (args.sampling_rate <= 0.0f) {
+        fprintf(stderr, "Sampling rate must be positive (%.3f)\n", args.sampling_rate);
         return 1;
     }
 
@@ -124,7 +128,7 @@ int main(int argc, char** argv) {
 #endif
 
     const size_t N = args.block_size;
-    const float frequency_shift = args.frequency;
+    const float frequency_shift = args.frequency / args.sampling_rate;
     auto rx_in = std::vector<RawIQ>(N);
     auto rx_float = std::vector<std::complex<float>>(N);
     float dt = 0.0f;
@@ -139,10 +143,8 @@ int main(int argc, char** argv) {
         }
 
         apply_pll_auto(rx_float, rx_float, frequency_shift, dt);
-        // NOTE: Manually compute the next dt since floating point inaccuracies result in 
-        //       a discontinuity
-        dt += 2.0f * (float)M_PI *  frequency_shift * Ts * (float)N;
-        dt = std::fmod(dt, 2.0f*(float)M_PI);
+        dt += float(N)*frequency_shift;
+        dt = dt - std::round(dt);
  
         for (size_t i = 0; i < N; i++) {
             rx_in[i] = c32_to_raw_iq(rx_float[i]);
