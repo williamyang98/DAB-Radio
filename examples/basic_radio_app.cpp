@@ -109,7 +109,7 @@ void init_parser(argparse::ArgumentParser& parser) {
         .default_value(false).implicit_value(true)
         .help("Disable automatic selection of output audio device");
 #else
-    parser.add_argument("--radio-benchmark-enable")
+    parser.add_argument("--radio-enable-benchmark")
         .default_value(false).implicit_value(true)
         .help("Enables data and audio decoding for cli benchmarking");
 #endif
@@ -140,7 +140,7 @@ struct Args {
 #if !BUILD_COMMAND_LINE
     bool audio_no_auto_select;
 #else
-    bool radio_benchmark_enable;
+    bool radio_enable_benchmark;
 #endif
 };
 
@@ -176,7 +176,7 @@ Args get_args_from_parser(const argparse::ArgumentParser& parser) {
 #if !BUILD_COMMAND_LINE
     args.audio_no_auto_select = parser.get<bool>("--audio-no-auto-select");
 #else
-    args.radio_benchmark_enable = parser.get<bool>("--radio-benchmark-enable");
+    args.radio_enable_benchmark = parser.get<bool>("--radio-enable-benchmark");
 #endif
     return args;
 }
@@ -312,7 +312,7 @@ int main(int argc, char** argv) {
         radio_block->set_input_stream(ofdm_to_radio_buffer);
     }
     // scraper
-    if (args.scraper_enable) {
+    if (args.is_dab_used && args.scraper_enable) {
         auto basic_scraper = std::make_shared<BasicScraper>(args.scraper_output);
         fprintf(stderr, "basic scraper is writing to folder '%s'\n", args.scraper_output.c_str()); 
         BasicScraper::attach_to_radio(basic_scraper, radio_block->get_basic_radio());
@@ -327,7 +327,7 @@ int main(int argc, char** argv) {
     }
 #if BUILD_COMMAND_LINE
     // benchmark
-    if (args.is_dab_used && args.radio_benchmark_enable) {
+    if (args.is_dab_used && args.radio_enable_benchmark) {
         radio_block->get_basic_radio().On_DAB_Plus_Channel().Attach(
             [](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
                 auto& controls = channel.GetControls();

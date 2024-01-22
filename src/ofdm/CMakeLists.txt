@@ -16,7 +16,6 @@ add_library(ofdm_core STATIC
     ${SRC_DIR}/dab_mapper_ref.cpp
     ${SRC_DIR}/dsp/apply_pll.cpp
     ${SRC_DIR}/dsp/complex_conj_mul_sum.cpp
-    ${SRC_SIMD_FILES}
 )
 target_include_directories(ofdm_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
 set_target_properties(ofdm_core PROPERTIES CXX_STANDARD 17)
