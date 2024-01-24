@@ -252,19 +252,19 @@ void RenderSynchronisation(OFDM_Demod& demod) {
             ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
 
             // Plot useful markers for coarse freq sync using freq correlation
-            const int coarse_freq_offset = int(std::round(demod.GetCoarseFrequencyOffset() * Fs));
-            const int max_coarse_freq_offset = int(cfg.sync.max_coarse_freq_correction_norm * Fs);
-            const int freq_fft_bin = int(Fs / float(params.nb_fft));
-            const int peak_offset_x = -coarse_freq_offset / freq_fft_bin;
-            const int max_offset_x = max_coarse_freq_offset / freq_fft_bin;
+            const float coarse_freq_offset = std::round(demod.GetCoarseFrequencyOffset() * Fs);
+            const float max_coarse_freq_offset = cfg.sync.max_coarse_freq_correction_norm * Fs;
+            const float freq_fft_bin = Fs / float(params.nb_fft);
+            const float peak_offset_x = -coarse_freq_offset / freq_fft_bin;
+            const float max_offset_x = max_coarse_freq_offset / freq_fft_bin;
 
             const auto target_colour = ImVec4(0,0.8,0,1);
             const auto actual_colour = ImVec4(1,0,0,1);
             const auto limits_colour = ImVec4(0,0,0.8,1);
 
             int marker_id = 0;
-            const int target_peak_x = (int)params.nb_fft/2;
-            const int actual_peak_x = target_peak_x + peak_offset_x;
+            const float target_peak_x = float(params.nb_fft)/2.0f;
+            const float actual_peak_x = target_peak_x + peak_offset_x;
             double marker_0 = target_peak_x;
             double marker_1 = target_peak_x - max_offset_x;
             double marker_2 = target_peak_x + max_offset_x;

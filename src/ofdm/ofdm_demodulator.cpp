@@ -415,8 +415,30 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     }
 
     // Step 8: Determine the coarse frequency offset 
-    // NOTE: We get the frequency offset in terms of FFT bins which we convert to Hz
-    const float predicted_freq_coarse_offset = -float(max_index) / float(params.nb_fft);
+    // NOTE: We get the frequency offset in terms of FFT bins which we convert to normalised Hz
+    //       Lerp peak between neighbouring fft bins based on magnitude for more accurate estimate
+    struct Peak {
+        int index;
+        float magnitude;
+    };
+    Peak peaks[3];
+    const auto get_peak = [M,max_carrier_offset,this](int index) -> Peak {
+        if (index < -max_carrier_offset) index = -max_carrier_offset;
+        if (index >  max_carrier_offset) index =  max_carrier_offset;
+        int fft_index = (index+M);
+        if (fft_index >= params.nb_fft) fft_index = int(params.nb_fft-1);
+        const float magnitude_dB = correlation_frequency_response[fft_index];
+        const float magnitude = std::pow(10.0f, magnitude_dB/20.0f);
+        return Peak { fft_index-M, magnitude };
+    };
+    peaks[0] = get_peak(max_index-1);
+    peaks[1] = get_peak(max_index+0);
+    peaks[2] = get_peak(max_index+1);
+    float peak_sum = 0.0f;
+    float lerp_peak = 0.0f;
+    for (const auto& peak: peaks) { peak_sum += peak.magnitude; }
+    for (const auto& peak: peaks) { lerp_peak += float(peak.index)*peak.magnitude/peak_sum; }
+    const float predicted_freq_coarse_offset = -lerp_peak / float(params.nb_fft);
     const float error = predicted_freq_coarse_offset-freq_coarse_offset;
 
     // Step 9: Determine if this is an large or small correction
