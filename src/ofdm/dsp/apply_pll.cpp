@@ -15,11 +15,13 @@ static void apply_pll_scalar(
     const size_t N = x.size();
     const float dt_step = freq_norm;
     for (size_t i = 0; i < N; i++) {
-        float dt = dt_norm + float(i)*freq_norm;
+        float dt_sin = dt_norm + float(i)*freq_norm;
+        float dt_cos = dt_sin+0.25f;
         // translate to [-0.5,+0.5] within chebyshev accurate range
-        dt = dt - std::round(dt);
-        const float cos = chebyshev_sine(dt+0.25f);
-        const float sin = chebyshev_sine(dt);
+        dt_sin = dt_sin - std::round(dt_sin);
+        dt_cos = dt_cos - std::round(dt_cos);
+        const float cos = chebyshev_sine(dt_cos);
+        const float sin = chebyshev_sine(dt_sin);
         const auto pll = std::complex<float>(cos, sin);
         y[i] = x[i] * pll;
     }
