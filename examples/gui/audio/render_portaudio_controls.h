@@ -1,10 +1,11 @@
 #pragma once
 
 #include <portaudio.h>
-#include <mutex>
-#include <memory>
 #include <condition_variable>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <thread>
 #include "audio/portaudio_sink.h"
 #include "audio/audio_pipeline.h"
 
