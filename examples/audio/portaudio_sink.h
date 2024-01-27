@@ -1,10 +1,30 @@
 #pragma once
 
 #include <portaudio.h>
-#include <memory>
+#include <string>
+#include <vector>
 #include "utility/span.h"
 #include "./frame.h"
 #include "./audio_pipeline.h"
+
+// Create this once before all port audio code
+class PortAudioGlobalHandler {
+private:
+    PaError m_result;
+public:
+    PortAudioGlobalHandler(): m_result(Pa_Initialize()) {}
+    ~PortAudioGlobalHandler() { if (m_result == paNoError) Pa_Terminate(); }
+    PaError get_result() const { return m_result; }
+};
+
+struct PortAudioDevice {
+    PaDeviceIndex device_index;
+    PaHostApiIndex host_api_index;
+    std::string label;
+};
+
+std::vector<PortAudioDevice> get_portaudio_devices();
+PaDeviceIndex get_default_portaudio_device_index();
 
 enum class PortAudioSinkCreateError {
     FAILED_INIT,
@@ -23,7 +43,6 @@ struct PortAudioSinkCreateResult {
 
 class PortAudioSink: public AudioPipelineSink
 {
-public:
 private:
     PaStream* m_portaudio_stream = nullptr;
     const float m_sample_rate;

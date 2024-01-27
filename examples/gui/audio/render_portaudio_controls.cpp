@@ -3,33 +3,43 @@
 #include <imgui.h>
 #include "audio/portaudio_sink.h"
 
-void RenderPortAudioControls(PaDeviceList& device_list, AudioPipeline& pipeline) {
-    auto& devices = device_list.GetDevices();
-    const auto* sink = pipeline.get_sink();
+void RenderPortAudioControls(PortAudioThreadedActions& actions, std::shared_ptr<AudioPipeline> pipeline) {
+    auto lock_devices = std::scoped_lock(actions.get_devices_mutex());
+    auto devices = actions.get_devices();
+
+    const auto* sink = pipeline->get_sink();
     const char* selected_name = "Unselected";
     if (sink != nullptr) {
         selected_name = sink->get_name().data(); 
     }
+    
+    // TODO: portaudio has a WIP experimental hotplug api
+    // const bool is_refresh_pending = actions.get_is_refresh_pending();
+    // if (is_refresh_pending) ImGui::BeginDisabled();
+    // if (ImGui::Button("Refresh devices")) {
+    //     actions.refresh();
+    // }
+    // if (is_refresh_pending) ImGui::EndDisabled();
 
     ImGui::Text("Output Devices (%d)", int(devices.size()));
     ImGui::PushItemWidth(-1.0f);
-    if (devices.size() == 0) ImGui::BeginDisabled();
+    const bool is_no_devices = devices.size() == 0;
+    if (is_no_devices) ImGui::BeginDisabled();
     if (ImGui::BeginCombo("###Output Devices", selected_name, ImGuiComboFlags_None)) {
         for (auto& device: devices) {
-            ImGui::PushID(device.index);
+            ImGui::PushID(device.device_index);
             if (ImGui::Selectable(device.label.c_str(), false)) {
-                auto sink_res = PortAudioSink::create_from_index(device.index);
-                pipeline.set_sink(std::move(sink_res.sink));
+                actions.select_device(device.device_index, pipeline);
             }
             ImGui::PopID();
         }
         ImGui::EndCombo();
     }
-    if (devices.size() == 0) ImGui::EndDisabled();
+    if (is_no_devices) ImGui::EndDisabled();
     ImGui::PopItemWidth();
+}
 
-    auto& volume_gain = pipeline.get_global_gain();
-
+void RenderVolumeSlider(float& volume_gain) {
     static bool is_overgain = false;
     static float last_unmuted_volume = 0.0f;
 

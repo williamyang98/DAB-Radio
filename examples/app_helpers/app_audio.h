@@ -3,7 +3,6 @@
 #include <memory>
 #include "basic_radio/basic_radio.h"
 #include "../audio/audio_pipeline.h"
-#include "../audio/portaudio_utility.h"
 
 static void attach_audio_pipeline_to_radio(std::shared_ptr<AudioPipeline> audio_pipeline, BasicRadio& basic_radio) {
     if (audio_pipeline == nullptr) return;
@@ -27,13 +26,3 @@ static void attach_audio_pipeline_to_radio(std::shared_ptr<AudioPipeline> audio_
     );
 }
 
-static PaDeviceIndex get_default_portaudio_device_index() {
-#if _WIN32
-    constexpr PaHostApiTypeId PORTAUDIO_TARGET_HOST_API_ID = PaHostApiTypeId::paDirectSound;
-    const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
-    const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
-#else
-    const auto target_device_index = Pa_GetDefaultOutputDevice();
-#endif
-    return target_device_index;
-}

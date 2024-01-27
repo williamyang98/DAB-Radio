@@ -23,6 +23,7 @@
 
 #if !BUILD_COMMAND_LINE
 #include "./app_helpers/app_audio.h"
+#include "./audio/audio_pipeline.h"
 #include "./audio/portaudio_sink.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -340,14 +341,15 @@ int main(int argc, char** argv) {
     }
 #else
     // audio
-    std::unique_ptr<ScopedPaHandler> port_audio_handler = nullptr;
+    std::unique_ptr<PortAudioGlobalHandler> portaudio_global_handler = nullptr;
     std::shared_ptr<AudioPipeline> audio_pipeline = nullptr;
-    std::shared_ptr<PaDeviceList> portaudio_device_list = nullptr;
+    std::shared_ptr<PortAudioThreadedActions> portaudio_threaded_actions = nullptr;
     if (args.is_dab_used) {
-        port_audio_handler = std::make_unique<ScopedPaHandler>();
+        portaudio_global_handler = std::make_unique<PortAudioGlobalHandler>();
         audio_pipeline = std::make_shared<AudioPipeline>();
         attach_audio_pipeline_to_radio(audio_pipeline, radio_block->get_basic_radio());
-        portaudio_device_list = std::make_shared<PaDeviceList>();
+        portaudio_threaded_actions = std::make_shared<PortAudioThreadedActions>();
+        portaudio_threaded_actions->refresh();
     }
     // gui
     std::shared_ptr<BasicRadioViewController> radio_view_controller = nullptr;
@@ -362,7 +364,7 @@ int main(int argc, char** argv) {
     );
     CommonGui gui;
     gui.window_title = window_title;
-    gui.render_callback = [ofdm_block, radio_block, portaudio_device_list, audio_pipeline, radio_view_controller, args]() {
+    gui.render_callback = [ofdm_block, radio_block, portaudio_threaded_actions, audio_pipeline, radio_view_controller, args]() {
         if (args.is_ofdm_used) {
             if (ImGui::Begin("OFDM Demodulator")) {
                 ImGuiID dockspace_id = ImGui::GetID("Demodulator Dockspace");
@@ -379,7 +381,8 @@ int main(int argc, char** argv) {
                 ImGuiID dockspace_id = ImGui::GetID("Simple View Dockspace");
                 ImGui::DockSpace(dockspace_id);
                 if (ImGui::Begin("Audio Controls")) {
-                    RenderPortAudioControls(*(portaudio_device_list.get()), *(audio_pipeline.get()));
+                    RenderPortAudioControls(*(portaudio_threaded_actions.get()), audio_pipeline);
+                    RenderVolumeSlider(audio_pipeline->get_global_gain());
                 }
                 ImGui::End();
                 RenderBasicRadio(radio_block->get_basic_radio(), *(radio_view_controller.get()));
@@ -408,9 +411,9 @@ int main(int argc, char** argv) {
 #if !BUILD_COMMAND_LINE
     std::unique_ptr<std::thread> thread_select_default_audio = nullptr;
     if (args.is_dab_used && !args.audio_no_auto_select) {
-        thread_select_default_audio = std::make_unique<std::thread>([audio_pipeline]() {
-            auto portaudio_sink_res = PortAudioSink::create_from_index(get_default_portaudio_device_index());
-            audio_pipeline->set_sink(std::move(portaudio_sink_res.sink));
+        thread_select_default_audio = std::make_unique<std::thread>([portaudio_threaded_actions, audio_pipeline]() {
+            const PaDeviceIndex device_index = get_default_portaudio_device_index();
+            portaudio_threaded_actions->select_device(device_index, audio_pipeline); 
         });
     }
 #endif
@@ -425,10 +428,10 @@ int main(int argc, char** argv) {
     if (thread_radio != nullptr) thread_radio->join();
     ofdm_block = nullptr;
     radio_block = nullptr;
-    portaudio_device_list = nullptr;
+    portaudio_threaded_actions = nullptr;
     audio_pipeline = nullptr;
     // NOTE: need to shutdown portaudio global handler at the end
-    port_audio_handler = nullptr;
+    portaudio_global_handler = nullptr;
     return gui_retval;
 #else
     if (thread_ofdm != nullptr) thread_ofdm->join();

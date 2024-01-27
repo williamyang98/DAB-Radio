@@ -1,4 +1,52 @@
 #include "./portaudio_sink.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+#if _WIN32
+constexpr PaHostApiTypeId PORTAUDIO_TARGET_HOST_API_ID = PaHostApiTypeId::paDirectSound;
+#endif
+
+std::vector<PortAudioDevice> get_portaudio_devices() {
+    std::vector<PortAudioDevice> devices;
+    const int total_devices = Pa_GetDeviceCount();
+    if (total_devices < 0) {
+        fprintf(stderr, "ERROR: [get_portaudio_devices] failed to get device count %d\n", total_devices);
+        return devices;
+    }
+    for (int i = 0; i < total_devices; i++) {
+        const PaDeviceInfo* device_info = Pa_GetDeviceInfo(i);
+        if (device_info == nullptr) {
+            fprintf(stderr, "WARN: [get_portaudio_devices] device=%d, failed to get device info\n", i);
+            continue;
+        }
+        if (device_info->maxOutputChannels <= 0) {
+            // fprintf(stderr, "WARN: [get_portaudio_devices] device=%d, device has invalid number of channels (%d)\n", i, device_info->maxOutputChannels);
+            continue;
+        }
+        #if _WIN32
+        const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
+        if (device_info->hostApi != target_host_api_index) {
+            continue;
+        }
+        #endif
+        PortAudioDevice device;
+        device.label = std::string(device_info->name);
+        device.device_index = i;
+        device.host_api_index = device_info->hostApi;
+        devices.push_back(device);
+    }
+    return devices;
+}
+
+PaDeviceIndex get_default_portaudio_device_index() {
+#if _WIN32
+    const auto target_host_api_index = Pa_HostApiTypeIdToHostApiIndex(PORTAUDIO_TARGET_HOST_API_ID);
+    const auto target_device_index = Pa_GetHostApiInfo(target_host_api_index)->defaultOutputDevice;
+#else
+    const auto target_device_index = Pa_GetDefaultOutputDevice();
+#endif
+    return target_device_index;
+}
 
 PortAudioSinkCreateResult PortAudioSink::create_from_index(PaDeviceIndex index, float sample_rate, size_t frames_per_buffer) {
     if (index == paNoDevice) {
