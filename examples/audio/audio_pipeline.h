@@ -52,12 +52,19 @@ private:
     std::vector<std::shared_ptr<AudioPipelineSource>> m_sources;
     std::unique_ptr<AudioPipelineSink> m_sink = nullptr;
     std::vector<Frame<float>> m_read_buffer;
+    std::mutex m_mutex_sources;
 public:
     AudioPipeline() {}
     void set_sink(std::unique_ptr<AudioPipelineSink>&& sink);
     AudioPipelineSink* get_sink() { return m_sink.get(); }
-    void add_source(std::shared_ptr<AudioPipelineSource>& source) { m_sources.push_back(source); }
-    void clear_sources() { m_sources.clear(); }
+    void add_source(std::shared_ptr<AudioPipelineSource>& source) { 
+        auto lock = std::scoped_lock(m_mutex_sources);
+        m_sources.push_back(source); 
+    }
+    void clear_sources() { 
+        auto lock = std::scoped_lock(m_mutex_sources);
+        m_sources.clear(); 
+    }
     float& get_global_gain() { return m_global_gain; }
 private:
     void mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate);

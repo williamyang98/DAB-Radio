@@ -119,9 +119,13 @@ void AudioPipeline::set_sink(std::unique_ptr<AudioPipelineSink>&& sink) {
 void AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate) {
     const size_t N_dest = dest.size();
     std::memset(dest.data(), 0, sizeof(Frame<float>) * N_dest);
-
+    std::vector<std::shared_ptr<AudioPipelineSource>> sources;
+    {
+        auto lock = std::scoped_lock(m_mutex_sources);
+        sources = m_sources;
+    }
     size_t total_sources_mixed = 0;
-    for (auto& source: m_sources) {
+    for (auto& source: sources) {
         const float src_sampling_rate = source->get_sampling_rate();
         const size_t N_src = size_t(float(N_dest) * src_sampling_rate / dest_sampling_rate);
         m_read_buffer.resize(N_src);
