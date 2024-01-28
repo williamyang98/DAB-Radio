@@ -1,12 +1,13 @@
 #include "./MOT_processor.h"
 #include "../algorithms/modified_julian_date.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "mot-processor") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "mot-processor") << fmt::format(__VA_ARGS__)
-#define LOG_WARN(...) CLOG(WARNING, "mot-processor") << fmt::format(__VA_ARGS__)
+#include "../dab_logging.h"
+#define TAG "mot-processor"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_WARN(...) DAB_LOG_WARN(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 constexpr static MOT_Data_Type VALID_DATA_TYPES[] = {
     ECM_EMM_DATA, HEADER, 

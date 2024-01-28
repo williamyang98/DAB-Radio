@@ -3,12 +3,13 @@
 #include "./dab_misc_info.h"
 #include "./constants/subchannel_protection_tables.h"
 #include "./algorithms/modified_julian_date.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "radio-fig-handler") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "radio-fig-handler") << fmt::format(__VA_ARGS__)
+#include "./dab_logging.h"
+#define TAG "radio-fig-handler"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 // fig 0/0 - ensemble information
 void Radio_FIG_Handler::OnEnsemble_1_ID(

@@ -3,17 +3,14 @@
 #include "basic_radio/basic_slideshow.h"
 #include "dab/mot/MOT_processor.h"
 #include "dab/database/dab_database.h"
-
 #include <string.h>
 #include <functional>
 #include <ctime>
 #include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "basic-scraper") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "basic-scraper") << fmt::format(__VA_ARGS__)
+#include "./basic_scraper_logging.h"
+#define LOG_MESSAGE(...) BASIC_SCRAPER_LOG_MESSAGE(fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) BASIC_SCRAPER_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 #undef GetCurrentTime
 static std::string GetCurrentTime(void) {

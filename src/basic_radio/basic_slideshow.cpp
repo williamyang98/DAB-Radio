@@ -3,12 +3,11 @@
 #include "dab/mot/MOT_slideshow_processor.h"
 #include "dab/mot/MOT_processor.h"
 #include <algorithm>
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
+#include "./basic_radio_logging.h"
+#define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 static std::time_t Convert_MOT_Time(MOT_UTC_Time& time) {
     std::tm t;

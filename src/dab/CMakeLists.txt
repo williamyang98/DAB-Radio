@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
+project(dab_core)
+
+option(DAB_CORE_USE_EASYLOGGING "Use easylogging for dab_core" OFF)
 
 set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(ROOT_DIR ${SRC_DIR}/..)
@@ -27,5 +30,11 @@ add_library(dab_core STATIC
     ${SRC_DIR}/radio_fig_handler.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 target_include_directories(dab_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
-target_link_libraries(dab_core PRIVATE faad2 viterbi easyloggingpp fmt)
-target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
+target_link_libraries(dab_core PRIVATE faad2 viterbi fmt)
+
+if(DAB_CORE_USE_EASYLOGGING)
+    target_sources(dab_core PRIVATE ${SRC_DIR}/dab_logging.cpp)
+    target_link_libraries(dab_core PRIVATE easyloggingpp)
+    target_compile_definitions(dab_core PRIVATE ELPP_THREAD_SAFE)
+    target_compile_definitions(dab_core PUBLIC DAB_LOGGING_USE_EASYLOGGING)
+endif()

@@ -1,10 +1,11 @@
 #include "./pad_dynamic_label_assembler.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-dynamic-label") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-dynamic-label") << fmt::format(__VA_ARGS__)
+#include "../dab_logging.h"
+#define TAG "pad-dynamic-label"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 PAD_Dynamic_Label_Assembler::PAD_Dynamic_Label_Assembler() {
     unordered_buf.resize(MAX_MESSAGE_BYTES);

@@ -1,12 +1,13 @@
 #include "./aac_frame_processor.h"
 #include "../algorithms/reed_solomon_decoder.h"
 #include "../algorithms/crc.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "aac-frame") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "aac-frame") << fmt::format(__VA_ARGS__)
+#include "../dab_logging.h"
+#define TAG "aac-frame-processor"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 constexpr int NB_FIRECODE_CRC16_BYTES = 2;
 constexpr int NB_FIRECODE_DATA_BYTES = 9;

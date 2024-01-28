@@ -4,12 +4,13 @@
 #include "../algorithms/additive_scrambler.h"
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "fic-decoder") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "fic-decoder") << fmt::format(__VA_ARGS__)
+#include "../dab_logging.h"
+#define TAG "fic-decoder"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 static const auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401

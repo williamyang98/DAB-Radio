@@ -6,12 +6,11 @@
 #include "dab/fic/fic_decoder.h"
 #include "dab/fic/fig_processor.h"
 #include "dab/radio_fig_handler.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
+#include "./basic_radio_logging.h"
+#define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 BasicFICRunner::BasicFICRunner(const DAB_Parameters& _params) 
 : params(_params)
@@ -32,7 +31,7 @@ BasicFICRunner::BasicFICRunner(const DAB_Parameters& _params)
 BasicFICRunner::~BasicFICRunner() = default;
 
 void BasicFICRunner::Process(tcb::span<const viterbi_bit_t> fic_bits_buf) {
-    el::Helpers::setThreadName("FIC");
+    BASIC_RADIO_SET_THREAD_NAME("FIC");
 
     const int nb_fic_bits = (int)fic_bits_buf.size(); 
     if (nb_fic_bits != params.nb_fic_bits) {

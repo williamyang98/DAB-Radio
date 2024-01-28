@@ -12,14 +12,13 @@
 #endif
 
 #include <argparse/argparse.hpp>
-#include <easylogging++.h>
 #include <fmt/core.h>
-#include "dab/logging.h"
 #include "basic_scraper/basic_scraper.h"
 #include "./app_helpers/app_io_buffers.h"
 #include "./app_helpers/app_ofdm_blocks.h"
 #include "./app_helpers/app_radio_blocks.h"
 #include "./app_helpers/app_viterbi_convert_block.h"
+#include "./app_helpers/app_logging.h"
 
 #if !BUILD_COMMAND_LINE
 #include "./app_helpers/app_audio.h"
@@ -232,26 +231,7 @@ int main(int argc, char** argv) {
     _setmode(_fileno(fp_in), _O_BINARY);
     _setmode(_fileno(fp_ofdm_out), _O_BINARY);
 #endif
- 
-    // setup logging
-    el::Helpers::setThreadName("main-thread");
-    const char* logging_format = "[%level] [%thread] [%logger] %msg";
-    if (args.is_dab_used) {
-        auto dab_loggers = RegisterLogging();
-        auto basic_radio_logger = el::Loggers::getLogger("basic-radio");
-        el::Configurations config;
-        config.setToDefault();
-        config.setGlobally(el::ConfigurationType::Enabled, args.radio_enable_logging ? "true" : "false");
-        config.setGlobally(el::ConfigurationType::Format, logging_format);
-        el::Loggers::reconfigureAllLoggers(config);
-    }
-    if (args.is_dab_used && args.scraper_enable) {
-        auto basic_scraper_logger = el::Loggers::getLogger("basic-scraper");
-        el::Configurations config;
-        config.setGlobally(el::ConfigurationType::Enabled, args.scraper_disable_logging ? "false" : "true");
-        config.setGlobally(el::ConfigurationType::Format, logging_format);
-        basic_scraper_logger->configure(config);
-    }
+    setup_easylogging(false, args.radio_enable_logging, !args.scraper_disable_logging); 
 
     const auto dab_params = get_dab_parameters(args.transmission_mode);
     // setup ofdm 

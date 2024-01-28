@@ -5,12 +5,11 @@
 #include "dab/audio/aac_audio_decoder.h"
 #include "dab/audio/aac_data_decoder.h"
 #include "dab/mot/MOT_slideshow_processor.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
+#include "./basic_radio_logging.h"
+#define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters& _params, const Subchannel _subchannel) 
 : params(_params), subchannel(_subchannel) {
@@ -25,7 +24,7 @@ Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters& _params, co
 Basic_DAB_Plus_Channel::~Basic_DAB_Plus_Channel() = default;
 
 void Basic_DAB_Plus_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
-    el::Helpers::setThreadName(fmt::format("MSC-subchannel-{}", subchannel.id));
+    BASIC_RADIO_SET_THREAD_NAME(fmt::format("MSC-subchannel-{}", subchannel.id));
 
     const int nb_msc_bits = (int)msc_bits_buf.size();
     if (nb_msc_bits != params.nb_msc_bits) {

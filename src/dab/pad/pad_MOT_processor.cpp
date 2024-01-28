@@ -1,12 +1,13 @@
 #include "./pad_MOT_processor.h"
 #include "../msc/msc_xpad_processor.h"
 #include "../mot/MOT_processor.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "pad-MOT") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "pad-MOT") << fmt::format(__VA_ARGS__)
+#include "../dab_logging.h"
+#define TAG "pad-MOT"
+static auto _logger = DAB_LOG_REGISTER(TAG);
+#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 constexpr size_t TOTAL_CRC_BYTES = 2;
 constexpr size_t TOTAL_SEGMENT_HEADER_BYTES = 2;

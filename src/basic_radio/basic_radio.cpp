@@ -2,12 +2,11 @@
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
 #include "dab/dab_misc_info.h"
+#include <fmt/core.h>
 
-#include "easylogging++.h"
-#include "fmt/core.h"
-
-#define LOG_MESSAGE(...) CLOG(INFO, "basic-radio") << fmt::format(__VA_ARGS__)
-#define LOG_ERROR(...) CLOG(ERROR, "basic-radio") << fmt::format(__VA_ARGS__)
+#include "./basic_radio_logging.h"
+#define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
+#define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 BasicRadio::BasicRadio(const DAB_Parameters& _params, const size_t nb_threads)
 : params(_params), fic_runner(_params), thread_pool(nb_threads) 

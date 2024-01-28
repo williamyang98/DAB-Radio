@@ -72,5 +72,8 @@ else()
     add_compile_options(-ffast-math)
 endif()
 
+set(DAB_CORE_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for dab_core" FORCE)
+set(BASIC_RADIO_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for basic_radio" FORCE)
+set(BASIC_SCRAPER_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for basic_scraper" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 add_subdirectory(${CMAKE_SOURCE_DIR}/examples)
