@@ -6,7 +6,11 @@
 
 #include <string.h>
 #include <stdlib.h>
+
+// alloca() for windows
+#if _WIN32
 #include <malloc.h>
+#endif
 
 // Taken from rs-common.h
 // Reed-Solomon codec control block
@@ -24,9 +28,9 @@ struct RS_data {
     int pad;          /* Padding bytes in shortened block */
 };
 
-struct RS_data *init_rs_char(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad);
-void free_rs_char(struct RS_data *rs);
-int decode_rs_char(struct RS_data* rs, uint8_t *data, int *eras_pos, int no_eras);
+static struct RS_data *init_rs_char(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad);
+static void free_rs_char(struct RS_data *rs);
+static int decode_rs_char(struct RS_data* rs, uint8_t *data, int *eras_pos, int no_eras);
 
 // Taken from rs-common.h
 static inline int modnn(struct RS_data *rs, int x) {
