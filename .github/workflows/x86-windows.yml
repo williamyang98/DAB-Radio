@@ -21,7 +21,7 @@ jobs:
         concurrent_skipping: 'same_content'
         cancel_others: 'true'
         skip_after_successful_duplicate: 'true'
-        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "toolchains/arm/*", "toolchains/ubuntu/*"]'
+        paths_ignore: '["**/README.md", "**/docs/**", "**/LICENSE.txt", "toolchains/arm/*", "toolchains/ubuntu/*", "toolchains/macos/*"]'
         do_not_skip: '["workflow_dispatch", "schedule"]'
 
   build:

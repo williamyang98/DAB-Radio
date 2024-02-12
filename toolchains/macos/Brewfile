@@ -1,0 +1,7 @@
+brew 'pkg-config'
+brew 'fftw'
+brew 'glfw'
+brew 'portaudio'
+brew 'librtlsdr'
+brew 'cmake'
+brew 'ninja'

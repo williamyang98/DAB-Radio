@@ -3,12 +3,16 @@
 #include <assert.h>
 #include <iostream>
 
-#ifdef _WIN32
+#if _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif 
 
+#if __APPLE__
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
+#endif
 #include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
