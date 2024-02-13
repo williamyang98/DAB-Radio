@@ -18,10 +18,10 @@
 	url = https://github.com/nothings/stb.git
 [submodule "vendor/librtlsdr"]
 	path = vendor/librtlsdr
-	url = https://github.com/FiendChain/librtlsdr_cmake.git
+	url = https://github.com/williamyang98/librtlsdr_cmake.git
 [submodule "vendor/viterbi_decoder"]
 	path = vendor/viterbi_decoder
-	url = https://github.com/FiendChain/ViterbiDecoderCpp.git
+	url = https://github.com/williamyang98/ViterbiDecoderCpp.git
 [submodule "vendor/argparse"]
 	path = vendor/argparse
 	url = https://github.com/p-ranav/argparse.git

@@ -3,7 +3,7 @@
 #include "detect_architecture.h"
 #include "simd_flags.h"
 
-// SOURCE: https://gist.github.com/FiendChain/7aca0ca0f1978c7374a66002892e0d8a
+// SOURCE: https://gist.github.com/williamyang98/7aca0ca0f1978c7374a66002892e0d8a
 //         Chebyshev polynomial that approximates f(x) = sin(2*pi*x) accurately within [-0.5,+0.5]
 // STEPS:  1. settings are { grad_t=double, TOTAL_COEFFICIENTS=6, SINE_ROOT=0.5, ...defaults }
 //         2. train with   { coefficient_t=double, TOTAL_SAMPLES=128 }

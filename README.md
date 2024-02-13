@@ -1,7 +1,7 @@
 # Introduction
-[![x86-windows](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-windows.yml)
-[![x86-linux](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-linux.yml)
-[![x86-macos](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-macos.yml/badge.svg)](https://github.com/FiendChain/DAB-Radio/actions/workflows/x86-macos.yml)
+[![x86-windows](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-windows.yml/badge.svg)](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-windows.yml)
+[![x86-linux](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-linux.yml/badge.svg)](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-linux.yml)
+[![x86-macos](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-macos.yml/badge.svg)](https://github.com/williamyang98/DAB-Radio/actions/workflows/x86-macos.yml)
 
 An implementation of a DAB (digital audio broadcasting) radio using software defined radio. 
 
@@ -39,12 +39,12 @@ For those who are interested only in parts of the implementation refer to the fo
 
 Refer to ```src/examples/README.md``` for other example applications.
 
-If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page [here](https://github.com/FiendChain/DAB-Radio/releases/tag/raw-iq-data). These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
+If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page [here](https://github.com/williamyang98/DAB-Radio/releases/tag/raw-iq-data). These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in <code>src/examples/README.md</code>
 
 # Building programs
 Clone the repository using the command
 
-```git clone https://github.com/FiendChain/DAB-Radio.git --recurse-submodules -j8```
+```git clone https://github.com/williamyang98/DAB-Radio.git --recurse-submodules -j8```
 
 Refer to ```./toolchains/*/README.md``` to build for your platform.
 
@@ -59,7 +59,7 @@ The continuous integration (CI) scripts are in <code>.github/workflows</code> if
 ## Build notes (Read this if you get illegal instructions)
 SIMD instructions are used for x86 and ARM cpus to speed up computation heavy code paths.
 
-Refer to [this github issue](https://github.com/FiendChain/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**. 
+Refer to [this github issue](https://github.com/williamyang98/DAB-Radio/issues/2#issuecomment-1627787907) explaining how to modify the build for **older CPUs**. 
 
 ```./toolchains/windows/README.md``` has steps for configuring the right files to build for older CPUs.
 
