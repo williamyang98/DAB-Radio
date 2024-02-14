@@ -7,6 +7,7 @@ on:
 
 env:
   BUILD_TYPE: Release
+  BUILD_DIR: build
 
 jobs:
   skip_check:
@@ -36,23 +37,19 @@ jobs:
         submodules: recursive 
  
     - name: Update packages 
-      shell: bash
       run: sudo apt-get update 
 
     - name: Install packages
-      shell: bash
       run: ./toolchains/ubuntu/install_packages.sh
 
     - name: Configure CMake
-      shell: bash
-      run: ./toolchains/ubuntu/cmake_configure.sh
+      run: cmake . -B ${{env.BUILD_DIR}} --preset gcc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
-      shell: bash
-      run: ninja -C build-ubuntu
+      run: cmake --build ${{env.BUILD_DIR}} --config ${{env.BUILD_TYPE}}
 
     - name: Upload files (Release) 
       uses: actions/upload-artifact@v3
       with:
         name: dab_radio_linux_x64
-        path: ${{github.workspace}}/build-ubuntu
+        path: ${{github.workspace}}/${{env.BUILD_DIR}}

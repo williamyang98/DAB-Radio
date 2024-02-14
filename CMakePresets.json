@@ -1,0 +1,56 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { 
+    "major": 3, 
+    "minor": 20, 
+    "patch": 0 
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING",
+        "CMAKE_C_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING"
+      }
+    },
+    {
+      "name": "windows-msvc-sanitize",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /fsanitize=address /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING /D_DISABLE_VECTOR_ANNOTATION /D_DISABLE_STRING_ANNOTATION",
+        "CMAKE_C_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /fsanitize=address /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING /D_DISABLE_VECTOR_ANNOTATION /D_DISABLE_STRING_ANNOTATION"
+      }
+    },
+    {
+      "name": "gcc",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_CXX_FLAGS_INIT": "-ffast-math -march=native",
+        "CMAKE_C_FLAGS_INIT": "-ffast-math -march=native"
+      }
+    },
+    {
+      "name": "clang",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS_INIT": "-ffast-math -march=native",
+        "CMAKE_C_FLAGS_INIT": "-ffast-math -march=native"
+      }
+    },
+    {
+      "name": "clang-arm",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS_INIT": "-ffast-math",
+        "CMAKE_C_FLAGS_INIT": "-ffast-math"
+      }
+    }
+  ]
+}

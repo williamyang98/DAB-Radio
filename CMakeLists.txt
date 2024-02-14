@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-project(ofdm_demod)
+project(dab_radio)
 
-# NOTE: Root cmake file is used to setup all project dependencies
-
+# Setup all subprojects' dependencies
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(faad2 REQUIRED)
 find_package(easyloggingpp REQUIRED)
@@ -16,6 +15,7 @@ find_package(viterbi CONFIG REQUIRED)
 set(ARGPARSE_INSTALL OFF CACHE BOOL "Include an install target" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor/argparse)
 
+# use prebuilt binaries for windows otherwise pkgconfig
 if(WIN32) 
     set(rtlsdr_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/librtlsdr)
     find_package(rtlsdr CONFIG REQUIRED)
@@ -26,6 +26,7 @@ else()
     set(RTLSDR_LIBS PkgConfig::rtlsdr)
 endif()
 
+# use vcpkg for windows otherwise pkgconfig
 if(WIN32)
     find_package(portaudio CONFIG REQUIRED)
     find_package(FFTW3f CONFIG REQUIRED)
@@ -39,8 +40,6 @@ else()
     set(FFTW3_LIBS PkgConfig::fftw3f)
 endif()
 
-target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
-
 # for posix threads
 if(NOT WIN32) 
     find_package(Threads REQUIRED)
@@ -48,32 +47,11 @@ if(NOT WIN32)
     link_libraries(Threads::Threads)
 endif()
 
-# simd and math compile options
-if(NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
-    if(MSVC)
-        add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-        add_compile_definitions(_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING)
-        # for msvc multi processor compilation
-        add_compile_options(/MP)
-        # NOTE: The MSVC compiler assumes a conservative microarchitecture and optimises using SSE2 by default
-        #       Since this is a performance sensitive application, we want to be aggressive with SIMD optimisations
-        add_compile_options(/fp:fast /arch:AVX2)
-        # add_compile_options(/fp:fast /arch:AVX)
-        # add_compile_options(/fp:fast)
-        # add_compile_options(/fsanitize=address)
-        # add_compile_definitions(_DISABLE_VECTOR_ANNOTATION)
-        # add_compile_definitions(_DISABLE_STRING_ANNOTATION)
-    else()
-        # NOTE: We are optimising specifically for your CPU's microarchitecture
-        #       This is okay since we don't ship prebuilt binaries for linux distributions
-        add_compile_options(-march=native -ffast-math)
-    endif()
-else()
-    add_compile_options(-ffast-math)
-endif()
-
+# setup easyloggingpp
+target_compile_definitions(easyloggingpp PRIVATE ELPP_THREAD_SAFE)
 set(DAB_CORE_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for dab_core" FORCE)
 set(BASIC_RADIO_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for basic_radio" FORCE)
 set(BASIC_SCRAPER_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for basic_scraper" FORCE)
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 add_subdirectory(${CMAKE_SOURCE_DIR}/examples)
