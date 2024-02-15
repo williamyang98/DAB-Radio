@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
         if (is_16_bit) {
             static auto convert_buf = std::vector<int16_t>(N);
             nb_read = fread(convert_buf.data(), sizeof(int16_t), N, fp_in);
-            for (int i = 0; i < nb_read; i++) {
+            for (size_t i = 0; i < nb_read; i++) {
                 const int16_t v0 = convert_buf[i];
                 block[i] = (uint8_t)(v0/256 + 127);
             }
@@ -213,6 +213,7 @@ bool validate_wav_header(WavHeader& header) {
         fprintf(stderr, "[WARN] Expected 8bits per sample for an 8bit IQ stream but got %d bits\n", header.BitsPerSample);
         is_warning = true;
     }
-
+ 
+    (void)is_warning;
     return !is_error;
 }

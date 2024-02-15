@@ -5,6 +5,7 @@
 #include "../algorithms/crc.h"
 #include "../constants/puncture_codes.h"
 #include <fmt/core.h>
+#include <assert.h>
 
 #include "../dab_logging.h"
 #define TAG "fic-decoder"
@@ -12,7 +13,7 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
-static const auto Generate_CRC_Calc() {
+static auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401
     // Clause 5.2.1 - Fast Information Block (FIB)
     // CRC16 Polynomial is given by:
@@ -28,13 +29,13 @@ static const auto Generate_CRC_Calc() {
 
 static auto CRC16_CALC = Generate_CRC_Calc();
 
-FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_group)
+FIC_Decoder::FIC_Decoder(const size_t _nb_encoded_bits, const size_t _nb_fibs_per_group)
 // NOTE: 1/3 coding rate after puncturing and 1/4 code
 // For all transmission modes these parameters are constant
-: nb_encoded_bits(_nb_encoded_bits),
-  nb_decoded_bits(_nb_encoded_bits/3),
+: nb_fibs_per_group(_nb_fibs_per_group),
+  nb_encoded_bits(_nb_encoded_bits),
   nb_decoded_bytes(_nb_encoded_bits/(8*3)),
-  nb_fibs_per_group(_nb_fibs_per_group)
+  nb_decoded_bits(_nb_encoded_bits/3)
 {
     vitdec = std::make_unique<DAB_Viterbi_Decoder>();
     vitdec->set_traceback_length(nb_decoded_bits);
@@ -46,12 +47,8 @@ FIC_Decoder::FIC_Decoder(const int _nb_encoded_bits, const int _nb_fibs_per_grou
 FIC_Decoder::~FIC_Decoder() = default;
 
 // Each group contains 3 fibs (fast information blocks) in mode I
-void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, const int cif_index) {
-    // viterbi decoding
-    int curr_encoded_bit = 0;
-    int curr_puncture_bit = 0;
-    int curr_decoded_bit = 0;
-
+void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, const size_t cif_index) {
+    assert(encoded_bits.size() >= nb_encoded_bits);
     // DOC: ETSI EN 300 401
     // Clause 11.2 - Coding in the fast information channel
     // PI_16, PI_15 and PI_X are used
@@ -63,8 +60,8 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
     //       Perhaps these other modes also use the same puncture codes??? 
     //       Refer to DOC: docs/DAB_parameters.pdf, Clause A1.1: System parameters
     //       for the number of bits per fib group for each transmission mode
-    const int nb_tail_bits = 6;
-    const int nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/int(DAB_Viterbi_Decoder::code_rate) - nb_tail_bits;
+    const size_t nb_tail_bits = 6;
+    const size_t nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/DAB_Viterbi_Decoder::code_rate - nb_tail_bits;
     if (nb_decoded_bits != nb_decoded_bits_mode_I) {
         LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
         LOG_ERROR("ETSI EN 300 401 standard only gives the puncture codes used in transmission mode I");
@@ -89,17 +86,18 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
 
     // descrambler
     scrambler->Reset();
-    for (int i = 0; i < nb_decoded_bytes; i++) {
+    for (size_t i = 0; i < nb_decoded_bytes; i++) {
         uint8_t b = scrambler->Process();
         decoded_bytes[i] ^= b;
     }
 
     // crc16 check
-    const int nb_fib_bytes = nb_decoded_bytes/nb_fibs_per_group;
-    const int nb_crc16_bytes = 2;
-    const int nb_data_bytes = nb_fib_bytes-nb_crc16_bytes;
+    const size_t nb_fib_bytes = nb_decoded_bytes/nb_fibs_per_group;
+    const size_t nb_crc16_bytes = 2;
+    assert(nb_fib_bytes >= nb_crc16_bytes);
+    const size_t nb_data_bytes = nb_fib_bytes-nb_crc16_bytes;
 
-    for (int i = 0; i < nb_fibs_per_group; i++) {
+    for (size_t i = 0; i < nb_fibs_per_group; i++) {
         auto fib_buf = tcb::span(decoded_bytes).subspan(i*nb_fib_bytes, nb_fib_bytes);
         auto data_buf = fib_buf.first(nb_data_bytes);
         auto crc_buf = fib_buf.last(nb_crc16_bytes);
@@ -109,7 +107,6 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
         const bool is_valid = crc16_rx == crc16_pred;
         LOG_MESSAGE("[crc16] fib={}/{} is_match={} pred={:04X} got={:04X}", 
             i, nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
-        
         if (is_valid) {
             obs_on_fib.Notify(data_buf);
         }

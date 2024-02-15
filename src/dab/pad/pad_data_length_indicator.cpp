@@ -60,7 +60,6 @@ void PAD_Data_Length_Indicator::Interpret(void) {
     // Clause 7.4.5.1.1: X-PAD data group for data group length indicator 
     // Figure 34: Structure of the X-PAD data group for the data group length indicator 
     auto buf = data_group.GetData();
-    const size_t N = data_group.GetRequiredBytes();
 
     const uint8_t rfa      =  (buf[0] & 0b11000000) >> 6;
     const uint16_t _length = ((buf[0] & 0b00111111) << 8) |

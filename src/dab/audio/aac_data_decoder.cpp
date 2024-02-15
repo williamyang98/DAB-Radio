@@ -35,8 +35,8 @@ bool AAC_Data_Decoder::ProcessDataElement(tcb::span<const uint8_t> data) {
     // Relevant functions are raw_data_block(...), and data_stream_element(...)
     const uint8_t header = data[0];
     const uint8_t data_type     = (header & 0b11100000) >> 5;
-    const uint8_t instance_tag  = (header & 0b00011110) >> 1;
-    const uint8_t is_byte_align = (header & 0b00000001) >> 0;
+    // const uint8_t instance_tag  = (header & 0b00011110) >> 1;
+    // const uint8_t is_byte_align = (header & 0b00000001) >> 0;
 
     if (data_type == 0) {
         // LOG_ERROR("Got null data type");

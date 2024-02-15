@@ -6,6 +6,7 @@
 #include <thread>
 #include <queue>
 #include <vector>
+#include <stddef.h>
 
 // simple thread pool to decode FIC and MSC channels across all cores
 class BasicThreadPool 
@@ -32,7 +33,7 @@ public:
         nb_threads = _nb_threads ? _nb_threads : std::thread::hardware_concurrency();
 
         task_threads.reserve(nb_threads);
-        for (int i = 0; i < nb_threads; i++) {
+        for (size_t i = 0; i < nb_threads; i++) {
             task_threads.emplace_back(&BasicThreadPool::RunnerThread, this);
         }
     }

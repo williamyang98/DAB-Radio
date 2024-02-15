@@ -9,7 +9,7 @@
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
 BasicRadio::BasicRadio(const DAB_Parameters& _params, const size_t nb_threads)
-: params(_params), fic_runner(_params), thread_pool(nb_threads) 
+: params(_params), thread_pool(nb_threads), fic_runner(_params)
 {
     dab_misc_info = std::make_unique<DAB_Misc_Info>();
     dab_database = std::make_unique<DAB_Database>();

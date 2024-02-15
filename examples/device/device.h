@@ -44,7 +44,7 @@ public:
     void Close();
     bool IsRunning() const { return is_running; }
     const auto& GetDescriptor() { return descriptor; }
-    const int GetBlockSize(void) { return block_size; }
+    int GetBlockSize(void) { return block_size; }
     const auto& GetGainList(void) { return gain_list; }
     bool GetIsGainManual(void) { return is_gain_manual; }
     float GetSelectedGain(void) { return selected_gain; }

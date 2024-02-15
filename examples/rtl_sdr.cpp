@@ -231,8 +231,6 @@ static void list_channels() {
 }
 
 int main(int argc, char **argv) {
-    const char* PROGRAM_NAME = "rtl_sdr";
-    const char* PROGRAM_VERSION_NAME = "0.1.0";
     auto parser = argparse::ArgumentParser("rtl_sdr", "0.1.0");
     parser.add_description("An I/Q recorder for RTL2832 based DVB-T receivers");
     init_parser(parser);

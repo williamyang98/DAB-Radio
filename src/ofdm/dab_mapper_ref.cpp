@@ -18,7 +18,7 @@ void get_DAB_mapper_ref(tcb::span<int> carrier_map, const size_t nb_fft) {
     // DC is positioned at index=N/2
     auto PI_TABLE = std::vector<size_t>(N);
     PI_TABLE[0] = 0;
-    for (int i = 1; i < N; i++) {
+    for (size_t i = 1; i < N; i++) {
         PI_TABLE[i] = (size_t)((13*PI_TABLE[i-1]+K-1) % N);
     }
 
@@ -31,7 +31,7 @@ void get_DAB_mapper_ref(tcb::span<int> carrier_map, const size_t nb_fft) {
     // -F <= f <= F where f =/= 0
     // We copy these inorder from the PI_TABLE mapping
     size_t carrier_map_index = 0;
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         const size_t v = PI_TABLE[i];
         // outside of valid indices
         if ((v < start_index) || (v > end_index) || (v == DC_index)) {

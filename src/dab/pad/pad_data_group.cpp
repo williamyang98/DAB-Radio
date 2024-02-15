@@ -1,7 +1,7 @@
 #include "./pad_data_group.h"
 #include "../algorithms/crc.h"
 
-static const auto Generate_CRC_Calc() {
+static auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401
     // Clause 7.4.5 - Applications in XPAD
     // Clause 7.4.5.0 - Introduction
@@ -22,7 +22,7 @@ size_t PAD_Data_Group::Consume(tcb::span<const uint8_t> data) {
     const size_t N = data.size();
     const size_t nb_remain = nb_required_bytes - nb_curr_bytes;
     const size_t nb_read = (nb_remain > N) ? N : nb_remain;
-    for (int i = 0; i < nb_read; i++) {
+    for (size_t i = 0; i < nb_read; i++) {
         buffer[nb_curr_bytes++] = data[i];
     }
     return nb_read;

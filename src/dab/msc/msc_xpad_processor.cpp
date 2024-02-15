@@ -8,7 +8,7 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
-static const auto Generate_CRC_Calc() {
+static auto Generate_CRC_Calc() {
     // DOC: ETSI EN 300 401
     // Clause 5.3.3.4 - MSC data group CRC
     // CRC16 Polynomial is given by:
@@ -113,7 +113,7 @@ MSC_XPAD_Processor::ProcessResult MSC_XPAD_Processor::Process(tcb::span<const ui
         data = &buf[curr_byte];
         curr_byte += MIN_USER_ACCESS_FIELD_BYTES;
         nb_remain = N-curr_byte;
-        const uint8_t rfa0              = (data[0] & 0b11100000) >> 5;
+        // const uint8_t rfa0              = (data[0] & 0b11100000) >> 5;
         const uint8_t transport_id_flag = (data[0] & 0b00010000) >> 4;
         const uint8_t length_indicator  = (data[0] & 0b00001111) >> 0;
 

@@ -438,7 +438,7 @@ void Radio_FIG_Handler::OnServiceComponent_5_UserApplication(
     s_u.SetCountryID(country_id);
     s_u.SetExtendedCountryCode(extended_country_code);
 
-    auto& sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
+    // auto& sc_u = updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
 
     LOG_MESSAGE("service_ref={} component_id={} app_type={} N={}",
         service_reference, service_component_id, app_type, N);

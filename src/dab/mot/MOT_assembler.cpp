@@ -21,12 +21,12 @@ void MOT_Assembler::Reset(void) {
     }
 }
 
-void MOT_Assembler::SetTotalSegments(const int N) {
+void MOT_Assembler::SetTotalSegments(const size_t N) {
     total_segments = N;
     segments.resize(total_segments);
 }
 
-bool MOT_Assembler::AddSegment(const int index, const uint8_t* buf, const int N) {
+bool MOT_Assembler::AddSegment(const size_t index, const uint8_t* buf, const size_t N) {
     if (index >= segments.size()) {
         segments.resize(index+1);
     }
@@ -56,7 +56,7 @@ bool MOT_Assembler::AddSegment(const int index, const uint8_t* buf, const int N)
 
     auto* all_buf = unordered_buffer.data();
     auto* dst_buf = &all_buf[curr_unordered_index];
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
     }
     curr_unordered_index += N;
@@ -74,7 +74,7 @@ bool MOT_Assembler::CheckComplete(void) {
         return false;
     }
 
-    for (int i = 0; i < total_segments; i++) {
+    for (size_t i = 0; i < total_segments; i++) {
         auto& segment = segments[i];
         if (segment.length == 0) {
             return false;
@@ -92,11 +92,11 @@ void MOT_Assembler::ReconstructOrderedBuffer(void) {
 
     ordered_buffer.resize(curr_unordered_index);
     auto* dst_buf = ordered_buffer.data();
-    int curr_ordered_index = 0;
-    for (int i = 0; i < total_segments; i++) {
+    size_t curr_ordered_index = 0;
+    for (size_t i = 0; i < total_segments; i++) {
         auto& segment = segments[i];
         const auto* src_buf = &all_src_buf[segment.unordered_index];
-        for (int j = 0; j < segment.length; j++) {
+        for (size_t j = 0; j < segment.length; j++) {
             dst_buf[curr_ordered_index++] = src_buf[j];
         }
     }

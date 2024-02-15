@@ -15,7 +15,7 @@ static void apply_pll_scalar(
     const size_t N = x.size();
     const float dt_step = freq_norm;
     for (size_t i = 0; i < N; i++) {
-        float dt_sin = dt_norm + float(i)*freq_norm;
+        float dt_sin = dt_norm + float(i)*dt_step;
         float dt_cos = dt_sin+0.25f;
         // translate to [-0.5,+0.5] within chebyshev accurate range
         dt_sin = dt_sin - std::round(dt_sin);

@@ -154,10 +154,10 @@ FILE* BasicAudioScraper::CreateWavFile(BasicAudioParams params) {
     const int32_t BitsPerSample = params.bytes_per_sample * 8;
     const int32_t SampleRate = static_cast<int32_t>(params.frequency);
 
-    strncpy(header.ChunkID, "RIFF", 4);
-    strncpy(header.Format, "WAVE", 4);
-    strncpy(header.Subchunk1ID, "fmt ", 4);
-    strncpy(header.Subchunk2ID, "data", 4);
+    memcpy(header.ChunkID, "RIFF", 4);
+    memcpy(header.Format, "WAVE", 4);
+    memcpy(header.Subchunk1ID, "fmt ", 4);
+    memcpy(header.Subchunk2ID, "data", 4);
 
     header.Subchunk1Size = 16;  // size of PCM format fields 
     header.AudioFormat = 1;     // Linear quantisation

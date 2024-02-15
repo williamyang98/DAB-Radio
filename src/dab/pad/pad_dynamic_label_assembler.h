@@ -8,12 +8,12 @@ class PAD_Dynamic_Label_Assembler
 {
 private:
     struct Segment {
-        int length;
+        size_t length;
     };
 private:
-    const int MAX_MESSAGE_BYTES = 128;
-    const int MAX_SEGMENT_BYTES = 16;
-    const int MAX_SEGMENTS = MAX_MESSAGE_BYTES/MAX_SEGMENT_BYTES;
+    const size_t MAX_MESSAGE_BYTES = 128;
+    const size_t MAX_SEGMENT_BYTES = 16;
+    const size_t MAX_SEGMENTS = MAX_MESSAGE_BYTES/MAX_SEGMENT_BYTES;
 
     std::vector<Segment> segments;
     size_t nb_required_segments;
@@ -29,7 +29,7 @@ public:
     void Reset(void);
     // Any segment which updates the completed label returns true
     // Any segment which doesn't update the completed label returns false
-    bool UpdateSegment(tcb::span<const uint8_t> data, const int seg_num);
+    bool UpdateSegment(tcb::span<const uint8_t> data, const size_t seg_num);
     void SetTotalSegments(const size_t total_segments);
     void SetCharSet(const uint8_t _charset);
     uint8_t GetCharSet(void) const { return charset; }

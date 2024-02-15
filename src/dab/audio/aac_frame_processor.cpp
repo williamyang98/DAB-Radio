@@ -186,9 +186,9 @@ bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
 }
 
 void AAC_Frame_Processor::AccumulateFrame(tcb::span<const uint8_t> buf) {
-    const auto N = buf.size();
+    const size_t N = buf.size();
     auto dst_buf = tcb::span(super_frame_buf).subspan(curr_dab_frame*N, N);
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
     }
 }
@@ -217,9 +217,10 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
     // Table 2: Syntax of he_aac_super_frame_header() 
     auto& buf = super_frame_buf;
     int curr_byte = 0;
-    const uint16_t firecode = (buf[0] << 8) | (buf[1]);
+    // TODO: We can fix firecode using ECC properties
+    // const uint16_t firecode = (buf[0] << 8) | (buf[1]);
     const uint8_t descriptor = buf[2];
-    const uint8_t rfa               = (descriptor & 0b10000000) >> 7;
+    // const uint8_t rfa               = (descriptor & 0b10000000) >> 7;
     const uint8_t dac_rate          = (descriptor & 0b01000000) >> 6;
     const uint8_t sbr_flag          = (descriptor & 0b00100000) >> 5;
     const uint8_t aac_channel_mode  = (descriptor & 0b00010000) >> 4;

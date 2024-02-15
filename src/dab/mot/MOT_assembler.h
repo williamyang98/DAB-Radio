@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 #include <vector>
 #include "utility/span.h"
 
@@ -9,8 +10,8 @@ class MOT_Assembler
 {
 private:
     struct Segment {
-        int unordered_index;
-        int length;
+        size_t unordered_index;
+        size_t length;
         Segment() {
             unordered_index = 0;
             length = 0;
@@ -20,14 +21,14 @@ private:
     std::vector<uint8_t> unordered_buffer;
     std::vector<uint8_t> ordered_buffer;
     std::vector<Segment> segments;
-    int total_segments;
-    int curr_unordered_index;
+    size_t total_segments = 0;
+    size_t curr_unordered_index = 0;
 public:
     MOT_Assembler();
     ~MOT_Assembler() {}
     void Reset(void);
-    void SetTotalSegments(const int N);
-    bool AddSegment(const int index, const uint8_t* buf, const int N);
+    void SetTotalSegments(const size_t N);
+    bool AddSegment(const size_t index, const uint8_t* buf, const size_t N);
     tcb::span<uint8_t> GetData() { return ordered_buffer; }
     bool CheckComplete();
 private:

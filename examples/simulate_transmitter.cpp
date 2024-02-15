@@ -127,10 +127,9 @@ int main(int argc, char** argv) {
 
     // generate random digital data
     auto frame_bytes_buf = std::vector<uint8_t>(nb_frame_bytes);
-    uint16_t scrambler_code_word = 0b0000000010101001;
     auto scrambler = Scrambler();
     scrambler.Reset();
-    for (int i = 0; i < nb_frame_bytes; i++) {
+    for (size_t i = 0; i < nb_frame_bytes; i++) {
         frame_bytes_buf[i] = scrambler.Process();
     }
 
@@ -148,7 +147,7 @@ int main(int argc, char** argv) {
         apply_pll_auto(frame_out_buf, frame_out_buf, frequency_norm);
     }
 
-    for (int i = 0; i < frame_size; i++) {
+    for (size_t i = 0; i < frame_size; i++) {
         const float I = frame_out_buf[i].real();
         const float Q = frame_out_buf[i].imag();
         const float A = 1.0f/(float)params.nb_data_carriers * 200.0f * 2.0f;

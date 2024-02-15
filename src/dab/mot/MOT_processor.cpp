@@ -35,8 +35,8 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb:
     // DOC: ETSI EN 301 234
     // Clause 5.1.1: Segmentation header 
     // Figure 7: Segmentation header
-    const int N = (int)buf.size();
-    const int MIN_SEGMENT_HEADER_BYTES = 2;
+    const size_t N = buf.size();
+    const size_t MIN_SEGMENT_HEADER_BYTES = 2;
     if (N < MIN_SEGMENT_HEADER_BYTES) {
         LOG_ERROR("Insufficient length for segment header {}<{}", N, MIN_SEGMENT_HEADER_BYTES);
         return;
@@ -46,7 +46,7 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb:
     const uint16_t segment_size    = ((buf[0] & 0b00011111) << 8) | buf[1];
 
     auto* data = &buf[MIN_SEGMENT_HEADER_BYTES];
-    const int nb_data_bytes = N-MIN_SEGMENT_HEADER_BYTES;
+    const size_t nb_data_bytes = N-MIN_SEGMENT_HEADER_BYTES;
 
     if (nb_data_bytes != segment_size) {
         LOG_ERROR("Segment length mismatch seg_size={} data_size={}", segment_size, nb_data_bytes);
@@ -116,13 +116,13 @@ bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
         return false;
     }
     
-    if (entity.header.header_size != (int)header_buf.size()) {
+    if (entity.header.header_size != uint32_t(header_buf.size())) {
         LOG_ERROR("Mismatching header length fields {}!={}",
             entity.header.header_size, header_buf.size());
         return false;
     }
 
-    if (entity.header.body_size != (int)body_buf.size()) {
+    if (entity.header.body_size != uint32_t(body_buf.size())) {
         LOG_ERROR("Mismatching body length fields {}!={}",
             entity.header.body_size, body_buf.size());
         return false;
@@ -382,7 +382,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time& entity
     const uint32_t MJD_date = ((buf[0] & 0b01111111) << 10) |
                               ((buf[1] & 0b11111111) << 2)  |
                               ((buf[2] & 0b11000000) >> 6);
-    const uint8_t rfu0      =  (buf[2] & 0b00110000) >> 4;
+    // const uint8_t rfu0      =  (buf[2] & 0b00110000) >> 4;
     const uint8_t UTC_flag  =  (buf[2] & 0b00001000) >> 4;
     const uint8_t hours     = ((buf[2] & 0b00000111) << 2) |
                               ((buf[3] & 0b11000000) >> 6);

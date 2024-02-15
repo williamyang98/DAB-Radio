@@ -55,3 +55,23 @@ set(BASIC_SCRAPER_USE_EASYLOGGING ON CACHE BOOL "Use easylogging for basic_scrap
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/src)
 add_subdirectory(${CMAKE_SOURCE_DIR}/examples)
+
+# private compiler flags from CMakePresets.json
+function(add_project_target_flags target)
+    separate_arguments(PRIVATE_ARGS NATIVE_COMMAND "${PROJECT_TARGET_PRIVATE_COMPILER_FLAGS}")
+    target_compile_options(${target} PRIVATE ${PRIVATE_ARGS})
+endfunction()
+# src/
+add_project_target_flags(ofdm_core)
+add_project_target_flags(dab_core)
+add_project_target_flags(basic_radio)
+add_project_target_flags(basic_scraper)
+# examples/
+add_project_target_flags(radio_app)
+add_project_target_flags(basic_radio_app)
+add_project_target_flags(basic_radio_app_cli)
+add_project_target_flags(rtl_sdr)
+add_project_target_flags(simulate_transmitter)
+add_project_target_flags(convert_viterbi)
+add_project_target_flags(apply_frequency_shift)
+add_project_target_flags(read_wav)

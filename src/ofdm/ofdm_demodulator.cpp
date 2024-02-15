@@ -77,10 +77,10 @@ OFDM_Demod::OFDM_Demod(
     tcb::span<const int> _carrier_mapper,
     int nb_desired_threads)
 :   params(_params), 
-    null_power_dip_buffer(null_power_dip_buffer_data),
-    correlation_time_buffer(correlation_time_buffer_data),
     active_buffer(_params, active_buffer_data, ALIGN_AMOUNT),
-    inactive_buffer(_params, inactive_buffer_data, ALIGN_AMOUNT)
+    inactive_buffer(_params, inactive_buffer_data, ALIGN_AMOUNT),
+    null_power_dip_buffer(null_power_dip_buffer_data),
+    correlation_time_buffer(correlation_time_buffer_data)
 {
     // NOTE: Allocating joint block for better memory locality as well as alignment requirements
     //       Alignment is required for FFTW3 to use SIMD instructions which increases performance
@@ -121,7 +121,7 @@ OFDM_Demod::OFDM_Demod(
 
     // Clause 3.12.1 - Fine time synchronisation
     // Correlation in time domain is the conjugate product in frequency domain
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (size_t i = 0; i < params.nb_fft; i++) {
         correlation_prs_fft_reference[i] = std::conj(_prs_fft_ref[i]);
     }
 
@@ -129,7 +129,7 @@ OFDM_Demod::OFDM_Demod(
     // Correlation in frequency domain is the conjugate product in time domain
     CalculateRelativePhase(_prs_fft_ref, correlation_prs_time_reference);
     CalculateIFFT(correlation_prs_time_reference, correlation_prs_time_reference);
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (size_t i = 0; i < params.nb_fft; i++) {
         correlation_prs_time_reference[i] = std::conj(correlation_prs_time_reference[i]);
     }
 
@@ -169,9 +169,9 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
             const int nb_threads_remain = (nb_threads-i);
             const int nb_syms_in_thread = (int)std::ceil((float)nb_syms_remain / (float)nb_threads_remain);
             const int symbol_end = is_last_thread ? nb_syms : (symbol_start+nb_syms_in_thread);
-            pipelines.emplace_back(std::move(std::make_unique<OFDM_Demod_Pipeline>(
+            pipelines.emplace_back(std::make_unique<OFDM_Demod_Pipeline>(
                 symbol_start, symbol_end
-            )));
+            ));
             symbol_start = symbol_end;
         }
     }
@@ -185,11 +185,11 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
     );
 
     // Create pipeline threads
-    for (int i = 0; i < pipelines.size(); i++) {
+    for (size_t i = 0; i < pipelines.size(); i++) {
         auto& pipeline = *(pipelines[i].get());
 
         // Some pipelines depend on data being processed in other pipelines
-        const int dependent_pipeline_index = i+1;
+        const size_t dependent_pipeline_index = i+1;
         OFDM_Demod_Pipeline* dependent_pipeline = NULL;
         if (dependent_pipeline_index < pipelines.size()) {
             dependent_pipeline = pipelines[dependent_pipeline_index].get();
@@ -204,8 +204,8 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
                     struct { uint32_t start, end; } fields; 
                     uint64_t data;
                 } X;
-                X.fields.start = (int)pipeline.GetSymbolStart();
-                X.fields.end   = (int)pipeline.GetSymbolEnd();
+                X.fields.start = uint32_t(pipeline.GetSymbolStart());
+                X.fields.end   = uint32_t(pipeline.GetSymbolEnd());
                 PROFILE_TAG_DATA_THREAD(X.data);
                 while (PipelineThread(pipeline, dependent_pipeline));
             }
@@ -334,7 +334,7 @@ size_t OFDM_Demod::FindNullPowerDip(tcb::span<const std::complex<float>> buf) {
     // We do this so we can guarantee the full start of the PRS is attained after fine time sync
     const size_t L = null_power_dip_buffer.Length();
     const size_t start_index = null_power_dip_buffer.GetIndex();
-    for (int i = 0; i < L; i++) {
+    for (size_t i = 0; i < L; i++) {
         const size_t j = i+start_index;
         correlation_time_buffer[i] = null_power_dip_buffer[j];
     }
@@ -386,7 +386,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
 
     // Step 4: Conjugate product in time domain
     //         NOTE: correlation_prs_time_reference is already the conjugate
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (size_t i = 0; i < params.nb_fft; i++) {
         correlation_ifft_buffer[i] *= correlation_prs_time_reference[i];
     }
 
@@ -406,7 +406,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
     float max_value = correlation_frequency_response[max_index+M];
     for (int i = -max_carrier_offset; i <= max_carrier_offset; i++) {
         const int fft_index = i+M;
-        if (fft_index == params.nb_fft) continue;
+        if (fft_index == int(params.nb_fft)) continue;
         const float value = correlation_frequency_response[fft_index];
         if (value > max_value) {
             max_value = value;
@@ -426,7 +426,7 @@ size_t OFDM_Demod::RunCoarseFreqSync(tcb::span<const std::complex<float>> buf) {
         if (index < -max_carrier_offset) index = -max_carrier_offset;
         if (index >  max_carrier_offset) index =  max_carrier_offset;
         int fft_index = (index+M);
-        if (fft_index >= params.nb_fft) fft_index = int(params.nb_fft-1);
+        if (fft_index >= int(params.nb_fft)) fft_index = int(params.nb_fft-1);
         const float magnitude_dB = correlation_frequency_response[fft_index];
         const float magnitude = std::pow(10.0f, magnitude_dB/20.0f);
         return Peak { fft_index-M, magnitude };
@@ -487,13 +487,13 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     // Correlation in time domain is done by doing conjugate multiplication in frequency domain
     // NOTE: Our PRS FFT reference was conjugated in the constructor
     CalculateFFT(correlation_ifft_buffer, correlation_fft_buffer);
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (size_t i = 0; i < params.nb_fft; i++) {
         correlation_fft_buffer[i] *= correlation_prs_fft_reference[i];
     }
 
     // Get IFFT to get our correlation result
     CalculateIFFT(correlation_fft_buffer, correlation_ifft_buffer);
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (size_t i = 0; i < params.nb_fft; i++) {
         const auto& v = correlation_ifft_buffer[i];
         const float A = 20.0f*std::log10(std::abs(v));
         correlation_impulse_response[i] = A;
@@ -504,7 +504,7 @@ size_t OFDM_Demod::RunFineTimeSync(tcb::span<const std::complex<float>> buf) {
     float impulse_avg = 0.0f;
     float impulse_max_value = correlation_impulse_response[0];
     int impulse_max_index = 0;
-    for (int i = 0; i < params.nb_fft; i++) {
+    for (int i = 0; i < int(params.nb_fft); i++) {
         const float peak_value = correlation_impulse_response[i];
 
         // We expect that the correlation peak will at least be somewhere near where we expect it
@@ -559,7 +559,7 @@ size_t OFDM_Demod::ReadSymbols(tcb::span<const std::complex<float>> buf) {
     // Copy the null symbol so we can use it in the PRS correlation step
     auto null_sym = inactive_buffer.GetNullSymbol();
     correlation_time_buffer.SetLength(params.nb_null_period);
-    for (int i = 0; i < params.nb_null_period; i++) {
+    for (size_t i = 0; i < params.nb_null_period; i++) {
         correlation_time_buffer[i] = null_sym[i];
     }
 
@@ -654,7 +654,6 @@ bool OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pip
 
     const int symbol_start = (int)thread_data.GetSymbolStart();
     const int symbol_end = (int)thread_data.GetSymbolEnd();
-    const int total_symbols = symbol_end-symbol_start;
     const int symbol_end_no_null = std::min(symbol_end, (int)params.nb_frame_symbols);
     const int symbol_end_dqpsk = std::min(symbol_end, (int)params.nb_frame_symbols-1);
 
@@ -872,7 +871,7 @@ void OFDM_Demod::CalculateViterbiBits(tcb::span<const std::complex<float>> vec_b
     const size_t N = params.nb_data_carriers;
 
     // Clause 3.16 - Data demapper
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         // Clause 3.16.1 - Freuency deinterleaving
         const size_t j = carrier_mapper[i];
         const auto& vec = vec_buf[j];
@@ -915,7 +914,7 @@ void OFDM_Demod::CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf
     PROFILE_BEGIN_FUNC();
     const size_t N = params.nb_fft;
     const size_t M = N/2;
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         const size_t j = (i+M) % N;
         const float x = 20.0f*std::log10(std::abs(fft_buf[j]));
         mag_buf[i] = x;
@@ -926,7 +925,7 @@ float OFDM_Demod::CalculateL1Average(tcb::span<const std::complex<float>> block)
     PROFILE_BEGIN_FUNC();
     const size_t N = block.size();
     float l1_avg = 0.0f;
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         auto& v = block[i];
         l1_avg += std::abs(v.real()) + std::abs(v.imag());
     }

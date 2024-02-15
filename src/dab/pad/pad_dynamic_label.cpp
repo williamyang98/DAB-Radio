@@ -117,7 +117,7 @@ void PAD_Dynamic_Label::ReadGroupHeader(void) {
     const auto buf = data_group.GetData();
 
     const uint8_t toggle_flag     = (buf[0] & 0b10000000) >> 7;
-    const uint8_t first_last_flag = (buf[0] & 0b01100000) >> 5;
+    // const uint8_t first_last_flag = (buf[0] & 0b01100000) >> 5;
     const uint8_t control_flag    = (buf[0] & 0b00010000) >> 4;
 
     // Control segment has no data field
@@ -144,19 +144,19 @@ void PAD_Dynamic_Label::InterpretLabelSegment(void) {
     const auto buf = data_group.GetData();
     const size_t N = data_group.GetRequiredBytes();
 
-    const uint8_t toggle_flag     = (buf[0] & 0b10000000) >> 7;
+    // const uint8_t toggle_flag     = (buf[0] & 0b10000000) >> 7;
     const uint8_t first_last_flag = (buf[0] & 0b01100000) >> 5;
-    const uint8_t control_flag    = (buf[0] & 0b00010000) >> 4;
-    const uint8_t length          = (buf[0] & 0b00001111) >> 0;
+    // const uint8_t control_flag    = (buf[0] & 0b00010000) >> 4;
+    // const uint8_t length          = (buf[0] & 0b00001111) >> 0;
     const uint8_t field2          = (buf[1] & 0b11110000) >> 4;
-    const uint8_t rfa0            = (buf[1] & 0b00001111) >> 0;
+    // const uint8_t rfa0            = (buf[1] & 0b00001111) >> 0;
 
     const bool is_first = (first_last_flag & 0b10) != 0;
     const bool is_last  = (first_last_flag & 0b01) != 0;
 
     uint8_t seg_num = 0;
     if (!is_first) {
-        const uint8_t rfa1 = (field2 & 0b1000) >> 3;
+        // const uint8_t rfa1 = (field2 & 0b1000) >> 3;
         seg_num            = (field2 & 0b0111) >> 0;
     }
     if (is_last) {
@@ -189,8 +189,8 @@ void PAD_Dynamic_Label::InterpretCommand(void) {
     const auto buf = data_group.GetData();
 
     const uint8_t command = (buf[0] & 0b00001111) >> 0;
-    const uint8_t field2  = (buf[1] & 0b11110000) >> 4;
-    const uint8_t field3  = (buf[1] & 0b00001111) >> 0;
+    // const uint8_t field2  = (buf[1] & 0b11110000) >> 4;
+    // const uint8_t field3  = (buf[1] & 0b00001111) >> 0;
 
     // DOC: ETSI EN 300 401
     // Clause 7.4.5.2 - Dynamic label 

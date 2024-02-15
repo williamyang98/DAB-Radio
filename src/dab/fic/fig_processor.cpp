@@ -66,7 +66,6 @@ void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
 
     int curr_byte = 0;
-    int curr_fig = 0;
     while (curr_byte < N) {
         const int nb_remain_bytes = N-curr_byte;
 
@@ -197,10 +196,10 @@ void FIG_Processor::ProcessFIG_Type_2(tcb::span<const uint8_t> buf) {
     }
 
     const uint8_t descriptor = buf[0];
-    FIG_Header_Type_2 header;
-    header.toggle_flag      = (descriptor & 0b10000000) >> 7;
-    header.segment_index    = (descriptor & 0b01110000) >> 4;
-    header.rfu              = (descriptor & 0b00001000) >> 3;
+    // FIG_Header_Type_2 header;
+    // header.toggle_flag      = (descriptor & 0b10000000) >> 7;
+    // header.segment_index    = (descriptor & 0b01110000) >> 4;
+    // header.rfu              = (descriptor & 0b00001000) >> 3;
     const uint8_t extension = (descriptor & 0b00000111) >> 0;
 
     auto field_buf = buf.subspan(1);
@@ -213,13 +212,13 @@ void FIG_Processor::ProcessFIG_Type_6(tcb::span<const uint8_t> buf) {
         return;
     }
 
-    const uint8_t descriptor = buf[0];
-    const uint8_t rfu               = (descriptor & 0b10000000) >> 7;
-    const uint8_t cn                = (descriptor & 0b01000000) >> 6;
-    const uint8_t oe                = (descriptor & 0b00100000) >> 5;
-    const uint8_t pd                = (descriptor & 0b00010000) >> 4;
-    const uint8_t lef               = (descriptor & 0b00001000) >> 3;
-    const uint8_t short_CA_sys_id   = (descriptor & 0b00000111) >> 0;
+    // const uint8_t descriptor = buf[0];
+    // const uint8_t rfu              = (descriptor & 0b10000000) >> 7;
+    // const uint8_t cn               = (descriptor & 0b01000000) >> 6;
+    // const uint8_t oe               = (descriptor & 0b00100000) >> 5;
+    // const uint8_t pd               = (descriptor & 0b00010000) >> 4;
+    // const uint8_t lef              = (descriptor & 0b00001000) >> 3;
+    // const uint8_t short_CA_sys_id  = (descriptor & 0b00000111) >> 0;
 
     auto field_buf = buf.subspan(1);
     LOG_MESSAGE("fig 6 L={} Unsupported", field_buf.size());
@@ -255,7 +254,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     // Perhaps it is because no changes occur, but this isn't stated in standard
     // const uint8_t occurance_change = 
     //                              (buf[4] & 0b11111111) >> 0;
-    const uint8_t occurance_change = 0x00;
 
     LOG_MESSAGE("fig 0/0 country_id={} ensemble_ref={} change={} alarm={} cif={}|{}",
         eid.country_id, eid.ensemble_reference,
@@ -365,8 +363,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
         }
 
         const uint8_t descriptor = service_buf[nb_service_id_bytes];
-        const uint8_t rfa                   = (descriptor & 0b10000000) >> 7;
-        const uint8_t CAId                  = (descriptor & 0b01110000) >> 4;
+        // const uint8_t rfa                   = (descriptor & 0b10000000) >> 7;
+        // const uint8_t CAId                  = (descriptor & 0b01110000) >> 4;
         const uint8_t nb_service_components = (descriptor & 0b00001111) >> 0;
 
         // Determine if we have enough bytes for the service components data
@@ -1032,6 +1030,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
         curr_index += nb_length_bytes;
         curr_service++;
     }
+
+    (void)curr_service;
 }
 
 // Country, LTO and International Table
@@ -1415,7 +1415,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
         }
 
         // increment this to update the block size
-        int nb_block_bytes = nb_block_header_bytes;
         auto* block_buf = &buf[curr_byte];
 
         const uint16_t Rfa0 = 
@@ -1488,7 +1487,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             eid.country_id, eid.ensemble_reference,
                             is_geographically_adjacent, is_transmission_mode_I,
                             (float)(alt_freq)*1e-6f);
-                        
                         handler->OnFrequencyInformation_1_Ensemble(
                             eid.country_id, eid.ensemble_reference, 
                             alt_freq, 
@@ -1514,7 +1512,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             Rfa0, RM, is_time_compensated, 
                             rds_pi_code,
                             (float)(alt_freq)*1e-6f);
-                        
                         handler->OnFrequencyInformation_1_RDS_PI(
                             rds_pi_code, alt_freq, is_time_compensated);
                     }
@@ -1541,9 +1538,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         const uint16_t freq = 
                                 (static_cast<uint16_t>(b[1] & 0b01111111) << 8) | 
                                                      ((b[2] & 0b11111111) << 0);
-                        
                         const uint32_t drm_id = (static_cast<uint32_t>(drm_id_msb) << 16) | id;
-                        
                         // F' = k*F
                         // k = 1kHz or 10kHz depending on the multiplier flag
                         const uint32_t multiplier = is_multiplier ? 10000u : 1000u;
@@ -1553,7 +1548,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             drm_id, (float)(alt_freq)*1e-6f);
-                        
                         handler->OnFrequencyInformation_1_DRM(
                             drm_id, alt_freq, is_time_compensated);
                     }
@@ -1578,7 +1572,6 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                         const uint16_t freq = 
                               (static_cast<uint16_t>(b[1] & 0b11111111) << 8) | 
                                                    ((b[2] & 0b11111111) << 0);
-                        
                         const uint32_t amss_id = (static_cast<uint32_t>(amss_id_msb) << 16) | id;
 
                         // F' = F*1kHz 
@@ -1588,11 +1581,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             amss_id, (float)(alt_freq)*1e-6f);
-                        
                         handler->OnFrequencyInformation_1_AMSS(
                             amss_id, alt_freq, is_time_compensated);
                     }
                 }
+                break;
             default:
                 LOG_ERROR("fig 0/21 Unknown RM value ({})", RM);
                 return;
@@ -1762,7 +1755,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
 
     const uint8_t descriptor = buf[0];
     const uint8_t pd =    (descriptor & 0b10000000) >> 7;
-    const uint8_t Rfa =   (descriptor & 0b01110000) >> 4;
+    // const uint8_t Rfa =   (descriptor & 0b01110000) >> 4;
     const uint8_t SCIdS = (descriptor & 0b00001111) >> 0;
 
     const int nb_sid_bytes = pd ? 4 : 2;

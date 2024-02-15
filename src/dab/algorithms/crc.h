@@ -26,7 +26,7 @@ public:
         T crc = initial_value;
         const size_t shift = (sizeof(T)-1)*8;
         const size_t N = x.size();
-        for (int i = 0; i < N; i++) {
+        for (size_t i = 0; i < N; i++) {
             crc = crc ^ ((T)(x[i]) << shift);
             uint8_t lut_idx = (crc >> shift) & 0xFF;
             crc = (crc << 8) ^ lut[lut_idx];
@@ -48,9 +48,9 @@ private:
         const T bitcheck = 1u << (sizeof(T)*8 - 1);
         const int shift = (sizeof(T)-1)*8;
 
-        const int N = 256;
+        const size_t N = 256;
         auto* lut = new T[N];
-        for (int i = 0; i < N; i++) {
+        for (size_t i = 0; i < N; i++) {
             T crc = static_cast<uint8_t>(i) << shift;
             for (int j = 0; j < 8; j++) {
                 if ((crc & bitcheck) != 0) {

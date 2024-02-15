@@ -37,8 +37,8 @@ public:
     // NOTE: We take in a reference to a span since the buffer is allocated separately 
     //       The underlying buffer should be resized to GetTotalBufferBytes()
     OFDM_Frame_Buffer(const OFDM_Params& _params, tcb::span<uint8_t>& _buf, const size_t _align_size)
-    :   params(_params), 
-        buf(_buf), 
+    :   buf(_buf), 
+        params(_params), 
         align_size(_align_size),
         prefix_size(sizeof(T) * _params.nb_cyclic_prefix),
         data_symbol_size(sizeof(T) * _params.nb_symbol_period),

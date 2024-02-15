@@ -25,7 +25,7 @@ public:
             nb_read = (N > N_remain) ? N_remain : N;
         }
 
-        for (int i = 0; i < nb_read; i++) {
+        for (size_t i = 0; i < nb_read; i++) {
             buf[index++] = src[i];
             index = index % capacity;
         }

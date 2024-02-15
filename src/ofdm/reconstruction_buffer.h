@@ -18,7 +18,7 @@ public:
         const size_t N_required = Capacity()-length;
         const size_t nb_read = (N_required >= N) ? N : N_required;
         auto wr_buf = buf.subspan(length, nb_read);
-        for (int i = 0; i < nb_read; i++) {
+        for (size_t i = 0; i < nb_read; i++) {
             wr_buf[i] = src[i];
         }
         length += nb_read;

@@ -76,9 +76,9 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
     // Clause 7.4.1: Coding of F-PAD 
     const uint8_t fpad_type    = (fpad[0] & 0b11000000) >> 6;
     const uint8_t fpad_byte_L0 = (fpad[0] & 0b00111111) >> 0;
-    const uint8_t fpad_byte_L1 = (fpad[1] & 0b11111100) >> 2;
+    // const uint8_t fpad_byte_L1 = (fpad[1] & 0b11111100) >> 2;
     const uint8_t fpad_CI_flag = (fpad[1] & 0b00000010) >> 1;
-    const uint8_t fpad_Z       = (fpad[1] & 0b00000001) >> 0;
+    // const uint8_t fpad_Z       = (fpad[1] & 0b00000001) >> 0;
 
     if (fpad_type != 0b00) {
         LOG_ERROR("FPAD type {} reserved for future use", fpad_type);
@@ -87,7 +87,7 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
 
     const uint8_t xpad_indicator = (fpad_byte_L0 & 0b00110000) >> 4;
     const uint8_t xpad_L_type    = (fpad_byte_L0 & 0b00001111) >> 0;
-    const uint8_t xpad_L_data    = fpad_byte_L1;
+    // const uint8_t xpad_L_data    = fpad_byte_L1;
 
     if ((xpad_indicator == 0b00) || (xpad_reversed.empty()) || (nb_xpad_bytes == 0)) {
         if ((xpad_indicator != 0b00) || !xpad_reversed.empty() || (nb_xpad_bytes != 0)) {
@@ -114,7 +114,7 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
     // Clause 7.4.2.0 Structure of X-PAD (General)
     // NOTE: The byte order of the XPAD is reversed before transmission
     //       The bit order is preserved
-    for (int i = 0; i < nb_xpad_bytes; i++) {
+    for (size_t i = 0; i < nb_xpad_bytes; i++) {
         xpad_unreverse_buf[i] = xpad_reversed[nb_xpad_bytes-1-i];
     }
 
@@ -165,7 +165,7 @@ void PAD_Processor::Process_Short_XPAD(tcb::span<const uint8_t> xpad, const bool
         // Clause 7.4.4.1: Contents indicator in short X-PAD 
         // Figure 32: Contents indicator for short X-PAD
         const uint8_t CI = xpad[curr_byte++];
-        const uint8_t rfu      = (CI & 0b11100000) >> 5;
+        // const uint8_t rfu      = (CI & 0b11100000) >> 5;
         const uint8_t app_type = (CI & 0b00011111) >> 0;
 
         const auto indicator = PAD_Content_Indicator{ DATA_BYTES_WITH_CI, app_type };
@@ -228,7 +228,7 @@ void PAD_Processor::Process_Variable_XPAD(tcb::span<const uint8_t> xpad, const b
 void PAD_Processor::ProcessDataField(tcb::span<const uint8_t> data_field) {
     const int N = (int)data_field.size();
     int curr_byte = 0;
-    for (int i = 0; i < ci_list.size(); i++) {
+    for (size_t i = 0; i < ci_list.size(); i++) {
         auto& content = ci_list[i];
 
         const int nb_remain = N-curr_byte;

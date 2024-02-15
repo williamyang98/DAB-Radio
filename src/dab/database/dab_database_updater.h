@@ -41,7 +41,7 @@ private:
     DatabaseUpdaterGlobalStatistics& stats;
 public:
     DatabaseEntityUpdater(DatabaseUpdaterGlobalStatistics& _stats): stats(_stats) {}
-    ~DatabaseEntityUpdater() {}
+    virtual ~DatabaseEntityUpdater() {}
     virtual bool IsComplete() = 0;
     void OnCreate() {
         stats.nb_total++;
