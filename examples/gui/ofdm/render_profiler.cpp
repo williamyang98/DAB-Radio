@@ -147,7 +147,7 @@ void RenderTrace(InstrumentorThread::profile_trace_t& trace) {
             prev_stack_index = result.stack_index;
 
             if (indent < 0) {
-                for (int i = 0; i < -indent; i++) {
+                for (int j = 0; j < -indent; j++) {
                     ImGui::TreePop();
                 }
             }

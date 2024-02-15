@@ -85,5 +85,5 @@ bool AAC_Data_Decoder::ProcessDataElement(tcb::span<const uint8_t> data) {
 }
 
 void AAC_Data_Decoder::ProcessPAD(tcb::span<const uint8_t> fpad, tcb::span<const uint8_t> xpad) {
-    pad_processor.Process(fpad, xpad);
+    m_pad_processor.Process(fpad, xpad);
 }

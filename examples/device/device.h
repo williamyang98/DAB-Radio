@@ -19,22 +19,22 @@ struct DeviceDescriptor {
 class Device 
 {
 private:
-    DeviceDescriptor descriptor;
-    struct rtlsdr_dev* device;
-    const int block_size;
-    bool is_running;
-    std::unique_ptr<std::thread> runner_thread;
+    DeviceDescriptor m_descriptor;
+    struct rtlsdr_dev* m_device;
+    const int m_block_size;
+    bool m_is_running;
+    std::unique_ptr<std::thread> m_runner_thread;
 
-    std::vector<float> gain_list;
-    bool is_gain_manual;
-    float selected_gain;
-    uint32_t selected_frequency;
-    std::string selected_frequency_label;
-    std::list<std::string> error_list;
-    std::function<size_t(tcb::span<const uint8_t>)> callback_on_data = nullptr;
-    std::function<void(const std::string&, const uint32_t)> callback_on_center_frequency = nullptr;
+    std::vector<float> m_gain_list;
+    bool m_is_gain_manual;
+    float m_selected_gain;
+    uint32_t m_selected_frequency;
+    std::string m_selected_frequency_label;
+    std::list<std::string> m_error_list;
+    std::function<size_t(tcb::span<const uint8_t>)> m_callback_on_data = nullptr;
+    std::function<void(const std::string&, const uint32_t)> m_callback_on_center_frequency = nullptr;
 public:
-    Device(struct rtlsdr_dev* _device, const DeviceDescriptor& _descriptor, const int _block_size=8192);
+    explicit Device(struct rtlsdr_dev* device, const DeviceDescriptor& descriptor, const int block_size=8192);
     ~Device();
     // we are holding a pointer to rtlsdr_dev_t, so we cant move/copy this class
     Device(Device&) = delete;
@@ -42,15 +42,15 @@ public:
     Device& operator=(Device&) = delete;
     Device& operator=(Device&&) = delete;
     void Close();
-    bool IsRunning() const { return is_running; }
-    const auto& GetDescriptor() { return descriptor; }
-    int GetBlockSize(void) { return block_size; }
-    const auto& GetGainList(void) { return gain_list; }
-    bool GetIsGainManual(void) { return is_gain_manual; }
-    float GetSelectedGain(void) { return selected_gain; }
-    uint32_t GetSelectedFrequency(void) { return selected_frequency; }
-    const auto& GetSelectedFrequencyLabel(void) { return selected_frequency_label; }
-    auto& GetErrorList(void) { return error_list; }
+    bool IsRunning() const { return m_is_running; }
+    const auto& GetDescriptor() { return m_descriptor; }
+    int GetBlockSize(void) { return m_block_size; }
+    const auto& GetGainList(void) { return m_gain_list; }
+    bool GetIsGainManual(void) { return m_is_gain_manual; }
+    float GetSelectedGain(void) { return m_selected_gain; }
+    uint32_t GetSelectedFrequency(void) { return m_selected_frequency; }
+    const auto& GetSelectedFrequencyLabel(void) { return m_selected_frequency_label; }
+    auto& GetErrorList(void) { return m_error_list; }
     void SetAutoGain(void); 
     void SetNearestGain(const float target_gain);
     void SetGain(const float gain);
@@ -59,11 +59,11 @@ public:
     void SetCenterFrequency(const std::string& label, const uint32_t freq); 
     template <typename F> 
     void SetDataCallback(F&& func) { 
-        callback_on_data = std::move(func); 
+        m_callback_on_data = std::move(func); 
     }
     template <typename F> 
     void SetFrequencyChangeCallback(F&& func) { 
-        callback_on_center_frequency = std::move(func); 
+        m_callback_on_center_frequency = std::move(func); 
     }
 private:
     void SearchGains(void);

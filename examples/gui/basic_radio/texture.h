@@ -8,7 +8,7 @@ class Texture
 private:
     uint32_t m_RendererID;
     int m_Width, m_Height, m_BPP; // BPP = bits per pixel
-    bool is_success;
+    bool m_is_success;
 public:
     explicit Texture(tcb::span<const uint8_t> image_buffer);
     ~Texture();

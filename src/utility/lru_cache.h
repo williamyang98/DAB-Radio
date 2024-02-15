@@ -8,27 +8,27 @@ class LRU_Cache
 {
 private:
     typedef std::list<std::pair<const K,T>> list_t;
-    list_t lru_list;
-    std::unordered_map<K, typename list_t::iterator> cache;
-    size_t max_size;
+    list_t m_lru_list;
+    std::unordered_map<K, typename list_t::iterator> m_cache;
+    size_t m_max_size;
 public:
-    explicit LRU_Cache(size_t _max_size=10) {
-       max_size = _max_size; 
+    explicit LRU_Cache(size_t max_size=10) {
+       m_max_size = max_size; 
     }
 
     size_t get_max_size(void) const {
-        return max_size;
+        return m_max_size;
     }
 
-    void set_max_size(const size_t _max_size) {
-        max_size = _max_size;
+    void set_max_size(const size_t max_size) {
+        m_max_size = max_size;
         remove_lru();
     }
 
     T* find(const K& key) {
-        auto res = cache.find(key);
-        if (res == cache.end()) {
-            return NULL;
+        auto res = m_cache.find(key);
+        if (res == m_cache.end()) {
+            return nullptr;
         }
 
         auto it = res->second;
@@ -37,11 +37,11 @@ public:
     }
 
     T& insert(K key, T&& val) {
-        auto res = cache.find(key);
-        if (res == cache.end()) {
+        auto res = m_cache.find(key);
+        if (res == m_cache.end()) {
             remove_lru();
-            lru_list.push_front({key, val});
-            res = cache.insert({key, lru_list.begin()}).first; 
+            m_lru_list.push_front({key, val});
+            res = m_cache.insert({key, m_lru_list.begin()}).first; 
         }
         auto it = res->second;
         promote(it);
@@ -50,15 +50,15 @@ public:
 
     template <typename ... U>
     T& emplace(K key, U&& ... args) {
-        auto res = cache.find(key);
-        if (res == cache.end()) {
+        auto res = m_cache.find(key);
+        if (res == m_cache.end()) {
             remove_lru();
             // std::pair has the following constructor signature
-            lru_list.emplace_front(
+            m_lru_list.emplace_front(
                 std::piecewise_construct, 
                 std::forward_as_tuple(key), 
                 std::forward_as_tuple(std::forward<U>(args)...));
-            res = cache.insert({key, lru_list.begin()}).first; 
+            res = m_cache.insert({key, m_lru_list.begin()}).first; 
         }
         auto it = res->second;
         promote(it);
@@ -66,31 +66,31 @@ public:
     }
 
     auto begin() {
-        return lru_list.begin();
+        return m_lru_list.begin();
     }
 
     auto end() {
-        return lru_list.end();
+        return m_lru_list.end();
     }
 private:
     // cull list elements past max size
     void remove_lru(void) {
-        if (lru_list.size() <= max_size) {
+        if (m_lru_list.size() <= m_max_size) {
             return;
         }
 
-        auto _start = lru_list.begin();
-        auto _end = lru_list.end();
-        std::advance(_start, max_size);
+        auto _start = m_lru_list.begin();
+        auto _end = m_lru_list.end();
+        std::advance(_start, m_max_size);
         for (auto it = _start; it != _end; it++) {
             auto key = it->first;
-            cache.erase(key);
+            m_cache.erase(key);
         }
-        lru_list.erase(_start, _end);
+        m_lru_list.erase(_start, _end);
     }
 
     // move list element to the front
     void promote(typename list_t::iterator& it) {
-        lru_list.splice(lru_list.begin(), lru_list, it);
+        m_lru_list.splice(m_lru_list.begin(), m_lru_list, it);
     }
 };

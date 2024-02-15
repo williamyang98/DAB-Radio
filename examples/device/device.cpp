@@ -8,31 +8,30 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-Device::Device(rtlsdr_dev_t* _device, const DeviceDescriptor& _descriptor, const int _block_size)
-: device(_device), descriptor(_descriptor),
-  block_size(_block_size)
+Device::Device(rtlsdr_dev_t* device, const DeviceDescriptor& descriptor, const int block_size)
+:  m_descriptor(descriptor), m_device(device), m_block_size(block_size)
 {
-    is_running = true;
-    is_gain_manual = true;
-    selected_gain = 0.0f;
+    m_is_running = true;
+    m_is_gain_manual = true;
+    m_selected_gain = 0.0f;
 
     SearchGains();
     SetNearestGain(19.0f);
     SetSamplingFrequency(2048000);
 
     int status = 0;
-    status = rtlsdr_set_bias_tee(device, 0);
-    if (status < 0) error_list.push_back(fmt::format("Failed to disable bias tee ({})", status));
-    status = rtlsdr_reset_buffer(device);
-    if (status < 0) error_list.push_back(fmt::format("Failed to reset buffer ({})", status));
+    status = rtlsdr_set_bias_tee(m_device, 0);
+    if (status < 0) m_error_list.push_back(fmt::format("Failed to disable bias tee ({})", status));
+    status = rtlsdr_reset_buffer(m_device);
+    if (status < 0) m_error_list.push_back(fmt::format("Failed to reset buffer ({})", status));
 
-    runner_thread = std::make_unique<std::thread>([this]() {
-        const int status = rtlsdr_read_async(
-            device, 
+    m_runner_thread = std::make_unique<std::thread>([this]() {
+        const int status_read = rtlsdr_read_async(
+            m_device, 
             &Device::rtlsdr_callback, reinterpret_cast<void*>(this), 
-            0, block_size
+            0, m_block_size
         );
-        fprintf(stderr, "[device] rtlsdr_read_sync exited with %d\n", status);
+        fprintf(stderr, "[device] rtlsdr_read_sync exited with %d\n", status_read);
     });
 }
 
@@ -43,30 +42,30 @@ Device::~Device() {
     //        2. Driver goes into an infinite loop
     //        3. runner_thread doesn't exit and destructor is stuck at thread join
     //        4. It works but rtlsdr_read_async returns a negative status code
-    runner_thread->join();
-    rtlsdr_close(device);
-    device = nullptr;
+    m_runner_thread->join();
+    rtlsdr_close(m_device);
+    m_device = nullptr;
 }
 
 void Device::Close() {
-    is_running = false;
-    rtlsdr_cancel_async(device);
+    m_is_running = false;
+    rtlsdr_cancel_async(m_device);
 }
 
 void Device::SetAutoGain(void) {
-    const int status = rtlsdr_set_tuner_gain_mode(device, 0);
+    const int status = rtlsdr_set_tuner_gain_mode(m_device, 0);
     if (status < 0) {
-        error_list.push_back(fmt::format("Failed to set tuner gain mode to automatic ({})", status));
+        m_error_list.push_back(fmt::format("Failed to set tuner gain mode to automatic ({})", status));
         return;
     }
-    is_gain_manual = false;
-    selected_gain = 0.0f;
+    m_is_gain_manual = false;
+    m_selected_gain = 0.0f;
 }
 
 void Device::SetNearestGain(const float target_gain) {
     float min_err = 10000.0f;
     float nearest_gain = 0.0f;
-    for (auto& gain: gain_list) {
+    for (auto& gain: m_gain_list) {
         const float err = std::abs(gain-target_gain);
         if (err < min_err) {
             min_err = err;
@@ -79,24 +78,24 @@ void Device::SetNearestGain(const float target_gain) {
 void Device::SetGain(const float gain) {
     const int qgain = static_cast<int>(gain*10.0f);
     int status = 0;
-    status = rtlsdr_set_tuner_gain_mode(device, 1);
+    status = rtlsdr_set_tuner_gain_mode(m_device, 1);
     if (status < 0) {
-        error_list.push_back(fmt::format("Failed to set tuner gain mode to manual ({})", status));
+        m_error_list.push_back(fmt::format("Failed to set tuner gain mode to manual ({})", status));
         return;
     }
-    status = rtlsdr_set_tuner_gain(device, qgain);
+    status = rtlsdr_set_tuner_gain(m_device, qgain);
     if (status < 0) {
-        error_list.push_back(fmt::format("Failed to set manual gain to {:.1f}dB ({})", gain, status));
+        m_error_list.push_back(fmt::format("Failed to set manual gain to {:.1f}dB ({})", gain, status));
         return;
     }
-    is_gain_manual = true;
-    selected_gain = gain;
+    m_is_gain_manual = true;
+    m_selected_gain = gain;
 }
 
 void Device::SetSamplingFrequency(const uint32_t freq) {
-    const int status = rtlsdr_set_sample_rate(device, freq);
+    const int status = rtlsdr_set_sample_rate(m_device, freq);
     if (status < 0) {
-        error_list.push_back(fmt::format("Failed to set sampling frequency to {} Hz ({})", freq, status));
+        m_error_list.push_back(fmt::format("Failed to set sampling frequency to {} Hz ({})", freq, status));
         return;
     }
 }
@@ -106,41 +105,41 @@ void Device::SetCenterFrequency(const uint32_t freq) {
 }
 
 void Device::SetCenterFrequency(const std::string& label, const uint32_t freq) {
-    if (callback_on_center_frequency != nullptr) {
-        callback_on_center_frequency(label, freq);
+    if (m_callback_on_center_frequency != nullptr) {
+        m_callback_on_center_frequency(label, freq);
     }
-    const int status = rtlsdr_set_center_freq(device, freq);
+    const int status = rtlsdr_set_center_freq(m_device, freq);
     if (status < 0) {
-        error_list.push_back(fmt::format("Failed to set center frequency to {}@{}Hz ({})", label, freq, status));
+        m_error_list.push_back(fmt::format("Failed to set center frequency to {}@{}Hz ({})", label, freq, status));
         // Resend notification with original frequency
-        if (callback_on_center_frequency != nullptr) {
-            callback_on_center_frequency(selected_frequency_label, selected_frequency);
+        if (m_callback_on_center_frequency != nullptr) {
+            m_callback_on_center_frequency(m_selected_frequency_label, m_selected_frequency);
         }
         return;
     }
-    selected_frequency_label = label;
-    selected_frequency = freq;
+    m_selected_frequency_label = label;
+    m_selected_frequency = freq;
 }
 
 void Device::SearchGains(void) {
-    const int total_gains = rtlsdr_get_tuner_gains(device, NULL);
+    const int total_gains = rtlsdr_get_tuner_gains(m_device, NULL);
     if (total_gains <= 0) {
         return;
     }
     auto qgains = std::vector<int>(size_t(total_gains));
-    gain_list.resize(size_t(total_gains));
-    rtlsdr_get_tuner_gains(device, qgains.data());
+    m_gain_list.resize(size_t(total_gains));
+    rtlsdr_get_tuner_gains(m_device, qgains.data());
     for (size_t i = 0; i < size_t(total_gains); i++) {
         const int qgain = qgains[i];
         const float gain = static_cast<float>(qgain) * 0.1f;
-        gain_list[i] = gain;
+        m_gain_list[i] = gain;
     }
 }
 
 void Device::OnData(tcb::span<const uint8_t> buf) {
-    if (!is_running) return;
-    if (callback_on_data == nullptr) return;
-    const size_t total_bytes = callback_on_data(buf);
+    if (!m_is_running) return;
+    if (m_callback_on_data == nullptr) return;
+    const size_t total_bytes = m_callback_on_data(buf);
     if (total_bytes != buf.size()) {
         fprintf(stderr, "Short write, samples lost, %zu/%zu, shutting down device!\n", total_bytes, buf.size());
         Close();

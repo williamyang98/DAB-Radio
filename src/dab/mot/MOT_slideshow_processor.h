@@ -14,14 +14,15 @@ enum class MOT_Slideshow_Alert {
 class MOT_Slideshow_Processor
 {
 public:
+    MOT_Slideshow_Processor() = delete;
     // id, buf[N] represents a slideshow specific header extension parameter
-    bool ProcessHeaderExtension(MOT_Slideshow& entity, const uint8_t id, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension(MOT_Slideshow& entity, const uint8_t id, tcb::span<const uint8_t> buf);
 private:
-    bool ProcessHeaderExtension_CategoryID_SlideID(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
-    bool ProcessHeaderExtension_CategoryTitle(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
-    bool ProcessHeaderExtension_ClickThroughURL(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
-    bool ProcessHeaderExtension_AlternativeLocationURL(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
-    bool ProcessHeaderExtension_Alert(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension_CategoryID_SlideID(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension_CategoryTitle(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension_ClickThroughURL(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension_AlternativeLocationURL(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
+    static bool ProcessHeaderExtension_Alert(MOT_Slideshow& entity, tcb::span<const uint8_t> buf);
 };
 
 struct MOT_Slideshow {

@@ -59,7 +59,7 @@ struct EnsembleIdentifier {
 // A FIB (fast information block) contains many FIGs (fast information groups)
 void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
     // Dont do anything if we don't have an associated handler
-    if (handler == NULL) {
+    if (m_handler == NULL) {
         return;
     }
 
@@ -260,7 +260,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
         change_flags, alarm_flag,
         cif_upper, cif_lower);
     
-    handler->OnEnsemble_1_ID(
+    m_handler->OnEnsemble_1_ID(
         eid.country_id, eid.ensemble_reference,
         change_flags, alarm_flag, 
         cif_upper, cif_lower);
@@ -307,7 +307,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
                 subchannel_id, start_address, is_long_form,
                 table_switch, table_index);
 
-            handler->OnSubchannel_1_Short(
+            m_handler->OnSubchannel_1_Short(
                 subchannel_id, start_address,
                 table_switch, table_index);
         // process long form
@@ -324,7 +324,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
                 subchannel_id, start_address, is_long_form,
                 option, prot_level, subchannel_size);
 
-            handler->OnSubchannel_1_Long(
+            m_handler->OnSubchannel_1_Long(
                 subchannel_id, start_address,
                 option, prot_level, subchannel_size);
         }
@@ -405,7 +405,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                         tmid, 
                         ASTCy, subchannel_id, is_primary, ca_flag);
                     
-                    handler->OnServiceComponent_1_StreamAudioType(
+                    m_handler->OnServiceComponent_1_StreamAudioType(
                         sid.country_id, sid.service_reference, sid.ecc,
                         subchannel_id, ASTCy, is_primary);
                 }
@@ -424,7 +424,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                         tmid, 
                         DSCTy, subchannel_id, is_primary, ca_flag);
                     
-                    handler->OnServiceComponent_1_StreamDataType(
+                    m_handler->OnServiceComponent_1_StreamDataType(
                         sid.country_id, sid.service_reference, sid.ecc,
                         subchannel_id, DSCTy, is_primary);
                 }
@@ -445,7 +445,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
                         tmid, 
                         SCId, is_primary, ca_flag);
 
-                    handler->OnServiceComponent_1_PacketDataType(
+                    m_handler->OnServiceComponent_1_PacketDataType(
                         sid.country_id, sid.service_reference, sid.ecc,
                         SCId, is_primary);
                 }
@@ -517,7 +517,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_3(
             SCId, rfa, CAOrg_flag, dg_flag, rfu, DSCTy, 
             subchannel_id, packet_address, CAOrg);
         
-        handler->OnServiceComponent_2_PacketDataType(
+        m_handler->OnServiceComponent_2_PacketDataType(
             SCId, subchannel_id, DSCTy, packet_address);
         
         curr_byte += nb_data_length;
@@ -551,7 +551,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_4(
             i, nb_components,
             rfa, rfu, subchannel_id, CAOrg);
         
-        handler->OnServiceComponent_2_StreamConditionalAccess(
+        m_handler->OnServiceComponent_2_StreamConditionalAccess(
             subchannel_id, CAOrg);
     }
 }
@@ -587,7 +587,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
                 LS, 
                 Rfu, subchannel_id, language);
 
-            handler->OnServiceComponent_3_Short_Language(
+            m_handler->OnServiceComponent_3_Short_Language(
                 subchannel_id, language);
         // long form
         } else {
@@ -600,7 +600,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
                 LS, 
                 Rfa, SCId, language);
 
-            handler->OnServiceComponent_3_Long_Language(
+            m_handler->OnServiceComponent_3_Long_Language(
                 SCId, language); 
         }
 
@@ -643,7 +643,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                 header.pd,
                 id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number);
             
-            handler->OnServiceLinkage_1_LSN_Only(
+            m_handler->OnServiceLinkage_1_LSN_Only(
                 is_active_link, is_hard_link, is_international, 
                 linkage_set_number);
             
@@ -702,7 +702,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             sid.country_id, sid.service_reference, sid.ecc);
 
-                        handler->OnServiceLinkage_1_ServiceID(
+                        m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -720,7 +720,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             rds_pi_code);
                         
-                        handler->OnServiceLinkage_1_RDS_PI_ID(
+                        m_handler->OnServiceLinkage_1_RDS_PI_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, rds_pi_code);
                     }
@@ -737,7 +737,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             drm_id);
                         
-                        handler->OnServiceLinkage_1_DRM_ID(
+                        m_handler->OnServiceLinkage_1_DRM_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -781,7 +781,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             sid.country_id, sid.service_reference, sid.ecc);
                         
-                        handler->OnServiceLinkage_1_ServiceID(
+                        m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number,
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -799,7 +799,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             rds_pi_code, ecc);
                         
-                        handler->OnServiceLinkage_1_RDS_PI_ID(
+                        m_handler->OnServiceLinkage_1_RDS_PI_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             rds_pi_code, ecc);
@@ -818,7 +818,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             drm_id);
                         
-                        handler->OnServiceLinkage_1_DRM_ID(
+                        m_handler->OnServiceLinkage_1_DRM_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -858,7 +858,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             sid.country_id, sid.service_reference, sid.ecc);
                         
-                        handler->OnServiceLinkage_1_ServiceID(
+                        m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
                             sid.country_id, sid.service_reference, sid.ecc);
@@ -882,7 +882,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             rds_pi_code);
                         
-                        handler->OnServiceLinkage_1_RDS_PI_ID(
+                        m_handler->OnServiceLinkage_1_RDS_PI_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, rds_pi_code);
                     }
@@ -902,7 +902,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
                             i, nb_ids,
                             drm_id);
                         
-                        handler->OnServiceLinkage_1_DRM_ID(
+                        m_handler->OnServiceLinkage_1_DRM_ID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, drm_id);
                     }
@@ -940,7 +940,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_7(
     LOG_MESSAGE("fig 0/7 total_services={} reconfiguration_count={}",
         nb_services, reconfiguration_count);
     
-    handler->OnConfigurationInformation_1(
+    m_handler->OnConfigurationInformation_1(
         nb_services, reconfiguration_count);
 }
 
@@ -1007,7 +1007,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfu0, subchannel_id, rfa2);
             
-            handler->OnServiceComponent_4_Short_Definition(
+            m_handler->OnServiceComponent_4_Short_Definition(
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, subchannel_id);
         } else {
@@ -1021,7 +1021,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfa1, SCId, rfa2);
             
-            handler->OnServiceComponent_4_Long_Definition(
+            m_handler->OnServiceComponent_4_Long_Definition(
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, SCId);
         }
@@ -1080,7 +1080,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
         LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={:02X} inter_table_id={}",
             ext_flag, Rfa1, ensemble_lto, ensemble_ecc, inter_table_id);
         
-        handler->OnEnsemble_2_Country(
+        m_handler->OnEnsemble_2_Country(
             ensemble_lto, ensemble_ecc, inter_table_id);
         return;
     }
@@ -1128,7 +1128,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
                 curr_subfield, i, nb_services,
                 sid.country_id, sid.service_reference, sid.ecc);
             
-            handler->OnEnsemble_2_Service_Country(
+            m_handler->OnEnsemble_2_Service_Country(
                 ensemble_lto, ensemble_ecc, inter_table_id,
                 sid.country_id, sid.service_reference, sid.ecc);
         }
@@ -1189,7 +1189,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
         LSI, Rfa0, UTC,
         hours, minutes, seconds, milliseconds);
     
-    handler->OnDateTime_1(
+    m_handler->OnDateTime_1(
         MJD, hours, minutes, seconds, milliseconds,
         LSI, UTC);
 }
@@ -1264,7 +1264,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
                 user_app_type, nb_app_data_bytes);
 
             auto* app_data_buf = (nb_app_data_bytes > 0) ? &app_buf[nb_app_header_bytes] : NULL;
-            handler->OnServiceComponent_5_UserApplication(
+            m_handler->OnServiceComponent_5_UserApplication(
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, 
                 user_app_type, app_data_buf, nb_app_data_bytes);
@@ -1293,7 +1293,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_14(
             i, N,
             subchannel_id, fec);
         
-        handler->OnSubchannel_2_FEC(
+        m_handler->OnSubchannel_2_FEC(
             subchannel_id, fec);
     }
 }
@@ -1382,7 +1382,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
             international_code,
             language_type, cc_type);
         
-        handler->OnService_1_ProgrammeType(
+        m_handler->OnService_1_ProgrammeType(
             sid.country_id, sid.service_reference, sid.ecc, 
             international_code, language_type, cc_type,
             language_flag, cc_flag);
@@ -1487,7 +1487,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             eid.country_id, eid.ensemble_reference,
                             is_geographically_adjacent, is_transmission_mode_I,
                             (float)(alt_freq)*1e-6f);
-                        handler->OnFrequencyInformation_1_Ensemble(
+                        m_handler->OnFrequencyInformation_1_Ensemble(
                             eid.country_id, eid.ensemble_reference, 
                             alt_freq, 
                             is_continuous_output,
@@ -1512,7 +1512,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             Rfa0, RM, is_time_compensated, 
                             rds_pi_code,
                             (float)(alt_freq)*1e-6f);
-                        handler->OnFrequencyInformation_1_RDS_PI(
+                        m_handler->OnFrequencyInformation_1_RDS_PI(
                             rds_pi_code, alt_freq, is_time_compensated);
                     }
                 }
@@ -1548,7 +1548,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             drm_id, (float)(alt_freq)*1e-6f);
-                        handler->OnFrequencyInformation_1_DRM(
+                        m_handler->OnFrequencyInformation_1_DRM(
                             drm_id, alt_freq, is_time_compensated);
                     }
                 }
@@ -1581,7 +1581,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, is_time_compensated, 
                             amss_id, (float)(alt_freq)*1e-6f);
-                        handler->OnFrequencyInformation_1_AMSS(
+                        m_handler->OnFrequencyInformation_1_AMSS(
                             amss_id, alt_freq, is_time_compensated);
                     }
                 }
@@ -1653,7 +1653,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
                 Rfa, CAId, i, nb_EIds,
                 eid.country_id, eid.ensemble_reference);
             
-            handler->OnOtherEnsemble_1_Service(
+            m_handler->OnOtherEnsemble_1_Service(
                 sid.country_id, sid.service_reference, sid.ecc,
                 eid.country_id, eid.ensemble_reference);
         }
@@ -1695,7 +1695,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
         flag_field,
         std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
     
-    handler->OnEnsemble_3_Label(
+    m_handler->OnEnsemble_3_Label(
         eid.country_id, eid.ensemble_reference,
         flag_field, {char_buf, (size_t)nb_char_bytes});
 }
@@ -1732,7 +1732,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
         flag_field,
         std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
 
-    handler->OnService_2_Label(
+    m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field, {char_buf, (size_t)nb_char_bytes});
 }
@@ -1789,7 +1789,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
         flag_field,
         std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
 
-    handler->OnServiceComponent_6_Label(
+    m_handler->OnServiceComponent_6_Label(
         sid.country_id, sid.service_reference, sid.ecc,
         SCIdS, 
         flag_field, {char_buf, (size_t)nb_char_bytes});
@@ -1827,7 +1827,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(
         flag_field,
         std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
     
-    handler->OnService_2_Label(
+    m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
         flag_field, {char_buf, (size_t)nb_char_bytes});
 }

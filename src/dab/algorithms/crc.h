@@ -11,30 +11,30 @@
 template <typename T>
 class CRC_Calculator {
 private:
-    T* lut;
-    const T G;
+    T* m_lut;
+    const T m_G;
     // Different CRC implementations have a non-zero initial register state
     // Additionally the CRC result may be XORed with a value prior to transmission
-    T initial_value = 0u;   
-    T final_xor_value = 0u;
+    T m_initial_value = 0u;   
+    T m_final_xor_value = 0u;
 public:
     // Generator polynomial without leading coefficient (msb left)
-    CRC_Calculator(const T _G): G(_G) {
-        lut = CRC_Calculator<T>::GenerateTable(G);
+    CRC_Calculator(const T G): m_G(G) {
+        m_lut = CRC_Calculator<T>::GenerateTable(m_G);
     }
     T Process(tcb::span<const uint8_t> x) {
-        T crc = initial_value;
+        T crc = m_initial_value;
         const size_t shift = (sizeof(T)-1)*8;
         const size_t N = x.size();
         for (size_t i = 0; i < N; i++) {
             crc = crc ^ ((T)(x[i]) << shift);
             uint8_t lut_idx = (crc >> shift) & 0xFF;
-            crc = (crc << 8) ^ lut[lut_idx];
+            crc = (crc << 8) ^ m_lut[lut_idx];
         }
-        return crc ^ final_xor_value;
+        return crc ^ m_final_xor_value;
     }
-    inline void SetInitialValue(const T x) { initial_value = x; }
-    inline void SetFinalXORValue(const T x) { final_xor_value = x; }
+    inline void SetInitialValue(const T x) { m_initial_value = x; }
+    inline void SetFinalXORValue(const T x) { m_final_xor_value = x; }
 private:
     static T* GenerateTable(const T G) {
         // Global lut for CRC lookup tables for all CRC polynomials

@@ -10,9 +10,9 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 constexpr static MOT_Data_Type VALID_DATA_TYPES[] = {
-    ECM_EMM_DATA, HEADER, 
-    UNSCRAMBLED_BODY, SCRAMBLED_BODY, 
-    UNCOMPRESSED_DIRECTORY, COMPRESSED_DIRECTORY
+    MOT_Data_Type::ECM_EMM_DATA, MOT_Data_Type::HEADER, 
+    MOT_Data_Type::UNSCRAMBLED_BODY, MOT_Data_Type::SCRAMBLED_BODY, 
+    MOT_Data_Type::UNCOMPRESSED_DIRECTORY, MOT_Data_Type::COMPRESSED_DIRECTORY
 };
 constexpr static int TOTAL_VALID_DATA_TYPES = sizeof(VALID_DATA_TYPES) / sizeof(MOT_Data_Type);
 
@@ -26,7 +26,7 @@ static bool ValidateDataType(const MOT_Data_Type type) {
 }
 
 MOT_Processor::MOT_Processor(const int max_transport_objects)
-: assembler_tables(max_transport_objects) 
+: m_assembler_tables(max_transport_objects) 
 {
 
 }
@@ -77,7 +77,7 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb:
 }
 
 MOT_Assembler_Table& MOT_Processor::GetAssemblerTable(const mot_transport_id_t transport_id) {
-    return assembler_tables.emplace(transport_id);
+    return m_assembler_tables.emplace(transport_id);
 }
 
 MOT_Assembler& MOT_Processor::GetAssembler(MOT_Assembler_Table& table, const MOT_Data_Type type) {
@@ -131,7 +131,7 @@ bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
     LOG_MESSAGE("Completed a MOT header entity with header={} body={} tid={}",
         entity.header.header_size, entity.header.body_size,
         entity.transport_id);
-    obs_on_entity_complete.Notify(entity);
+    m_obs_on_entity_complete.Notify(entity);
     return true;
 }
 

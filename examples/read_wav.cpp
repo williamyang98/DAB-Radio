@@ -28,7 +28,7 @@ struct WavHeader {
     // Subchunk 2 = data 
     char     Subchunk2ID[4];
     int32_t  Subchunk2Size;
-} header;
+};
 
 static bool validate_wav_header(WavHeader& header);
 

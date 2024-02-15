@@ -20,7 +20,7 @@
 //   7  | Compressed MOT directory
 //   1  | ECM/EMM data (conditional access)
 //   5  | Scrambled MOT body (conditional access)
-enum MOT_Data_Type: uint8_t {
+enum class MOT_Data_Type: uint8_t {
     ECM_EMM_DATA = 1,
     HEADER = 3,
     UNSCRAMBLED_BODY = 4,
@@ -48,14 +48,14 @@ private:
     // Clause 5.3.2.1: Interleaving MOT entities in one MOT stream 
     // NOTE: In MOT directory mode we can encounter multiple parallel transport ids
     //       We use an LRU queue to forget entries that are no longer updated
-    LRU_Cache<mot_transport_id_t, MOT_Assembler_Table> assembler_tables;
+    LRU_Cache<mot_transport_id_t, MOT_Assembler_Table> m_assembler_tables;
 
     // args: entity update
-    Observable<MOT_Entity> obs_on_entity_complete;
+    Observable<MOT_Entity> m_obs_on_entity_complete;
 public:
     MOT_Processor(const int max_transport_objects=10);
     void Process_Segment(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf);
-    auto& OnEntityComplete(void) { return obs_on_entity_complete; }
+    auto& OnEntityComplete(void) { return m_obs_on_entity_complete; }
 private:
     MOT_Assembler_Table& GetAssemblerTable(const mot_transport_id_t transport_id);
     MOT_Assembler& GetAssembler(MOT_Assembler_Table& table, const MOT_Data_Type type);

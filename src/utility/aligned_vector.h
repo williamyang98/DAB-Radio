@@ -11,40 +11,40 @@ template <typename T>
 class AlignedVector 
 {
 private:
-    T* buf;
-    size_t len;
-    size_t align;
+    T* m_buf;
+    size_t m_len;
+    size_t m_align;
 public:
-    explicit AlignedVector(const size_t _len=0, const size_t _align=32) {
+    explicit AlignedVector(const size_t len=0, const size_t align=32) {
         // Cannot align to zero bytes
-        assert(_align != 0u);
-        len = _len;
-        align = _align;
-        buf = NULL;
-        const size_t total_bytes = len*sizeof(T);
-        if (len > 0) {
-            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
+        assert(align != 0u);
+        m_len = len;
+        m_align = align;
+        m_buf = NULL;
+        const size_t total_bytes = m_len*sizeof(T);
+        if (m_len > 0) {
+            m_buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(m_align)));
         }
     }
 
     ~AlignedVector() {
-        if (buf != NULL) {
-            operator delete[](buf, std::align_val_t(align));
+        if (m_buf != NULL) {
+            operator delete[](m_buf, std::align_val_t(m_align));
         }
-        len = 0;
-        align = 0;
-        buf = NULL;
+        m_len = 0;
+        m_align = 0;
+        m_buf = NULL;
     }
 
     AlignedVector<T>(const AlignedVector<T>& other) {
-        len = other.size();
-        align = other.alignment();
-        buf = NULL;
+        m_len = other.size();
+        m_align = other.alignment();
+        m_buf = NULL;
 
-        const size_t total_bytes = len*sizeof(T);
-        if (len > 0) {
-            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
-            std::memcpy(buf, other.data(), total_bytes);
+        const size_t total_bytes = m_len*sizeof(T);
+        if (m_len > 0) {
+            m_buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(m_align)));
+            std::memcpy(m_buf, other.data(), total_bytes);
         }
     };
 
@@ -53,31 +53,31 @@ public:
             return *this;
         }
 
-        if (buf != NULL) {
-            operator delete[](buf, std::align_val_t(align));
+        if (m_buf != NULL) {
+            operator delete[](m_buf, std::align_val_t(m_align));
         }
 
-        len = other.size();
-        align = other.alignment();
-        buf = NULL;
+        m_len = other.size();
+        m_align = other.alignment();
+        m_buf = NULL;
 
-        const size_t total_bytes = len*sizeof(T);
-        if (len > 0) {
-            buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(align)));
-            std::memcpy(buf, other.data(), total_bytes);
+        const size_t total_bytes = m_len*sizeof(T);
+        if (m_len > 0) {
+            m_buf = reinterpret_cast<T*>(operator new[](total_bytes, std::align_val_t(m_align)));
+            std::memcpy(m_buf, other.data(), total_bytes);
         }
 
         return *this;
     }
 
     AlignedVector<T>(AlignedVector<T>&& other) {
-        len = other.len;
-        align = other.align;
-        buf = other.buf;
+        m_len = other.m_len;
+        m_align = other.m_align;
+        m_buf = other.m_buf;
 
-        other.len = 0;
-        other.align = 0;
-        other.buf = NULL;
+        other.m_len = 0;
+        other.m_align = 0;
+        other.m_buf = NULL;
     }
 
     AlignedVector<T>& operator=(AlignedVector<T>&& other) {
@@ -85,34 +85,34 @@ public:
             return *this;
         }
 
-        if (buf != NULL) {
-            operator delete[](buf, std::align_val_t(align));
+        if (m_buf != NULL) {
+            operator delete[](m_buf, std::align_val_t(m_align));
         }
 
-        len = other.len;
-        align = other.align;
-        buf = other.buf;
+        m_len = other.m_len;
+        m_align = other.m_align;
+        m_buf = other.m_buf;
 
-        other.len = 0;
-        other.align = 0;
-        other.buf = NULL;
+        other.m_len = 0;
+        other.m_align = 0;
+        other.m_buf = NULL;
 
         return *this;
     };
 
     inline
     T& operator[](size_t index) {
-        return buf[index];
+        return m_buf[index];
     }
 
     inline
     const T& operator[](size_t index) const {
-        return buf[index];
+        return m_buf[index];
     }
 
-    auto begin() const { return buf; }
-    auto end() const { return &buf[len]; }
-    auto size() const { return len; }
-    auto data() const { return buf; }
-    auto alignment() const { return align; }
+    auto begin() const { return m_buf; }
+    auto end() const { return &m_buf[m_len]; }
+    auto size() const { return m_len; }
+    auto data() const { return m_buf; }
+    auto alignment() const { return m_align; }
 };

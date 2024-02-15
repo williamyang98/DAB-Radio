@@ -48,7 +48,6 @@ void RenderSourceBuffer(tcb::span<const std::complex<float>> buf_raw)
 
 void RenderControls(OFDM_Demod& demod) {
     auto& cfg = demod.GetConfig();
-    auto params = demod.GetOFDMParams();
 
     if (ImGui::Begin("Controls")) {
         if (ImGui::Button("Reset")) {
@@ -194,7 +193,7 @@ void RenderDemodulatedSymbols(OFDM_Demod& demod) {
                 static auto bits_error = std::vector<viterbi_bit_t>();
                 bits_error.resize(nb_data_carriers);
 
-                for (int i = 0; i < nb_data_carriers; i++) {
+                for (size_t i = 0; i < nb_data_carriers; i++) {
                     bits_error[i] = std::abs(real_bits[i]) - std::abs(imag_bits[i]);
                 }
 
@@ -326,7 +325,6 @@ void RenderMagnitudeSpectrum(OFDM_Demod& demod) {
     // NOTE: We are calculating the magnitude spectrum in the GUI thread because
     //       the ofdm demodulation process doesn't need this
     if (ImGui::Begin("Data symbol spectrum")) {
-        const auto params = demod.GetOFDMParams();
         const int total_symbols = (int)params.nb_frame_symbols;
 
         static int symbol_index = 0;
@@ -355,11 +353,11 @@ void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<
     const size_t N = fft_buf.size();
     const size_t M = N/2;
     // F/2 <= f < 0 
-    for (int i = 0; i < M; i++) {
+    for (size_t i = 0; i < M; i++) {
         mag_buf[i] = scale*std::log10(std::abs(fft_buf[i+M]));
     }
     // 0 <= f < F/2 
-    for (int i = 0; i < M; i++) {
+    for (size_t i = 0; i < M; i++) {
         mag_buf[i+M] = scale*std::log10(std::abs(fft_buf[i]));
     }
 }

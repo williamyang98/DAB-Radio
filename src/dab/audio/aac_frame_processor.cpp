@@ -103,17 +103,17 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     // The Phil Karn reed solmon decoder works with the 2^8 Galois field
     // Therefore we need to use the RS(255,245) decoder
     // As according to the spec we should insert 135 padding symbols (bytes)
-    rs_decoder = std::make_unique<Reed_Solomon_Decoder>(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
-    rs_encoded_buf.resize(NB_RS_MESSAGE_BYTES, 0);
+    m_rs_decoder = std::make_unique<Reed_Solomon_Decoder>(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
+    m_rs_encoded_buf.resize(NB_RS_MESSAGE_BYTES, 0);
     // Reed solomon code can correct up to floor(t/2) symbols that were wrong
     // where t = the number of parity symbols
-    rs_error_positions.resize(NB_RS_PARITY_BYTES, 0);
+    m_rs_error_positions.resize(NB_RS_PARITY_BYTES, 0);
 
-    state = State::WAIT_FRAME_START;
-    curr_dab_frame = 0;
-    prev_nb_dab_frame_bytes = 0;
-    is_synced_superframe = false;
-    nb_desync_count = 0;
+    m_state = State::WAIT_FRAME_START;
+    m_curr_dab_frame = 0;
+    m_prev_nb_dab_frame_bytes = 0;
+    m_is_synced_superframe = false;
+    m_nb_desync_count = 0;
 }
 
 AAC_Frame_Processor::~AAC_Frame_Processor() = default;
@@ -131,43 +131,43 @@ void AAC_Frame_Processor::Process(tcb::span<const uint8_t> buf) {
     }
 
     // If the buffer size changed reset our accumulated DAB logical frames
-    if (prev_nb_dab_frame_bytes != N) {
-        if (prev_nb_dab_frame_bytes != 0) {
-            LOG_ERROR("Unexpected resize of DAB logical frame %d!=%d", prev_nb_dab_frame_bytes, N);
+    if (m_prev_nb_dab_frame_bytes != N) {
+        if (m_prev_nb_dab_frame_bytes != 0) {
+            LOG_ERROR("Unexpected resize of DAB logical frame %d!=%d", m_prev_nb_dab_frame_bytes, N);
         }
-        prev_nb_dab_frame_bytes = N;
-        super_frame_buf.resize(TOTAL_DAB_FRAMES*N);
-        curr_dab_frame = 0;
-        state = State::WAIT_FRAME_START;
+        m_prev_nb_dab_frame_bytes = N;
+        m_super_frame_buf.resize(m_TOTAL_DAB_FRAMES*N);
+        m_curr_dab_frame = 0;
+        m_state = State::WAIT_FRAME_START;
     }
 
     // if our superframes fail validation too many times
     // then we resort to waiting for the firecode to be valid
-    if (nb_desync_count >= nb_desync_max_count) {
-        nb_desync_count = 0;
-        is_synced_superframe = false;
+    if (m_nb_desync_count >= m_nb_desync_max_count) {
+        m_nb_desync_count = 0;
+        m_is_synced_superframe = false;
     }
 
     // if we are synced to the superframe
     // then skip non reed solomon corrected firecode search
-    if (is_synced_superframe) {
-        state = State::COLLECT_FRAMES;
+    if (m_is_synced_superframe) {
+        m_state = State::COLLECT_FRAMES;
     }
 
-    if (state == State::WAIT_FRAME_START) {
+    if (m_state == State::WAIT_FRAME_START) {
         if (!CalculateFirecode(buf)) {
             return;
         }
-        state = State::COLLECT_FRAMES;
+        m_state = State::COLLECT_FRAMES;
     }
 
     AccumulateFrame(buf);
-    curr_dab_frame++;
+    m_curr_dab_frame++;
 
-    if (curr_dab_frame == TOTAL_DAB_FRAMES) {
+    if (m_curr_dab_frame == m_TOTAL_DAB_FRAMES) {
         ProcessSuperFrame(N);
-        state = State::WAIT_FRAME_START;
-        curr_dab_frame = 0;
+        m_state = State::WAIT_FRAME_START;
+        m_curr_dab_frame = 0;
     }
 }
 
@@ -179,7 +179,7 @@ bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
     LOG_MESSAGE("[crc16] [firecode] is_match={} got={:04X} calc={:04X}", is_valid, crc_rx, crc_pred);
 
     if (!is_valid) {
-        obs_firecode_error.Notify(curr_dab_frame, crc_rx, crc_pred);
+        m_obs_firecode_error.Notify(m_curr_dab_frame, crc_rx, crc_pred);
     }
 
     return is_valid;
@@ -187,35 +187,35 @@ bool AAC_Frame_Processor::CalculateFirecode(tcb::span<const uint8_t> buf) {
 
 void AAC_Frame_Processor::AccumulateFrame(tcb::span<const uint8_t> buf) {
     const size_t N = buf.size();
-    auto dst_buf = tcb::span(super_frame_buf).subspan(curr_dab_frame*N, N);
+    auto dst_buf = tcb::span(m_super_frame_buf).subspan(m_curr_dab_frame*N, N);
     for (size_t i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
     }
 }
 
 void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
-    const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*TOTAL_DAB_FRAMES;
+    const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*m_TOTAL_DAB_FRAMES;
     const int N = nb_rs_super_frame_bytes/NB_RS_MESSAGE_BYTES;
 
     if (!ReedSolomonDecode(nb_dab_frame_bytes)) {
-        nb_desync_count++;
+        m_nb_desync_count++;
         return;
     }
 
-    if (!CalculateFirecode(super_frame_buf)) {
-        nb_desync_count++;
+    if (!CalculateFirecode(m_super_frame_buf)) {
+        m_nb_desync_count++;
         return;
     }
 
     // if validated, reset resynchronisation counter
-    nb_desync_count = 0;
-    is_synced_superframe = true;
+    m_nb_desync_count = 0;
+    m_is_synced_superframe = true;
 
     // Decode audio superframe header
     // DOC: ETSI TS 102 563
     // Clause 5.2: Audio super framing syntax 
     // Table 2: Syntax of he_aac_super_frame_header() 
-    auto& buf = super_frame_buf;
+    auto& buf = m_super_frame_buf;
     int curr_byte = 0;
     // TODO: We can fix firecode using ECC properties
     // const uint16_t firecode = (buf[0] << 8) | (buf[1]);
@@ -257,7 +257,7 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         break;
     }
 
-    obs_superframe_header.Notify(super_frame_header);
+    m_obs_superframe_header.Notify(super_frame_header);
     LOG_MESSAGE("AAC decoder parameters: sampling_rate={}Hz PS={} SBR={} stereo={}", 
         sampling_rate, ps_flag, sbr_flag, is_stereo);
 
@@ -301,16 +301,16 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         LOG_MESSAGE("[crc16] au={} is_match={} crc_pred={:04X} crc_rx={:04X}", i, is_crc_valid, crc_pred, crc_rx);
 
         if (!is_crc_valid) {
-            obs_au_crc_error.Notify(i, num_aus, crc_rx, crc_pred);
+            m_obs_au_crc_error.Notify(i, num_aus, crc_rx, crc_pred);
             continue;
         }
 
-        obs_access_unit.Notify(i, num_aus, data_buf);
+        m_obs_access_unit.Notify(i, num_aus, data_buf);
     }
 }
 
 bool AAC_Frame_Processor::ReedSolomonDecode(const int nb_dab_frame_bytes) {
-    const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*TOTAL_DAB_FRAMES;
+    const int nb_rs_super_frame_bytes = nb_dab_frame_bytes*m_TOTAL_DAB_FRAMES;
     const int N = nb_rs_super_frame_bytes/NB_RS_MESSAGE_BYTES;
 
     // DOC: ETSI TS 102 563
@@ -322,29 +322,29 @@ bool AAC_Frame_Processor::ReedSolomonDecode(const int nb_dab_frame_bytes) {
     for (int i = 0; i < N; i++) {
         // Interleave for decoding
         for (int j = 0; j < NB_RS_MESSAGE_BYTES; j++) {
-            rs_encoded_buf[j] = super_frame_buf[i + j*N];
+            m_rs_encoded_buf[j] = m_super_frame_buf[i + j*N];
         }
-        const int error_count = rs_decoder->Decode(
-            rs_encoded_buf.data(), rs_error_positions.data(), 0);
+        const int error_count = m_rs_decoder->Decode(
+            m_rs_encoded_buf.data(), m_rs_error_positions.data(), 0);
 
         LOG_MESSAGE("[reed-solomon] index={}/{} error_count={}", i, N, error_count);
         // rs decoder returns -1 to indicate too many errors
         if (error_count < 0) {
             LOG_ERROR("Too many errors for reed solomon to correct");
-            obs_rs_error.Notify(i, N);
+            m_obs_rs_error.Notify(i, N);
             return false;
         }
         // correct any errors
         for (int j = 0; j < error_count; j++) {
             // NOTE: Phil Karn's reed solmon decoder returns the position of errors 
             // with the amount of padding added onto it
-            const int k = rs_error_positions[j] - NB_RS_PADDING_BYTES;
+            const int k = m_rs_error_positions[j] - NB_RS_PADDING_BYTES;
             if (k < 0) {
                 LOG_ERROR("[reed-solomon] Got a negative error index {} in DAB frame {}/{}", k, i, N);
                 continue;
             }
             // Deinterleave for error correction
-            super_frame_buf[i + k*N] = rs_encoded_buf[k];
+            m_super_frame_buf[i + k*N] = m_rs_encoded_buf[k];
         }
     }
 

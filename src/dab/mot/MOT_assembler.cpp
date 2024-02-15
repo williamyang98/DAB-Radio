@@ -12,31 +12,31 @@ MOT_Assembler::MOT_Assembler() {
 }
 
 void MOT_Assembler::Reset(void) {
-    total_segments = 0;
-    curr_unordered_index = 0;
+    m_total_segments = 0;
+    m_curr_unordered_index = 0;
 
-    for (auto& segment: segments) {
+    for (auto& segment: m_segments) {
         segment.length = 0;
         segment.unordered_index = 0;
     }
 }
 
 void MOT_Assembler::SetTotalSegments(const size_t N) {
-    total_segments = N;
-    segments.resize(total_segments);
+    m_total_segments = N;
+    m_segments.resize(m_total_segments);
 }
 
 bool MOT_Assembler::AddSegment(const size_t index, const uint8_t* buf, const size_t N) {
-    if (index >= segments.size()) {
-        segments.resize(index+1);
+    if (index >= m_segments.size()) {
+        m_segments.resize(index+1);
     }
 
-    if ((total_segments != 0) && (index >= total_segments)) {
-        LOG_ERROR("Total segments given as {} but got segment {}", total_segments, index);
+    if ((m_total_segments != 0) && (index >= m_total_segments)) {
+        LOG_ERROR("Total segments given as {} but got segment {}", m_total_segments, index);
         return false;
     }
 
-    auto& segment = segments[index];
+    auto& segment = m_segments[index];
 
     // Segment already present
     if (segment.length != 0) {
@@ -51,15 +51,15 @@ bool MOT_Assembler::AddSegment(const size_t index, const uint8_t* buf, const siz
     // Add segment
     LOG_MESSAGE("Adding segment {} with length={}", index, N);
     segment.length = N;
-    segment.unordered_index = curr_unordered_index;
-    unordered_buffer.resize(curr_unordered_index+N);
+    segment.unordered_index = m_curr_unordered_index;
+    m_unordered_buffer.resize(m_curr_unordered_index+N);
 
-    auto* all_buf = unordered_buffer.data();
-    auto* dst_buf = &all_buf[curr_unordered_index];
+    auto* all_buf = m_unordered_buffer.data();
+    auto* dst_buf = &all_buf[m_curr_unordered_index];
     for (size_t i = 0; i < N; i++) {
         dst_buf[i] = buf[i];
     }
-    curr_unordered_index += N;
+    m_curr_unordered_index += N;
 
     const auto is_complete = CheckComplete();
     if (is_complete) {
@@ -70,12 +70,12 @@ bool MOT_Assembler::AddSegment(const size_t index, const uint8_t* buf, const siz
 
 bool MOT_Assembler::CheckComplete(void) {
     // undefined segment length
-    if (total_segments == 0) {
+    if (m_total_segments == 0) {
         return false;
     }
 
-    for (size_t i = 0; i < total_segments; i++) {
-        auto& segment = segments[i];
+    for (size_t i = 0; i < m_total_segments; i++) {
+        auto& segment = m_segments[i];
         if (segment.length == 0) {
             return false;
         }
@@ -85,16 +85,15 @@ bool MOT_Assembler::CheckComplete(void) {
 }
 
 void MOT_Assembler::ReconstructOrderedBuffer(void) {
-    LOG_MESSAGE("Reconstructing buffer with {} segments with length={}",
-        total_segments, curr_unordered_index);
+    LOG_MESSAGE("Reconstructing buffer with {} segments with length={}", m_total_segments, m_curr_unordered_index);
 
-    auto* all_src_buf = unordered_buffer.data();
+    auto* all_src_buf = m_unordered_buffer.data();
 
-    ordered_buffer.resize(curr_unordered_index);
-    auto* dst_buf = ordered_buffer.data();
+    m_ordered_buffer.resize(m_curr_unordered_index);
+    auto* dst_buf = m_ordered_buffer.data();
     size_t curr_ordered_index = 0;
-    for (size_t i = 0; i < total_segments; i++) {
-        auto& segment = segments[i];
+    for (size_t i = 0; i < m_total_segments; i++) {
+        auto& segment = m_segments[i];
         const auto* src_buf = &all_src_buf[segment.unordered_index];
         for (size_t j = 0; j < segment.length; j++) {
             dst_buf[curr_ordered_index++] = src_buf[j];

@@ -10,12 +10,12 @@ struct DAB_Misc_Info;
 class Radio_FIG_Handler: public FIG_Handler_Interface
 {
 private:
-    DAB_Database_Updater* updater = NULL;
-    DAB_Misc_Info* misc_info = NULL;
+    DAB_Database_Updater* m_updater = NULL;
+    DAB_Misc_Info* m_misc_info = NULL;
 public:
     ~Radio_FIG_Handler() override = default;
-    void SetUpdater(DAB_Database_Updater* _updater) { updater = _updater; }
-    void SetMiscInfo(DAB_Misc_Info* _info) { misc_info = _info; }
+    void SetUpdater(DAB_Database_Updater* updater) { m_updater = updater; }
+    void SetMiscInfo(DAB_Misc_Info* info) { m_misc_info = info; }
 public:
     // fig 0/0 - ensemble information
     void OnEnsemble_1_ID(

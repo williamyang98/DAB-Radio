@@ -9,10 +9,10 @@
 class CIF_Deinterleaver 
 {
 private:
-    std::vector<viterbi_bit_t> bits_buffer;
-    const int nb_bytes;
-    int curr_frame = 0;
-    int total_frames_stored = 0;
+    std::vector<viterbi_bit_t> m_bits_buffer;
+    const int m_nb_bytes;
+    int m_curr_frame = 0;
+    int m_total_frames_stored = 0;
 public:
     CIF_Deinterleaver(const int _nb_bytes);
     // Consume a buffer of nb_bytes and store 

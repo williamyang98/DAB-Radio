@@ -8,37 +8,37 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
 PAD_Dynamic_Label_Assembler::PAD_Dynamic_Label_Assembler() {
-    unordered_buf.resize(MAX_MESSAGE_BYTES);
-    ordered_buf.resize(MAX_MESSAGE_BYTES);
-    segments.resize(MAX_SEGMENTS);
+    m_unordered_buf.resize(m_MAX_MESSAGE_BYTES);
+    m_ordered_buf.resize(m_MAX_MESSAGE_BYTES);
+    m_segments.resize(m_MAX_SEGMENTS);
     Reset();
 }
 
 void PAD_Dynamic_Label_Assembler::Reset(void) {
-    charset = 0;
-    nb_required_segments = 0;
-    nb_ordered_bytes = 0;
-    is_changed = true;
-    for (size_t i = 0; i < MAX_SEGMENTS; i++) {
-        segments[i].length = 0;
+    m_charset = 0;
+    m_nb_required_segments = 0;
+    m_nb_ordered_bytes = 0;
+    m_is_changed = true;
+    for (size_t i = 0; i < m_MAX_SEGMENTS; i++) {
+        m_segments[i].length = 0;
     }
 }
 
 bool PAD_Dynamic_Label_Assembler::UpdateSegment(tcb::span<const uint8_t> data, const size_t seg_num) {
-    if (seg_num >= MAX_SEGMENTS) {
-        LOG_ERROR("Segment index {} falls out of bounds [{},{}]", seg_num, 0, MAX_SEGMENT_BYTES-1);
+    if (seg_num >= m_MAX_SEGMENTS) {
+        LOG_ERROR("Segment index {} falls out of bounds [{},{}]", seg_num, 0, m_MAX_SEGMENT_BYTES-1);
         return false;
     }
 
     const size_t length = data.size();
-    if ((length < 1) || (length > MAX_SEGMENT_BYTES)) {
-        LOG_ERROR("Segment length {} falls out of bounds [{},{}]", length, 1, MAX_SEGMENT_BYTES);
+    if ((length < 1) || (length > m_MAX_SEGMENT_BYTES)) {
+        LOG_ERROR("Segment length {} falls out of bounds [{},{}]", length, 1, m_MAX_SEGMENT_BYTES);
         return false;
     }
 
-    auto& segment = segments[seg_num];
-    const size_t index = seg_num * MAX_SEGMENT_BYTES;
-    auto* ref_data = &unordered_buf[index];
+    auto& segment = m_segments[seg_num];
+    const size_t index = seg_num * m_MAX_SEGMENT_BYTES;
+    auto* ref_data = &m_unordered_buf[index];
 
     const bool length_mismatch = (segment.length != length);
     bool content_mismatch = false;
@@ -58,10 +58,10 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(tcb::span<const uint8_t> data, c
     }
 
     segment.length = length;
-    is_changed = is_changed || length_mismatch || content_mismatch;
+    m_is_changed = m_is_changed || length_mismatch || content_mismatch;
 
-    if (is_changed && CombineSegments()) {
-        is_changed = false;
+    if (m_is_changed && CombineSegments()) {
+        m_is_changed = false;
         return true;
     }
 
@@ -69,30 +69,30 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(tcb::span<const uint8_t> data, c
 }
 
 void PAD_Dynamic_Label_Assembler::SetTotalSegments(const size_t total_segments) {
-    if (nb_required_segments != total_segments) {
-        is_changed = true;
+    if (m_nb_required_segments != total_segments) {
+        m_is_changed = true;
     }
-    nb_required_segments = total_segments;
+    m_nb_required_segments = total_segments;
 }
 
 void PAD_Dynamic_Label_Assembler::SetCharSet(const uint8_t _charset) {
-    if (charset != _charset) {
-        is_changed = true;
+    if (m_charset != _charset) {
+        m_is_changed = true;
     }
-    charset = _charset;
+    m_charset = _charset;
 }
 
 bool PAD_Dynamic_Label_Assembler::IsCompleted(void) {
-    return (nb_ordered_bytes != 0);
+    return (m_nb_ordered_bytes != 0);
 }
 
 bool PAD_Dynamic_Label_Assembler::CombineSegments(void) {
-    if (nb_required_segments == 0) {
+    if (m_nb_required_segments == 0) {
         return false;
     }
 
-    for (size_t i = 0; i < nb_required_segments; i++) {
-        auto& segment = segments[i];
+    for (size_t i = 0; i < m_nb_required_segments; i++) {
+        auto& segment = m_segments[i];
         if (segment.length == 0) {
             return false;
         }
@@ -100,14 +100,14 @@ bool PAD_Dynamic_Label_Assembler::CombineSegments(void) {
 
     // combine segments 
     size_t curr_byte = 0;
-    for (size_t i = 0; i < nb_required_segments; i++) {
-        auto& segment = segments[i];
-        auto* buf = &unordered_buf[i * MAX_SEGMENT_BYTES];
+    for (size_t i = 0; i < m_nb_required_segments; i++) {
+        auto& segment = m_segments[i];
+        auto* buf = &m_unordered_buf[i * m_MAX_SEGMENT_BYTES];
         for (size_t j = 0; j < segment.length; j++) {
-            ordered_buf[curr_byte++] = buf[j];
+            m_ordered_buf[curr_byte++] = buf[j];
         }
     }
 
-    nb_ordered_bytes = curr_byte;
+    m_nb_ordered_bytes = curr_byte;
     return true;
 }

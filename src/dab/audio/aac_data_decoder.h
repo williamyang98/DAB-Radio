@@ -9,10 +9,10 @@
 class AAC_Data_Decoder 
 {
 private:
-    PAD_Processor pad_processor;
+    PAD_Processor m_pad_processor;
 public:
     bool ProcessAccessUnit(tcb::span<const uint8_t> data);
-    auto& Get_PAD_Processor(void) { return pad_processor; }
+    auto& Get_PAD_Processor(void) { return m_pad_processor; }
 private:
     bool ProcessDataElement(tcb::span<const uint8_t> data);
     void ProcessPAD(tcb::span<const uint8_t> fpad, tcb::span<const uint8_t> xpad);

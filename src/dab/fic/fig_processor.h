@@ -22,10 +22,10 @@ private:
         uint8_t segment_index;
         uint8_t rfu;
     };
-    FIG_Handler_Interface* handler;
+    FIG_Handler_Interface* m_handler;
 public:
     void ProcessFIB(tcb::span<const uint8_t> buf);
-    inline void SetHandler(FIG_Handler_Interface* _handler) { handler = _handler; }
+    inline void SetHandler(FIG_Handler_Interface* handler) { m_handler = handler; }
 private:
     // handle each type
     void ProcessFIG_Type_0(tcb::span<const uint8_t> buf);

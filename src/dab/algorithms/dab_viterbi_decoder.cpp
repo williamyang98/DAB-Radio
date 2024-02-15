@@ -18,16 +18,16 @@
 //     171    | 001 111 001 |    100 111 1    |       79     |
 //     145    | 001 100 101 |    101 001 1    |       83     |
 //     133    | 001 011 011 |    110 110 1    |      109     |
-constexpr size_t K = DAB_Viterbi_Decoder::constraint_length;
-constexpr size_t R = DAB_Viterbi_Decoder::code_rate;
+constexpr size_t K = DAB_Viterbi_Decoder::m_constraint_length;
+constexpr size_t R = DAB_Viterbi_Decoder::m_code_rate;
 const uint8_t code_polynomial[R] = { 109, 79, 83, 109 };
 constexpr int16_t soft_decision_low = int16_t(SOFT_DECISION_VITERBI_LOW);
 constexpr int16_t soft_decision_high = int16_t(SOFT_DECISION_VITERBI_HIGH);
 constexpr int16_t soft_decision_unpunctured = int16_t(SOFT_DECISION_VITERBI_PUNCTURED);
 
 // Use same configuration for all decoders
-ViterbiDecoder_Config<uint16_t> create_decoder_config() {
-    const uint16_t max_error = uint16_t(soft_decision_high-soft_decision_low) * uint16_t(DAB_Viterbi_Decoder::code_rate);
+static ViterbiDecoder_Config<uint16_t> create_decoder_config() {
+    const uint16_t max_error = uint16_t(soft_decision_high-soft_decision_low) * uint16_t(DAB_Viterbi_Decoder::m_code_rate);
     const uint16_t error_margin = max_error * uint16_t(5u);
     ViterbiDecoder_Config<uint16_t> config;
     config.soft_decision_max_error = max_error;
@@ -80,9 +80,9 @@ public:
 
 
 DAB_Viterbi_Decoder::DAB_Viterbi_Decoder()
-: depunctured_symbols(), accumulated_error(0)
+: m_depunctured_symbols(), m_accumulated_error(0)
 {
-    decoder = std::make_unique<DAB_Viterbi_Decoder_Internal>(
+    m_decoder = std::make_unique<DAB_Viterbi_Decoder_Internal>(
         decoder_branch_table,
         decoder_config
     );
@@ -93,20 +93,20 @@ DAB_Viterbi_Decoder::~DAB_Viterbi_Decoder() {
 }
 
 void DAB_Viterbi_Decoder::set_traceback_length(const size_t traceback_length) {
-    decoder->set_traceback_length(traceback_length);
+    m_decoder->set_traceback_length(traceback_length);
 }
 
 size_t DAB_Viterbi_Decoder::get_traceback_length() const {
-    return decoder->get_traceback_length();
+    return m_decoder->get_traceback_length();
 }
 
 size_t DAB_Viterbi_Decoder::get_current_decoded_bit() const {
-    return decoder->m_current_decoded_bit;
+    return m_decoder->m_current_decoded_bit;
 };
 
 void DAB_Viterbi_Decoder::reset(const size_t starting_state) {
-    decoder->reset(starting_state);
-    accumulated_error = 0;
+    m_decoder->reset(starting_state);
+    m_accumulated_error = 0;
 }
 
 size_t DAB_Viterbi_Decoder::update(
@@ -115,14 +115,14 @@ size_t DAB_Viterbi_Decoder::update(
     const size_t requested_output_symbols
 ) {
     const auto res = depuncture_symbols(punctured_symbols, puncture_code, requested_output_symbols);
-    accumulated_error += Decoder::update<uint64_t>(*decoder.get(), depunctured_symbols.data(), res.total_output_symbols);
+    m_accumulated_error += Decoder::update<uint64_t>(*m_decoder.get(), m_depunctured_symbols.data(), res.total_output_symbols);
     return res.total_punctured_symbols;
 }
 
 uint64_t DAB_Viterbi_Decoder::chainback(tcb::span<uint8_t> bytes_out, const size_t end_state) {
     const size_t total_bits = bytes_out.size()*8u;
-    decoder->chainback(bytes_out.data(), total_bits, end_state);
-    const uint64_t error = accumulated_error + uint64_t(decoder->get_error());
+    m_decoder->chainback(bytes_out.data(), total_bits, end_state);
+    const uint64_t error = m_accumulated_error + uint64_t(m_decoder->get_error());
     return error;
 }
 
@@ -131,14 +131,14 @@ DAB_Viterbi_Decoder::depuncture_res DAB_Viterbi_Decoder::depuncture_symbols(
     tcb::span<const uint8_t> puncture_code,
     const size_t requested_output_symbols
 ) {
-    assert(requested_output_symbols % code_rate == 0);
+    assert(requested_output_symbols % m_code_rate == 0);
 
     const size_t total_punctured_symbols = punctured_symbols.size();
     const size_t total_puncture_code = puncture_code.size();
 
     // Resize only if we need more depunctured symbols
-    if (requested_output_symbols > depunctured_symbols.size()) {
-        depunctured_symbols.resize(requested_output_symbols);
+    if (requested_output_symbols > m_depunctured_symbols.size()) {
+        m_depunctured_symbols.resize(requested_output_symbols);
     }
 
     depuncture_res res;
@@ -151,7 +151,7 @@ DAB_Viterbi_Decoder::depuncture_res DAB_Viterbi_Decoder::depuncture_symbols(
 
     while (index_output_symbol < requested_output_symbols) {
         const size_t total_block_punctured = size_t(puncture_code[index_puncture_code]);
-        const size_t total_block_unpunctured = code_rate - size_t(total_block_punctured);
+        const size_t total_block_unpunctured = m_code_rate - size_t(total_block_punctured);
 
         const size_t remaining_punctured = total_punctured_symbols - index_punctured_symbol;
         assert(remaining_punctured >= total_block_punctured);
@@ -160,13 +160,13 @@ DAB_Viterbi_Decoder::depuncture_res DAB_Viterbi_Decoder::depuncture_symbols(
         }
 
         for (size_t i = 0; i < total_block_punctured; i++)  {
-            depunctured_symbols[index_output_symbol] = int16_t(punctured_symbols[index_punctured_symbol]);
+            m_depunctured_symbols[index_output_symbol] = int16_t(punctured_symbols[index_punctured_symbol]);
             index_punctured_symbol++;
             index_output_symbol++;
         }
 
         for (size_t i = 0; i < total_block_unpunctured; i++)  {
-            depunctured_symbols[index_output_symbol] = soft_decision_unpunctured;
+            m_depunctured_symbols[index_output_symbol] = soft_decision_unpunctured;
             index_output_symbol++;
         }
 

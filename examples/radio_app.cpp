@@ -28,6 +28,7 @@
 #include "./gui/ofdm/render_ofdm_demod.h"
 #include "./gui/ofdm/render_profiler.h"
 #include "./gui/basic_radio/render_basic_radio.h"
+#include "./gui/basic_radio/basic_radio_view_controller.h"
 #include "./gui/audio/render_portaudio_controls.h"
 #include "./gui/device/render_devices.h"
 
@@ -312,12 +313,12 @@ int main(int argc, char** argv) {
     auto audio_pipeline = std::make_shared<AudioPipeline>();
     auto radio_switcher = std::make_shared<Basic_Radio_Switcher>(
         args.transmission_mode,
-        [args, audio_pipeline](const DAB_Parameters& params, std::string_view channel) -> auto {
-            auto instance = std::make_shared<Radio_Instance>(channel, params, args.radio_total_threads);
+        [args, audio_pipeline](const DAB_Parameters& params, std::string_view channel_name) -> auto {
+            auto instance = std::make_shared<Radio_Instance>(channel_name, params, args.radio_total_threads);
             auto& radio = instance->get_radio(); 
             attach_audio_pipeline_to_radio(audio_pipeline, radio);
             if (args.scraper_enable) {
-                auto dir = fmt::format("{}/{}", args.scraper_output, channel);
+                auto dir = fmt::format("{}/{}", args.scraper_output, channel_name);
                 auto scraper = std::make_shared<BasicScraper>(dir);
                 fprintf(stderr, "basic_scraper is writing to folder '%s'\n", dir.c_str()); 
                 BasicScraper::attach_to_radio(scraper, radio);

@@ -52,30 +52,30 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
     );
 }
 
-Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& _dir) 
-: dir(_dir), 
-  audio_scraper(_dir / "audio"), 
-  slideshow_scraper(_dir / "slideshow"),
-  mot_scraper(_dir / "MOT")
+Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& dir) 
+: m_dir(dir), 
+  m_audio_scraper(dir / "audio"), 
+  m_slideshow_scraper(dir / "slideshow"),
+  m_mot_scraper(dir / "MOT")
 {
-    LOG_MESSAGE("[DAB+] Opened directory {}", dir.string());
+    LOG_MESSAGE("[DAB+] Opened directory {}", m_dir.string());
 }
 
 void Basic_DAB_Plus_Scraper::attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Scraper> scraper, Basic_DAB_Plus_Channel& channel) {
     if (scraper == nullptr) return;
     channel.OnAudioData().Attach(
         [scraper](BasicAudioParams params, tcb::span<const uint8_t> data) {
-            scraper->audio_scraper.OnAudioData(params, data);
+            scraper->m_audio_scraper.OnAudioData(params, data);
         }
     );
     channel.GetSlideshowManager().OnNewSlideshow().Attach(
         [scraper](std::shared_ptr<Basic_Slideshow>& slideshow) {
-            scraper->slideshow_scraper.OnSlideshow(*slideshow);
+            scraper->m_slideshow_scraper.OnSlideshow(*slideshow);
         }
     );
     channel.OnMOTEntity().Attach(
         [scraper](MOT_Entity mot) {
-            scraper->mot_scraper.OnMOTEntity(mot);
+            scraper->m_mot_scraper.OnMOTEntity(mot);
         }
     );
     auto& controls = channel.GetControls();
@@ -85,42 +85,42 @@ void Basic_DAB_Plus_Scraper::attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Sc
 }
 
 BasicAudioScraper::~BasicAudioScraper() {
-    if (fp_wav != nullptr) {
-        CloseWavFile(fp_wav, total_bytes_written);
-        fp_wav = nullptr;
-        total_bytes_written = 0;
+    if (m_fp_wav != nullptr) {
+        CloseWavFile(m_fp_wav, m_total_bytes_written);
+        m_fp_wav = nullptr;
+        m_total_bytes_written = 0;
     }
 }
 
 void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uint8_t> data) {
-    if (old_params != params) {
-        if (fp_wav != nullptr) {
-            CloseWavFile(fp_wav, total_bytes_written);
-            fp_wav = nullptr;
-            total_bytes_written = 0;
+    if (m_old_params != params) {
+        if (m_fp_wav != nullptr) {
+            CloseWavFile(m_fp_wav, m_total_bytes_written);
+            m_fp_wav = nullptr;
+            m_total_bytes_written = 0;
         }
 
-        fp_wav = CreateWavFile(params);
-        total_bytes_written = 0;
-        old_params = params;
+        m_fp_wav = CreateWavFile(params);
+        m_total_bytes_written = 0;
+        m_old_params = params;
     }
 
-    if (fp_wav == nullptr) {
+    if (m_fp_wav == nullptr) {
         return;
     }
 
     const size_t N = data.size(); 
-    const size_t nb_written = fwrite(data.data(), sizeof(uint8_t), N, fp_wav);
+    const size_t nb_written = fwrite(data.data(), sizeof(uint8_t), N, m_fp_wav);
     if (nb_written != N) {
         LOG_ERROR("[audio] Failed to write bytes {}/{}", nb_written, N);
     }
-    total_bytes_written += (int)nb_written;
-    UpdateWavHeader(fp_wav, total_bytes_written);
+    m_total_bytes_written += (int)nb_written;
+    UpdateWavHeader(m_fp_wav, m_total_bytes_written);
 }
 
 FILE* BasicAudioScraper::CreateWavFile(BasicAudioParams params) {
-    fs::create_directories(dir);
-    auto filepath = dir / fmt::format("{}_audio.wav", GetCurrentTime());
+    fs::create_directories(m_dir);
+    auto filepath = m_dir / fmt::format("{}_audio.wav", GetCurrentTime());
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
@@ -198,9 +198,9 @@ void BasicAudioScraper::CloseWavFile(FILE* fp, const int nb_data_bytes) {
 }
 
 void BasicSlideshowScraper::OnSlideshow(Basic_Slideshow& slideshow) {
-    fs::create_directories(dir);
+    fs::create_directories(m_dir);
     const auto id = slideshow.transport_id;
-    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), id, slideshow.name);
+    auto filepath = m_dir / fmt::format("{}_{}_{}", GetCurrentTime(), id, slideshow.name);
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");
@@ -230,8 +230,8 @@ void BasicMOTScraper::OnMOTEntity(MOT_Entity mot) {
             header.content_type, header.content_sub_type);
     }
 
-    fs::create_directories(dir);
-    auto filepath = dir / fmt::format("{}_{}_{}", GetCurrentTime(), mot.transport_id, content_name);
+    fs::create_directories(m_dir);
+    auto filepath = m_dir / fmt::format("{}_{}_{}", GetCurrentTime(), mot.transport_id, content_name);
     auto filepath_str = filepath.string();
 
     FILE* fp = fopen(filepath_str.c_str(), "wb+");

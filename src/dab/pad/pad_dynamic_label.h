@@ -18,27 +18,27 @@ class PAD_Dynamic_Label_Assembler;
 class PAD_Dynamic_Label 
 {
 public:
-    enum Command: uint8_t {
+    enum class Command: uint8_t {
         CLEAR
     };
 private:
-    enum GroupType { LABEL_SEGMENT, COMMAND };
-    enum State { WAIT_START, READ_LENGTH, READ_DATA };
+    enum class GroupType { LABEL_SEGMENT, COMMAND };
+    enum class State { WAIT_START, READ_LENGTH, READ_DATA };
 private:
-    PAD_Data_Group data_group;
-    State state;
-    GroupType group_type;
-    std::unique_ptr<PAD_Dynamic_Label_Assembler> assembler;
-    uint8_t previous_toggle_flag;
+    PAD_Data_Group m_data_group;
+    State m_state;
+    GroupType m_group_type;
+    std::unique_ptr<PAD_Dynamic_Label_Assembler> m_assembler;
+    uint8_t m_previous_toggle_flag;
     // label_buffer, charset
-    Observable<std::string_view, const uint8_t> obs_on_label_change;
-    Observable<uint8_t> obs_on_command;
+    Observable<std::string_view, const uint8_t> m_obs_on_label_change;
+    Observable<uint8_t> m_obs_on_command;
 public:
     PAD_Dynamic_Label();
     ~PAD_Dynamic_Label();
     void ProcessXPAD(const bool is_start, tcb::span<const uint8_t> buf);
-    auto& OnLabelChange(void) { return obs_on_label_change; }
-    auto& OnCommand(void) { return obs_on_command; }
+    auto& OnLabelChange(void) { return m_obs_on_label_change; }
+    auto& OnCommand(void) { return m_obs_on_command; }
 private:
     size_t ConsumeBuffer(const bool is_start, tcb::span<const uint8_t> buf);
     void ReadGroupHeader(void);

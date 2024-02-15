@@ -20,12 +20,9 @@ static std::time_t Convert_MOT_Time(MOT_UTC_Time& time) {
     return std::mktime(&t);
 }
 
-Basic_Slideshow_Manager::Basic_Slideshow_Manager(size_t _max_slideshows) {
-    slideshow_processor = std::make_unique<MOT_Slideshow_Processor>();
-    max_size = _max_slideshows;
+Basic_Slideshow_Manager::Basic_Slideshow_Manager(size_t max_slideshows) {
+    m_max_size = max_slideshows;
 }
-
-Basic_Slideshow_Manager::~Basic_Slideshow_Manager() = default;
 
 std::shared_ptr<Basic_Slideshow> Basic_Slideshow_Manager::Process_MOT_Entity(MOT_Entity& entity) {
     // DOC: ETSI TS 101 499
@@ -54,7 +51,7 @@ std::shared_ptr<Basic_Slideshow> Basic_Slideshow_Manager::Process_MOT_Entity(MOT
 
     MOT_Slideshow slideshow_header;
     for (auto& p: entity.header.user_app_params) {
-        slideshow_processor->ProcessHeaderExtension(slideshow_header, p.type, p.data);
+        MOT_Slideshow_Processor::ProcessHeaderExtension(slideshow_header, p.type, p.data);
     }
 
     const size_t total_bytes = entity.body_buf.size();
@@ -102,28 +99,28 @@ std::shared_ptr<Basic_Slideshow> Basic_Slideshow_Manager::Process_MOT_Entity(MOT
     }
  
     {
-        auto lock = std::unique_lock(mutex_slideshows);
-        slideshows.push_front(slideshow);
+        auto lock = std::unique_lock(m_mutex_slideshows);
+        m_slideshows.push_front(slideshow);
         RestrictSize();
     }
 
     LOG_MESSAGE("Added slideshow tid={} name={}", slideshow->transport_id, slideshow->name);
-    obs_on_new_slideshow.Notify(slideshow);
+    m_obs_on_new_slideshow.Notify(slideshow);
     return slideshow;
 }
 
-void Basic_Slideshow_Manager::SetMaxSize(const size_t _max_size) {
-    auto lock = std::unique_lock(mutex_slideshows);
-    max_size = _max_size;
+void Basic_Slideshow_Manager::SetMaxSize(const size_t max_size) {
+    auto lock = std::unique_lock(m_mutex_slideshows);
+    m_max_size = max_size;
     RestrictSize();
 }
 
 void Basic_Slideshow_Manager::RestrictSize(void) {
-    if (slideshows.size() <= max_size) {
+    if (m_slideshows.size() <= m_max_size) {
         return;
     }
-    auto start = slideshows.begin();
-    auto end = slideshows.end();
-    std::advance(start, max_size);
-    slideshows.erase(start, end);
+    auto start = m_slideshows.begin();
+    auto end = m_slideshows.end();
+    std::advance(start, m_max_size);
+    m_slideshows.erase(start, end);
 }

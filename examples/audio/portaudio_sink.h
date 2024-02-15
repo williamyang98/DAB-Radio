@@ -60,6 +60,7 @@ public:
     PortAudioSink& operator=(PortAudioSink&&) = delete;
     void set_callback(AudioPipelineSink::Callback callback) override { m_callback = callback; }
     std::string_view get_name() const override { return m_device_name; }
+    size_t get_frames_per_buffer() const { return m_frames_per_buffer; }
     static PortAudioSinkCreateResult create_from_index(
         PaDeviceIndex index, 
         float sample_rate=DEFAULT_AUDIO_SAMPLE_RATE, 

@@ -49,42 +49,42 @@ private:
 class Basic_DAB_Plus_Channel
 {
 private:
-    const DAB_Parameters params;
-    const Subchannel subchannel;
-    Basic_DAB_Plus_Controls controls;
+    const DAB_Parameters m_params;
+    const Subchannel m_subchannel;
+    Basic_DAB_Plus_Controls m_controls;
     // DAB data processing components
-    std::unique_ptr<MSC_Decoder> msc_decoder;
-    std::unique_ptr<AAC_Frame_Processor> aac_frame_processor;
-    std::unique_ptr<AAC_Audio_Decoder> aac_audio_decoder;
-    std::unique_ptr<AAC_Data_Decoder> aac_data_decoder;
+    std::unique_ptr<MSC_Decoder> m_msc_decoder;
+    std::unique_ptr<AAC_Frame_Processor> m_aac_frame_processor;
+    std::unique_ptr<AAC_Audio_Decoder> m_aac_audio_decoder;
+    std::unique_ptr<AAC_Data_Decoder> m_aac_data_decoder;
     // Programme associated data
-    std::string dynamic_label;
-    std::unique_ptr<Basic_Slideshow_Manager> slideshow_manager;
+    std::string m_dynamic_label;
+    std::unique_ptr<Basic_Slideshow_Manager> m_slideshow_manager;
     // callbacks
-    Observable<BasicAudioParams, tcb::span<const uint8_t>> obs_audio_data;
-    Observable<std::string_view> obs_dynamic_label;
-    Observable<MOT_Entity> obs_MOT_entity;
+    Observable<BasicAudioParams, tcb::span<const uint8_t>> m_obs_audio_data;
+    Observable<std::string_view> m_obs_dynamic_label;
+    Observable<MOT_Entity> m_obs_MOT_entity;
     // decoder values
-    SuperFrameHeader super_frame_header;
-    bool is_firecode_error = false;
-    bool is_rs_error = false;
-    bool is_au_error = false;
-    bool is_codec_error = false;
+    SuperFrameHeader m_super_frame_header;
+    bool m_is_firecode_error = false;
+    bool m_is_rs_error = false;
+    bool m_is_au_error = false;
+    bool m_is_codec_error = false;
 public:
     Basic_DAB_Plus_Channel(const DAB_Parameters& _params, const Subchannel _subchannel);
     ~Basic_DAB_Plus_Channel();
     void Process(tcb::span<const viterbi_bit_t> msc_bits_buf);
-    auto& GetControls(void) { return controls; }
-    const auto& GetDynamicLabel(void) const { return dynamic_label; }
-    auto& GetSlideshowManager(void) { return *slideshow_manager; }
-    auto& OnAudioData(void) { return obs_audio_data; }
-    auto& OnDynamicLabel(void) { return obs_dynamic_label; }
-    auto& OnMOTEntity(void) { return obs_MOT_entity; }
-    const auto& GetSuperFrameHeader() const { return super_frame_header; }
-    bool IsFirecodeError() const { return is_firecode_error; }
-    bool IsRSError() const { return is_rs_error; }
-    bool IsAUError() const { return is_au_error; }
-    bool IsCodecError() const { return is_codec_error; }
+    auto& GetControls(void) { return m_controls; }
+    const auto& GetDynamicLabel(void) const { return m_dynamic_label; }
+    auto& GetSlideshowManager(void) { return *m_slideshow_manager; }
+    auto& OnAudioData(void) { return m_obs_audio_data; }
+    auto& OnDynamicLabel(void) { return m_obs_dynamic_label; }
+    auto& OnMOTEntity(void) { return m_obs_MOT_entity; }
+    const auto& GetSuperFrameHeader() const { return m_super_frame_header; }
+    bool IsFirecodeError() const { return m_is_firecode_error; }
+    bool IsRSError() const { return m_is_rs_error; }
+    bool IsAUError() const { return m_is_au_error; }
+    bool IsCodecError() const { return m_is_codec_error; }
 private:
     void SetupCallbacks(void);
 };

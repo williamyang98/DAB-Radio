@@ -55,61 +55,61 @@ public:
         READING_SYMBOLS,
     };
 private:
-    OFDM_Demod_Config cfg;
-    State state;
-    const OFDM_Params params;
+    OFDM_Demod_Config m_cfg;
+    State m_state;
+    const OFDM_Params m_params;
     // statistics
-    int total_frames_read;
-    int total_frames_desync;
+    int m_total_frames_read;
+    int m_total_frames_desync;
     // time and frequency correction
-    std::mutex mutex_freq_fine_offset;
-    bool is_found_coarse_freq_offset;
-    float freq_coarse_offset;
-    float freq_fine_offset;
-    int fine_time_offset;
+    std::mutex m_mutex_freq_fine_offset;
+    bool m_is_found_coarse_freq_offset;
+    float m_freq_coarse_offset;
+    float m_freq_fine_offset;
+    int m_fine_time_offset;
     // null power dip search
-    bool is_null_start_found;
-    bool is_null_end_found;
-    float signal_l1_average;
+    bool m_is_null_start_found;
+    bool m_is_null_end_found;
+    float m_signal_l1_average;
     // fft
-    fftwf_plan fft_plan;
-    fftwf_plan ifft_plan;
+    fftwf_plan m_fft_plan;
+    fftwf_plan m_ifft_plan;
     // threads
-    std::unique_ptr<OFDM_Demod_Coordinator>           coordinator;
-    std::vector<std::unique_ptr<OFDM_Demod_Pipeline>> pipelines;
-    std::unique_ptr<std::thread>                      coordinator_thread;
-    std::vector<std::unique_ptr<std::thread>>         pipeline_threads;
+    std::unique_ptr<OFDM_Demod_Coordinator> m_coordinator;
+    std::vector<std::unique_ptr<OFDM_Demod_Pipeline>> m_pipelines;
+    std::unique_ptr<std::thread> m_coordinator_thread;
+    std::vector<std::unique_ptr<std::thread>> m_pipeline_threads;
     // callback for when ofdm is completed
-    Observable<tcb::span<const viterbi_bit_t>> obs_on_ofdm_frame;
+    Observable<tcb::span<const viterbi_bit_t>> m_obs_on_ofdm_frame;
     // Joint memory allocation block
-    AlignedVector<uint8_t> joint_data_block;
+    AlignedVector<uint8_t> m_joint_data_block;
     // 1. pipeline reader double buffer
-    OFDM_Frame_Buffer<std::complex<float>> active_buffer;
-    OFDM_Frame_Buffer<std::complex<float>> inactive_buffer;
-    tcb::span<uint8_t> active_buffer_data;
-    tcb::span<uint8_t> inactive_buffer_data;
+    OFDM_Frame_Buffer<std::complex<float>> m_active_buffer;
+    OFDM_Frame_Buffer<std::complex<float>> m_inactive_buffer;
+    tcb::span<uint8_t> m_active_buffer_data;
+    tcb::span<uint8_t> m_inactive_buffer_data;
     // 2. fine time and coarse frequency synchronisation using time/frequency correlation
-    CircularBuffer<std::complex<float>> null_power_dip_buffer;
-    ReconstructionBuffer<std::complex<float>> correlation_time_buffer;
-    tcb::span<std::complex<float>>    null_power_dip_buffer_data;
-    tcb::span<std::complex<float>>    correlation_time_buffer_data;
-    tcb::span<float>                  correlation_impulse_response;
-    tcb::span<float>                  correlation_frequency_response;
-    tcb::span<std::complex<float>>    correlation_fft_buffer;
-    tcb::span<std::complex<float>>    correlation_ifft_buffer;
-    tcb::span<std::complex<float>>    correlation_prs_fft_reference;
-    tcb::span<std::complex<float>>    correlation_prs_time_reference;
+    CircularBuffer<std::complex<float>> m_null_power_dip_buffer;
+    ReconstructionBuffer<std::complex<float>> m_correlation_time_buffer;
+    tcb::span<std::complex<float>>    m_null_power_dip_buffer_data;
+    tcb::span<std::complex<float>>    m_correlation_time_buffer_data;
+    tcb::span<float>                  m_correlation_impulse_response;
+    tcb::span<float>                  m_correlation_frequency_response;
+    tcb::span<std::complex<float>>    m_correlation_fft_buffer;
+    tcb::span<std::complex<float>>    m_correlation_ifft_buffer;
+    tcb::span<std::complex<float>>    m_correlation_prs_fft_reference;
+    tcb::span<std::complex<float>>    m_correlation_prs_time_reference;
     // 3. pipeline demodulation
-    tcb::span<std::complex<float>>    pipeline_fft_buffer;
-    tcb::span<std::complex<float>>    pipeline_dqpsk_vec_buffer;
-    tcb::span<viterbi_bit_t>          pipeline_out_bits;
+    tcb::span<std::complex<float>>    m_pipeline_fft_buffer;
+    tcb::span<std::complex<float>>    m_pipeline_dqpsk_vec_buffer;
+    tcb::span<viterbi_bit_t>          m_pipeline_out_bits;
     // 4. carrier frequency deinterleaving
-    tcb::span<int> carrier_mapper;
+    tcb::span<int> m_carrier_mapper;
 public:
     OFDM_Demod(
-        const OFDM_Params& _params, 
-        tcb::span<const std::complex<float>> _prs_fft_ref, 
-        tcb::span<const int> _carrier_mapper,
+        const OFDM_Params& params, 
+        const tcb::span<const std::complex<float>> prs_fft_ref, 
+        const tcb::span<const int> carrier_mapper,
         int nb_desired_threads=0);
     ~OFDM_Demod();
     // threads use lambdas which take in the this pointer
@@ -121,23 +121,23 @@ public:
     void Process(tcb::span<const std::complex<float>> block);
     void Reset();
 public:
-    OFDM_Params GetOFDMParams() const { return params; }
-    State GetState() const { return state; }
-    auto& GetConfig() { return cfg; }
-    float GetSignalAverage() const { return signal_l1_average; }
-    float GetFineFrequencyOffset() const { return freq_fine_offset; }
-    float GetCoarseFrequencyOffset() const { return freq_coarse_offset; }
-    float GetNetFrequencyOffset() const { return freq_fine_offset + freq_coarse_offset; }
-    int GetFineTimeOffset() const { return fine_time_offset; }
-    int GetTotalFramesRead() const { return total_frames_read; }
-    int GetTotalFramesDesync() const { return total_frames_desync; }
-    tcb::span<const std::complex<float>> GetFrameFFT() const { return pipeline_fft_buffer; }
-    tcb::span<const std::complex<float>> GetFrameDataVec() const { return pipeline_dqpsk_vec_buffer; }
-    tcb::span<const viterbi_bit_t> GetFrameDataBits() const { return pipeline_out_bits; }
-    tcb::span<const float> GetImpulseResponse() const { return correlation_impulse_response; }
-    tcb::span<const float> GetCoarseFrequencyResponse() const { return correlation_frequency_response; }
-    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() const { return correlation_time_buffer; }
-    auto& On_OFDM_Frame() { return obs_on_ofdm_frame; }
+    OFDM_Params GetOFDMParams() const { return m_params; }
+    State GetState() const { return m_state; }
+    auto& GetConfig() { return m_cfg; }
+    float GetSignalAverage() const { return m_signal_l1_average; }
+    float GetFineFrequencyOffset() const { return m_freq_fine_offset; }
+    float GetCoarseFrequencyOffset() const { return m_freq_coarse_offset; }
+    float GetNetFrequencyOffset() const { return m_freq_fine_offset + m_freq_coarse_offset; }
+    int GetFineTimeOffset() const { return m_fine_time_offset; }
+    int GetTotalFramesRead() const { return m_total_frames_read; }
+    int GetTotalFramesDesync() const { return m_total_frames_desync; }
+    tcb::span<const std::complex<float>> GetFrameFFT() const { return m_pipeline_fft_buffer; }
+    tcb::span<const std::complex<float>> GetFrameDataVec() const { return m_pipeline_dqpsk_vec_buffer; }
+    tcb::span<const viterbi_bit_t> GetFrameDataBits() const { return m_pipeline_out_bits; }
+    tcb::span<const float> GetImpulseResponse() const { return m_correlation_impulse_response; }
+    tcb::span<const float> GetCoarseFrequencyResponse() const { return m_correlation_frequency_response; }
+    tcb::span<const std::complex<float>> GetCorrelationTimeBuffer() const { return m_correlation_time_buffer; }
+    auto& On_OFDM_Frame() { return m_obs_on_ofdm_frame; }
 private:
     size_t FindNullPowerDip(tcb::span<const std::complex<float>> buf);
     size_t ReadNullPRS(tcb::span<const std::complex<float>> buf);

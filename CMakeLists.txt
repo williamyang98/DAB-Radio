@@ -66,7 +66,7 @@ add_project_target_flags(ofdm_core)
 add_project_target_flags(dab_core)
 add_project_target_flags(basic_radio)
 add_project_target_flags(basic_scraper)
-# examples/
+# examples/*.cpp
 add_project_target_flags(radio_app)
 add_project_target_flags(basic_radio_app)
 add_project_target_flags(basic_radio_app_cli)
@@ -75,3 +75,11 @@ add_project_target_flags(simulate_transmitter)
 add_project_target_flags(convert_viterbi)
 add_project_target_flags(apply_frequency_shift)
 add_project_target_flags(read_wav)
+# examples/
+add_project_target_flags(audio_lib)
+add_project_target_flags(device_lib)
+# examples/gui
+add_project_target_flags(ofdm_gui)
+add_project_target_flags(basic_radio_gui)
+add_project_target_flags(audio_gui)
+add_project_target_flags(device_gui)

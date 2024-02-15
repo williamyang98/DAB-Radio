@@ -1,4 +1,5 @@
 #include "./render_basic_radio.h"
+#include "./basic_radio_view_controller.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -82,7 +83,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
 
             for (auto* service_ptr: service_list) {
                 auto& service = *service_ptr;
-                const int service_id = static_cast<int>(service.reference);
+                const service_id_t service_id = service.reference;
                 const bool is_selected = (service_id == controller.selected_service);
                 auto label = fmt::format("{}###{}", service.label.empty() ? "[Unknown]" : service.label, service.reference);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
@@ -178,7 +179,7 @@ void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewControll
         if (total_components > 1) {
             ImGui::SliderInt("Service Component", &selected_component_index, 0, int(total_components-1));
         }
-        if (selected_component_index >= total_components) {
+        if (selected_component_index >= int(total_components)) {
             selected_component_index = 0; 
         }
         if (total_components > 0) {
@@ -194,8 +195,8 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
     const auto subchannel_id = component.subchannel_id;
     auto* subchannel = find_by_callback(
         db.subchannels,
-        [subchannel_id](const auto& subchannel) {
-            return subchannel.id == subchannel_id;
+        [subchannel_id](const auto& other) {
+            return other.id == subchannel_id;
         }
     );
 
@@ -477,7 +478,6 @@ void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& cont
 
     auto window_label = fmt::format("Linked Services ({})###Linked Services", link_services.size());
     if (ImGui::Begin(window_label.c_str())) {
-        const ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         for (const auto* link_service: link_services) {
             RenderSimple_LinkService(radio, controller, *link_service);
         }

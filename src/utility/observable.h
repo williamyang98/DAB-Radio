@@ -9,13 +9,13 @@ class Observable
 {
 private:
     using Observer = std::function<void(T...)>;
-    std::vector<Observer> observers;
+    std::vector<Observer> m_observers;
 public:
     void Attach(const Observer& observer) {
-        observers.push_back(observer);
+        m_observers.push_back(observer);
     }
     void Notify(T ... args) {
-        for (const auto& o: observers) {
+        for (const auto& o: m_observers) {
             o(std::forward<T>(args)...);
         }
     }

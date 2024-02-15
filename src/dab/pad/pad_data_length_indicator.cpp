@@ -10,18 +10,18 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 constexpr size_t TOTAL_DATA_GROUP_BYTES = 4;
 
 PAD_Data_Length_Indicator::PAD_Data_Length_Indicator() {
-    data_group.Reset();
-    data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
+    m_data_group.Reset();
+    m_data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
 
-    is_length_available = false;
-    length = 0;
+    m_is_length_available = false;
+    m_length = 0;
 }
 
 void PAD_Data_Length_Indicator::ResetLength(void) { 
-    is_length_available = false;
-    length = 0;
-    data_group.Reset();
-    data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
+    m_is_length_available = false;
+    m_length = 0;
+    m_data_group.Reset();
+    m_data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
 }
 
 void PAD_Data_Length_Indicator::ProcessXPAD(tcb::span<const uint8_t> buf) {
@@ -35,23 +35,23 @@ void PAD_Data_Length_Indicator::ProcessXPAD(tcb::span<const uint8_t> buf) {
 }
 
 size_t PAD_Data_Length_Indicator::Consume(tcb::span<const uint8_t> buf) {
-    const size_t nb_read = data_group.Consume(buf);
-    LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+    const size_t nb_read = m_data_group.Consume(buf);
+    LOG_MESSAGE("Progress partial data group {}/{}", m_data_group.GetCurrentBytes(), m_data_group.GetRequiredBytes());
 
-    if (!data_group.IsComplete()) {
+    if (!m_data_group.IsComplete()) {
         return nb_read;
     }
 
-    if (!data_group.CheckCRC()) {
+    if (!m_data_group.CheckCRC()) {
         LOG_ERROR("CRC mismatch on data group");
-        data_group.Reset();
-        data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
+        m_data_group.Reset();
+        m_data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
         return nb_read;
     }
 
     Interpret();
-    data_group.Reset();
-    data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
+    m_data_group.Reset();
+    m_data_group.SetRequiredBytes(TOTAL_DATA_GROUP_BYTES);
     return nb_read;
 }
 
@@ -59,13 +59,13 @@ void PAD_Data_Length_Indicator::Interpret(void) {
     // DOC: ETSI EN 300 401
     // Clause 7.4.5.1.1: X-PAD data group for data group length indicator 
     // Figure 34: Structure of the X-PAD data group for the data group length indicator 
-    auto buf = data_group.GetData();
+    auto buf = m_data_group.GetData();
 
     const uint8_t rfa      =  (buf[0] & 0b11000000) >> 6;
     const uint16_t _length = ((buf[0] & 0b00111111) << 8) |
                              ((buf[1] & 0b11111111) >> 0);
     
-    length = _length;
-    is_length_available = true;
-    LOG_MESSAGE("length={} rfa={}", length, rfa);
+    m_length = _length;
+    m_is_length_available = true;
+    LOG_MESSAGE("length={} rfa={}", m_length, rfa);
 }

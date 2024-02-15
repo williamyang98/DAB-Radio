@@ -12,12 +12,12 @@ class DAB_Viterbi_Decoder_Internal;
 class DAB_Viterbi_Decoder 
 {
 public:
-    static constexpr size_t constraint_length = 7;
-    static constexpr size_t code_rate = 4;
+    static constexpr size_t m_constraint_length = 7;
+    static constexpr size_t m_code_rate = 4;
 private:
-    std::unique_ptr<DAB_Viterbi_Decoder_Internal> decoder;
-    std::vector<int16_t> depunctured_symbols;
-    uint64_t accumulated_error;
+    std::unique_ptr<DAB_Viterbi_Decoder_Internal> m_decoder;
+    std::vector<int16_t> m_depunctured_symbols;
+    uint64_t m_accumulated_error;
 public:
     DAB_Viterbi_Decoder();
     ~DAB_Viterbi_Decoder();

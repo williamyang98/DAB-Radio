@@ -36,5 +36,6 @@ public:
         tcb::span<const uint8_t> data_field;
     };
 public:
-    ProcessResult Process(tcb::span<const uint8_t> buf);
+    MSC_XPAD_Processor() = delete;
+    static ProcessResult Process(tcb::span<const uint8_t> buf);
 };

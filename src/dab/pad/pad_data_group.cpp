@@ -20,22 +20,22 @@ static auto CRC16_CALC = Generate_CRC_Calc();
 
 size_t PAD_Data_Group::Consume(tcb::span<const uint8_t> data) {
     const size_t N = data.size();
-    const size_t nb_remain = nb_required_bytes - nb_curr_bytes;
+    const size_t nb_remain = m_nb_required_bytes - m_nb_curr_bytes;
     const size_t nb_read = (nb_remain > N) ? N : nb_remain;
     for (size_t i = 0; i < nb_read; i++) {
-        buffer[nb_curr_bytes++] = data[i];
+        m_buffer[m_nb_curr_bytes++] = data[i];
     }
     return nb_read;
 }
 
 bool PAD_Data_Group::CheckCRC(void) {
     const size_t MIN_CRC_BYTES = 2;
-    if (nb_required_bytes < MIN_CRC_BYTES) {
+    if (m_nb_required_bytes < MIN_CRC_BYTES) {
         return false;
     }
 
-    const auto* buf = buffer.data();
-    const size_t N = nb_required_bytes;
+    const auto* buf = m_buffer.data();
+    const size_t N = m_nb_required_bytes;
     const size_t nb_data_bytes = N-MIN_CRC_BYTES;
 
     const uint16_t crc16_rx = (buf[N-2] << 8) | buf[N-1];
@@ -46,8 +46,8 @@ bool PAD_Data_Group::CheckCRC(void) {
 }
 
 void PAD_Data_Group::Reset(void) {
-    nb_required_bytes = 0;
-    nb_curr_bytes = 0;
-    buffer.resize(0);
-    buffer.clear();
+    m_nb_required_bytes = 0;
+    m_nb_curr_bytes = 0;
+    m_buffer.resize(0);
+    m_buffer.clear();
 }

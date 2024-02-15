@@ -13,7 +13,7 @@ struct RS_data;
 class Reed_Solomon_Decoder 
 {
 private:
-    struct RS_data* rs;
+    struct RS_data* m_rs;
 public:
     Reed_Solomon_Decoder(
         const int symbol_size, const int galois_field_polynomial,

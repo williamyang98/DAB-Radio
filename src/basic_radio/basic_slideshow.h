@@ -31,25 +31,22 @@ struct Basic_Slideshow {
     std::vector<uint8_t> image_data;
 };
 
-class MOT_Slideshow_Processor;
 class Basic_Slideshow_Manager 
 {
 private:
-    std::list<std::shared_ptr<Basic_Slideshow>> slideshows;
-    std::unique_ptr<MOT_Slideshow_Processor> slideshow_processor;
-    Observable<std::shared_ptr<Basic_Slideshow>&> obs_on_new_slideshow;
-    size_t max_size;
-    std::mutex mutex_slideshows;
+    std::list<std::shared_ptr<Basic_Slideshow>> m_slideshows;
+    Observable<std::shared_ptr<Basic_Slideshow>&> m_obs_on_new_slideshow;
+    size_t m_max_size;
+    std::mutex m_mutex_slideshows;
 public:
-    Basic_Slideshow_Manager(size_t _max_slideshows=25);
-    ~Basic_Slideshow_Manager();
+    Basic_Slideshow_Manager(size_t max_slideshows=25);
     // returns nullptr if MOT entity wasn't a slideshow
     std::shared_ptr<Basic_Slideshow> Process_MOT_Entity(MOT_Entity& entity);
-    auto& GetSlideshowsMutex(void) { return mutex_slideshows; }
-    auto& GetSlideshows(void) { return slideshows; }
-    auto& OnNewSlideshow(void) { return obs_on_new_slideshow; }
-    void SetMaxSize(const size_t _max_size);
-    size_t GetMaxSize(void) const { return max_size; };
+    auto& GetSlideshowsMutex(void) { return m_mutex_slideshows; }
+    auto& GetSlideshows(void) { return m_slideshows; }
+    auto& OnNewSlideshow(void) { return m_obs_on_new_slideshow; }
+    void SetMaxSize(const size_t max_size);
+    size_t GetMaxSize(void) const { return m_max_size; };
 private:
     void RestrictSize(void);
 };

@@ -29,26 +29,26 @@ static auto Generate_CRC_Calc() {
 
 static auto CRC16_CALC = Generate_CRC_Calc();
 
-FIC_Decoder::FIC_Decoder(const size_t _nb_encoded_bits, const size_t _nb_fibs_per_group)
+FIC_Decoder::FIC_Decoder(const size_t nb_encoded_bits, const size_t nb_fibs_per_group)
 // NOTE: 1/3 coding rate after puncturing and 1/4 code
 // For all transmission modes these parameters are constant
-: nb_fibs_per_group(_nb_fibs_per_group),
-  nb_encoded_bits(_nb_encoded_bits),
-  nb_decoded_bytes(_nb_encoded_bits/(8*3)),
-  nb_decoded_bits(_nb_encoded_bits/3)
+: m_nb_fibs_per_group(nb_fibs_per_group),
+  m_nb_encoded_bits(nb_encoded_bits),
+  m_nb_decoded_bytes(nb_encoded_bits/(8*3)),
+  m_nb_decoded_bits(nb_encoded_bits/3)
 {
-    vitdec = std::make_unique<DAB_Viterbi_Decoder>();
-    vitdec->set_traceback_length(nb_decoded_bits);
-    decoded_bytes.resize(nb_decoded_bytes);
-    scrambler = std::make_unique<AdditiveScrambler>();
-    scrambler->SetSyncword(0xFFFF);
+    m_vitdec = std::make_unique<DAB_Viterbi_Decoder>();
+    m_vitdec->set_traceback_length(m_nb_decoded_bits);
+    m_decoded_bytes.resize(m_nb_decoded_bytes);
+    m_scrambler = std::make_unique<AdditiveScrambler>();
+    m_scrambler->SetSyncword(0xFFFF);
 }
 
 FIC_Decoder::~FIC_Decoder() = default;
 
 // Each group contains 3 fibs (fast information blocks) in mode I
 void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, const size_t cif_index) {
-    assert(encoded_bits.size() >= nb_encoded_bits);
+    assert(encoded_bits.size() >= m_nb_encoded_bits);
     // DOC: ETSI EN 300 401
     // Clause 11.2 - Coding in the fast information channel
     // PI_16, PI_15 and PI_X are used
@@ -61,44 +61,44 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
     //       Refer to DOC: docs/DAB_parameters.pdf, Clause A1.1: System parameters
     //       for the number of bits per fib group for each transmission mode
     const size_t nb_tail_bits = 6;
-    const size_t nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/DAB_Viterbi_Decoder::code_rate - nb_tail_bits;
-    if (nb_decoded_bits != nb_decoded_bits_mode_I) {
-        LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, nb_decoded_bits);
+    const size_t nb_decoded_bits_mode_I = (128*21 + 128*3 + 24)/DAB_Viterbi_Decoder::m_code_rate - nb_tail_bits;
+    if (m_nb_decoded_bits != nb_decoded_bits_mode_I) {
+        LOG_ERROR("Expected {} encoded bits but got {}", nb_decoded_bits_mode_I, m_nb_decoded_bits);
         LOG_ERROR("ETSI EN 300 401 standard only gives the puncture codes used in transmission mode I");
         return;
     }
 
-    vitdec->reset();
+    m_vitdec->reset();
     {
         size_t N;
         auto encoded_bits_buf = encoded_bits;
-        N = vitdec->update(encoded_bits_buf, PI_16, 128*21);
+        N = m_vitdec->update(encoded_bits_buf, PI_16, 128*21);
         encoded_bits_buf = encoded_bits_buf.subspan(N);
-        N = vitdec->update(encoded_bits_buf, PI_15, 128*3);
+        N = m_vitdec->update(encoded_bits_buf, PI_15, 128*3);
         encoded_bits_buf = encoded_bits_buf.subspan(N);
-        N = vitdec->update(encoded_bits_buf, PI_X, 24);
+        N = m_vitdec->update(encoded_bits_buf, PI_X, 24);
         encoded_bits_buf = encoded_bits_buf.subspan(N);
         assert(encoded_bits_buf.size() == 0);
     }
 
-    const uint64_t error = vitdec->chainback(decoded_bytes);
+    const uint64_t error = m_vitdec->chainback(m_decoded_bytes);
     LOG_MESSAGE("error:    {}", error);
 
     // descrambler
-    scrambler->Reset();
-    for (size_t i = 0; i < nb_decoded_bytes; i++) {
-        uint8_t b = scrambler->Process();
-        decoded_bytes[i] ^= b;
+    m_scrambler->Reset();
+    for (size_t i = 0; i < m_nb_decoded_bytes; i++) {
+        uint8_t b = m_scrambler->Process();
+        m_decoded_bytes[i] ^= b;
     }
 
     // crc16 check
-    const size_t nb_fib_bytes = nb_decoded_bytes/nb_fibs_per_group;
+    const size_t nb_fib_bytes = m_nb_decoded_bytes/m_nb_fibs_per_group;
     const size_t nb_crc16_bytes = 2;
     assert(nb_fib_bytes >= nb_crc16_bytes);
     const size_t nb_data_bytes = nb_fib_bytes-nb_crc16_bytes;
 
-    for (size_t i = 0; i < nb_fibs_per_group; i++) {
-        auto fib_buf = tcb::span(decoded_bytes).subspan(i*nb_fib_bytes, nb_fib_bytes);
+    for (size_t i = 0; i < m_nb_fibs_per_group; i++) {
+        auto fib_buf = tcb::span(m_decoded_bytes).subspan(i*nb_fib_bytes, nb_fib_bytes);
         auto data_buf = fib_buf.first(nb_data_bytes);
         auto crc_buf = fib_buf.last(nb_crc16_bytes);
 
@@ -106,7 +106,7 @@ void FIC_Decoder::DecodeFIBGroup(tcb::span<const viterbi_bit_t> encoded_bits, co
         const uint16_t crc16_pred = CRC16_CALC->Process(data_buf);
         const bool is_valid = crc16_rx == crc16_pred;
         LOG_MESSAGE("[crc16] fib={}/{} is_match={} pred={:04X} got={:04X}", 
-            i, nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
+            i, m_nb_fibs_per_group, is_valid, crc16_pred, crc16_rx);
         if (is_valid) {
             obs_on_fib.Notify(data_buf);
         }

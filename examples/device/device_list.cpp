@@ -53,9 +53,9 @@ std::shared_ptr<Device> DeviceList::get_device(size_t index) {
         return nullptr;
     }
  
-    auto lock = std::unique_lock(m_mutex_descriptors);
+    auto lock_descriptors = std::unique_lock(m_mutex_descriptors);
     const auto descriptor = m_descriptors[index];
-    lock.unlock();
+    lock_descriptors.unlock();
 
     rtlsdr_dev_t* device = nullptr;
     const auto status = rtlsdr_open(&device, uint32_t(index));

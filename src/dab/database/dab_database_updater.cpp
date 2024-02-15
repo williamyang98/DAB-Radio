@@ -69,7 +69,7 @@ UpdateResult EnsembleUpdater::SetInternationalTableID(const uint8_t internationa
 }
 
 bool EnsembleUpdater::IsComplete() {
-    return (dirty_field & ENSEMBLE_FLAG_REQUIRED) == ENSEMBLE_FLAG_REQUIRED;
+    return (m_dirty_field & ENSEMBLE_FLAG_REQUIRED) == ENSEMBLE_FLAG_REQUIRED;
 }
 
 // Service form
@@ -110,7 +110,7 @@ UpdateResult ServiceUpdater::SetClosedCaption(const closed_caption_id_t closed_c
 }
 
 bool ServiceUpdater::IsComplete() {
-    return (dirty_field & SERVICE_FLAG_REQUIRED) == SERVICE_FLAG_REQUIRED;
+    return (m_dirty_field & SERVICE_FLAG_REQUIRED) == SERVICE_FLAG_REQUIRED;
 }
 
 // Service component form
@@ -130,7 +130,7 @@ UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {
-    if ((dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) && (transport_mode == TransportMode::STREAM_MODE_AUDIO)) {
+    if ((m_dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) && (transport_mode == TransportMode::STREAM_MODE_AUDIO)) {
         OnConflict();
         return UpdateResult::CONFLICT;
     }
@@ -144,7 +144,7 @@ UpdateResult ServiceComponentUpdater::SetAudioServiceType(const AudioServiceType
         OnConflict();
         return UpdateResult::CONFLICT;
     }
-    if (dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) {
+    if (m_dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) {
         OnConflict();
         return UpdateResult::CONFLICT;
     }
@@ -152,7 +152,7 @@ UpdateResult ServiceComponentUpdater::SetAudioServiceType(const AudioServiceType
 }
 
 UpdateResult ServiceComponentUpdater::SetDataServiceType(const DataServiceType data_service_type) {
-    if (dirty_field & SERVICE_COMPONENT_FLAG_AUDIO_TYPE) {
+    if (m_dirty_field & SERVICE_COMPONENT_FLAG_AUDIO_TYPE) {
         OnConflict();
         return UpdateResult::CONFLICT;
     }
@@ -172,8 +172,8 @@ uint32_t ServiceComponentUpdater::GetServiceReference() {
 }
 
 bool ServiceComponentUpdater::IsComplete() {
-    const bool audio_complete = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
-    const bool data_complete  = (dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
+    const bool audio_complete = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
+    const bool data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
     return (GetData().transport_mode == TransportMode::STREAM_MODE_AUDIO) ? audio_complete : data_complete;
 }
 
@@ -229,8 +229,8 @@ UpdateResult SubchannelUpdater::SetFECScheme(const fec_scheme_t fec_scheme) {
 }
 
 bool SubchannelUpdater::IsComplete() {
-    const bool eep_complete = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
-    const bool uep_complete = (dirty_field & SUBCHANNEL_FLAG_REQUIRED_UEP) == SUBCHANNEL_FLAG_REQUIRED_UEP;
+    const bool eep_complete = (m_dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
+    const bool uep_complete = (m_dirty_field & SUBCHANNEL_FLAG_REQUIRED_UEP) == SUBCHANNEL_FLAG_REQUIRED_UEP;
     return GetData().is_uep ? uep_complete : eep_complete;
 }
 
@@ -262,7 +262,7 @@ service_id_t LinkServiceUpdater::GetServiceReference() {
 }
 
 bool LinkServiceUpdater::IsComplete() {
-    return (dirty_field & LINK_FLAG_REQUIRED) == LINK_FLAG_REQUIRED;
+    return (m_dirty_field & LINK_FLAG_REQUIRED) == LINK_FLAG_REQUIRED;
 }
 
 // fm service form
@@ -281,14 +281,14 @@ UpdateResult FM_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compensa
 
 UpdateResult FM_ServiceUpdater::AddFrequency(const freq_t frequency) {
     if (!insert_if_unique(GetData().frequencies, frequency)) return UpdateResult::NO_CHANGE;
-    dirty_field |= FM_FLAG_FREQ;
+    m_dirty_field |= FM_FLAG_FREQ;
     OnComplete();
     OnUpdate();
     return UpdateResult::SUCCESS;
 }
 
 bool FM_ServiceUpdater::IsComplete() {
-    return (dirty_field & FM_FLAG_REQUIRED) == FM_FLAG_REQUIRED;
+    return (m_dirty_field & FM_FLAG_REQUIRED) == FM_FLAG_REQUIRED;
 }
 
 // drm service form
@@ -307,14 +307,14 @@ UpdateResult DRM_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compens
 
 UpdateResult DRM_ServiceUpdater::AddFrequency(const freq_t frequency) {
     if (!insert_if_unique(GetData().frequencies, frequency)) return UpdateResult::NO_CHANGE;
-    dirty_field |= DRM_FLAG_FREQ;
+    m_dirty_field |= DRM_FLAG_FREQ;
     OnComplete();
     OnUpdate();
     return UpdateResult::SUCCESS;
 }
 
 bool DRM_ServiceUpdater::IsComplete() {
-    return (dirty_field & DRM_FLAG_REQUIRED) == DRM_FLAG_REQUIRED;
+    return (m_dirty_field & DRM_FLAG_REQUIRED) == DRM_FLAG_REQUIRED;
 }
 
 // amss service form
@@ -328,14 +328,14 @@ UpdateResult AMSS_ServiceUpdater::SetIsTimeCompensated(const bool is_time_compen
 
 UpdateResult AMSS_ServiceUpdater::AddFrequency(const freq_t frequency) {
     if (!insert_if_unique(GetData().frequencies, frequency)) return UpdateResult::NO_CHANGE;
-    dirty_field |= AMSS_FLAG_FREQ;
+    m_dirty_field |= AMSS_FLAG_FREQ;
     OnComplete();
     OnUpdate();
     return UpdateResult::SUCCESS;
 }
 
 bool AMSS_ServiceUpdater::IsComplete() {
-    return (dirty_field & AMSS_FLAG_REQUIRED) == AMSS_FLAG_REQUIRED;
+    return (m_dirty_field & AMSS_FLAG_REQUIRED) == AMSS_FLAG_REQUIRED;
 }
 
 // other ensemble form
@@ -367,19 +367,19 @@ UpdateResult OtherEnsembleUpdater::SetFrequency(const freq_t frequency) {
 }
 
 bool OtherEnsembleUpdater::IsComplete() {
-    return (dirty_field & OE_FLAG_REQUIRED) == OE_FLAG_REQUIRED;
+    return (m_dirty_field & OE_FLAG_REQUIRED) == OE_FLAG_REQUIRED;
 }
 
 // updater parent
 DAB_Database_Updater::DAB_Database_Updater() {
-    db = std::make_unique<DAB_Database>();
-    stats = std::make_unique<DatabaseUpdaterGlobalStatistics>();
-    ensemble_updater = std::make_unique<EnsembleUpdater>(*(db.get()), *(stats.get()));
+    m_db = std::make_unique<DAB_Database>();
+    m_stats = std::make_unique<DatabaseUpdaterGlobalStatistics>();
+    m_ensemble_updater = std::make_unique<EnsembleUpdater>(*(m_db.get()), *(m_stats.get()));
 }
 
 ServiceUpdater& DAB_Database_Updater::GetServiceUpdater(const service_id_t service_ref) {
     return find_or_insert_updater(
-        db->services, service_updaters,
+        m_db->services, m_service_updaters,
         [service_ref](const auto& e) { 
             return e.reference == service_ref; 
         },
@@ -391,7 +391,7 @@ ServiceComponentUpdater& DAB_Database_Updater::GetServiceComponentUpdater_Servic
     const service_id_t service_ref, const service_component_id_t component_id) 
 {
     return find_or_insert_updater(
-        db->service_components, service_component_updaters,
+        m_db->service_components, m_service_component_updaters,
         [service_ref, component_id](const auto& e) { 
             return (e.service_reference == service_ref) && (e.component_id == component_id); 
         },
@@ -401,7 +401,7 @@ ServiceComponentUpdater& DAB_Database_Updater::GetServiceComponentUpdater_Servic
 
 SubchannelUpdater& DAB_Database_Updater::GetSubchannelUpdater(const subchannel_id_t subchannel_id) {
     return find_or_insert_updater(
-        db->subchannels, subchannel_updaters,
+        m_db->subchannels, m_subchannel_updaters,
         [subchannel_id](const auto& e) {
             return e.id == subchannel_id;
         },
@@ -411,7 +411,7 @@ SubchannelUpdater& DAB_Database_Updater::GetSubchannelUpdater(const subchannel_i
 
 LinkServiceUpdater& DAB_Database_Updater::GetLinkServiceUpdater(const lsn_t link_service_number) {
     return find_or_insert_updater(
-        db->link_services, link_service_updaters,
+        m_db->link_services, m_link_service_updaters,
         [link_service_number](const auto& e) {
             return e.id == link_service_number;
         },
@@ -421,7 +421,7 @@ LinkServiceUpdater& DAB_Database_Updater::GetLinkServiceUpdater(const lsn_t link
 
 FM_ServiceUpdater& DAB_Database_Updater::GetFMServiceUpdater(const fm_id_t RDS_PI_code) {
     return find_or_insert_updater(
-        db->fm_services, fm_service_updaters,
+        m_db->fm_services, m_fm_service_updaters,
         [RDS_PI_code](const auto& e) {
             return e.RDS_PI_code == RDS_PI_code;
         },
@@ -431,7 +431,7 @@ FM_ServiceUpdater& DAB_Database_Updater::GetFMServiceUpdater(const fm_id_t RDS_P
 
 DRM_ServiceUpdater& DAB_Database_Updater::GetDRMServiceUpdater(const drm_id_t drm_code) {
     return find_or_insert_updater(
-        db->drm_services, drm_service_updaters,
+        m_db->drm_services, m_drm_service_updaters,
         [drm_code](const auto& e) {
             return e.drm_code == drm_code;
         },
@@ -441,7 +441,7 @@ DRM_ServiceUpdater& DAB_Database_Updater::GetDRMServiceUpdater(const drm_id_t dr
 
 AMSS_ServiceUpdater& DAB_Database_Updater::GetAMSS_ServiceUpdater(const amss_id_t amss_code) {
     return find_or_insert_updater(
-        db->amss_services, amss_service_updaters,
+        m_db->amss_services, m_amss_service_updaters,
         [amss_code](const auto& e) {
             return e.amss_code == amss_code;
         },
@@ -451,7 +451,7 @@ AMSS_ServiceUpdater& DAB_Database_Updater::GetAMSS_ServiceUpdater(const amss_id_
 
 OtherEnsembleUpdater& DAB_Database_Updater::GetOtherEnsemble(const ensemble_id_t ensemble_reference) {
     return find_or_insert_updater(
-        db->other_ensembles, other_ensemble_updaters,
+        m_db->other_ensembles, m_other_ensemble_updaters,
         [ensemble_reference](const auto& e) {
             return e.reference == ensemble_reference;
         },
@@ -463,7 +463,7 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Global
     const service_component_global_id_t global_id) 
 {
     return find_updater(
-        db->service_components, service_component_updaters,
+        m_db->service_components, m_service_component_updaters,
         [global_id](const auto& e) {
             return e.global_id == global_id;
         }
@@ -474,7 +474,7 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subcha
     const subchannel_id_t subchannel_id) 
 {
     return find_updater(
-        db->service_components, service_component_updaters,
+        m_db->service_components, m_service_component_updaters,
         [subchannel_id](const auto& e) {
             return e.subchannel_id == subchannel_id;
         }

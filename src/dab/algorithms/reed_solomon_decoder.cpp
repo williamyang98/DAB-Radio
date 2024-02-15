@@ -481,15 +481,15 @@ Reed_Solomon_Decoder::Reed_Solomon_Decoder(
     const int symbol_size, const int galois_field_polynomial,
     const int fcr, const int primer, const int nb_roots, const int pad)
 {
-    rs = init_rs_char(
+    m_rs = init_rs_char(
         symbol_size, galois_field_polynomial,
         fcr, primer, nb_roots, pad);
 }
 
 Reed_Solomon_Decoder::~Reed_Solomon_Decoder() {
-    free_rs_char(rs);
+    free_rs_char(m_rs);
 }
 
 int Reed_Solomon_Decoder::Decode(uint8_t* data, int* eras_pos, int no_eras) {
-    return decode_rs_char(rs, data, eras_pos, no_eras);
+    return decode_rs_char(m_rs, data, eras_pos, no_eras);
 }

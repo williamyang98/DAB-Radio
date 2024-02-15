@@ -10,33 +10,33 @@ const int CIF_INDICES_OFFSETS[TOTAL_CIF_DEINTERLEAVE] = {
 };
 
 CIF_Deinterleaver::CIF_Deinterleaver(const int _nb_bytes)
-: nb_bytes(_nb_bytes) 
+: m_nb_bytes(_nb_bytes) 
 {
-    const int nb_bits = nb_bytes*8;
-    bits_buffer.resize(nb_bits*TOTAL_CIF_DEINTERLEAVE);
+    const int nb_bits = m_nb_bytes*8;
+    m_bits_buffer.resize(nb_bits*TOTAL_CIF_DEINTERLEAVE);
 }
 
 void CIF_Deinterleaver::Consume(tcb::span<const viterbi_bit_t> bits_buf) {
-    const int nb_bits = nb_bytes*8;
+    const int nb_bits = m_nb_bytes*8;
 
     // Append data into circular buffer
-    auto* curr_bits_buf = &bits_buffer[nb_bits*curr_frame];
+    auto* curr_bits_buf = &m_bits_buffer[nb_bits*m_curr_frame];
     for (int i = 0; i < nb_bits; i++) {
         curr_bits_buf[i] = bits_buf[i];
     }
 
     // Advance frame
-    curr_frame = (curr_frame+1) % TOTAL_CIF_DEINTERLEAVE;
-    if (total_frames_stored < TOTAL_CIF_DEINTERLEAVE) {
-        total_frames_stored++;
+    m_curr_frame = (m_curr_frame+1) % TOTAL_CIF_DEINTERLEAVE;
+    if (m_total_frames_stored < TOTAL_CIF_DEINTERLEAVE) {
+        m_total_frames_stored++;
     } 
 }
 
 bool CIF_Deinterleaver::Deinterleave(tcb::span<viterbi_bit_t> out_bits_buf) {
-    const int nb_bits = nb_bytes*8;
+    const int nb_bits = m_nb_bytes*8;
 
     // insufficient frames to deinterleave
-    if (total_frames_stored < TOTAL_CIF_DEINTERLEAVE) {
+    if (m_total_frames_stored < TOTAL_CIF_DEINTERLEAVE) {
         return false;
     }
 
@@ -45,8 +45,8 @@ bool CIF_Deinterleaver::Deinterleave(tcb::span<viterbi_bit_t> out_bits_buf) {
     // Index=end points to the oldest frame
     viterbi_bit_t* BUFFER_LOOKUP[TOTAL_CIF_DEINTERLEAVE]; 
     for (int i = 0; i < TOTAL_CIF_DEINTERLEAVE; i++) {
-        const int frame_index = ((curr_frame-1) -i + TOTAL_CIF_DEINTERLEAVE) % TOTAL_CIF_DEINTERLEAVE;
-        BUFFER_LOOKUP[i] = &bits_buffer[frame_index*nb_bits];
+        const int frame_index = ((m_curr_frame-1) -i + TOTAL_CIF_DEINTERLEAVE) % TOTAL_CIF_DEINTERLEAVE;
+        BUFFER_LOOKUP[i] = &m_bits_buffer[frame_index*nb_bits];
     }
 
     // DOC: ETSI EN 300 401

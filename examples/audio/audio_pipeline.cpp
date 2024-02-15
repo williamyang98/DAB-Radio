@@ -67,15 +67,15 @@ void AudioPipelineSource::write(tcb::span<const Frame<int16_t>> src, float src_s
     if (resample_length == src.size()) {
         audio_map_with_callback<int16_t,float>(
             src, m_resampling_buffer, 
-            [gain](Frame<float>& dest, const Frame<int16_t>& src) {
-                dest = static_cast<Frame<float>>(src) * gain;
+            [gain](Frame<float>& v_dest, const Frame<int16_t>& v_src) {
+                v_dest = static_cast<Frame<float>>(v_src) * gain;
             }
         );
     } else {
         audio_resample_with_callback<int16_t,float>(
             src, m_resampling_buffer, 
-            [gain](Frame<float>& dest, const Frame<float>& src) {
-                dest = src * gain;
+            [gain](Frame<float>& v_dest, const Frame<float>& v_src) {
+                v_dest = v_src * gain;
             }
         );
     }
@@ -136,8 +136,8 @@ void AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest
 
         audio_resample_same_type_with_callback<float>(
             m_read_buffer, dest,
-            [](Frame<float>& dest, const Frame<float>& src) { 
-                dest += src;
+            [](Frame<float>& v_dest, const Frame<float>& v_src) { 
+                v_dest += v_src;
             }
         );
         total_sources_mixed++;

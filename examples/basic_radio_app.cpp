@@ -29,6 +29,7 @@
 #include "./app_helpers/app_common_gui.h"
 #include "./gui/ofdm/render_ofdm_demod.h"
 #include "./gui/ofdm/render_profiler.h"
+#include "./gui/basic_radio/basic_radio_view_controller.h"
 #include "./gui/basic_radio/render_basic_radio.h"
 #include "./gui/audio/render_portaudio_controls.h"
 #endif

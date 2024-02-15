@@ -14,10 +14,8 @@ constexpr size_t TOTAL_SEGMENT_HEADER_BYTES = 2;
 constexpr size_t MIN_REQUIRED_BYTES = TOTAL_CRC_BYTES + TOTAL_SEGMENT_HEADER_BYTES;
 
 PAD_MOT_Processor::PAD_MOT_Processor() {
-    data_group.Reset();
-    state = State::WAIT_LENGTH;
-
-    msc_xpad_processor = std::make_unique<MSC_XPAD_Processor>();
+    m_data_group.Reset();
+    m_state = State::WAIT_LENGTH;
 
     // DOC: ETSI EN 301 234
     // Clause 5: Structural description
@@ -27,7 +25,7 @@ PAD_MOT_Processor::PAD_MOT_Processor() {
     // 2. MSC data stream mode service component
     // 3. PAD via AAC data_stream_element()
     // 4. PAD via MPEG-II
-    mot_processor = std::make_unique<MOT_Processor>();
+    m_mot_processor = std::make_unique<MOT_Processor>();
 }
 
 PAD_MOT_Processor::~PAD_MOT_Processor() = default;
@@ -50,27 +48,27 @@ void PAD_MOT_Processor::ProcessXPAD(
 }
 
 void PAD_MOT_Processor::SetGroupLength(const uint16_t length) {
-    if (state != State::WAIT_LENGTH) {
+    if (m_state != State::WAIT_LENGTH) {
         LOG_ERROR("Overwriting incomplete group length {} to {}", 
-            data_group.GetRequiredBytes(), length);
+            m_data_group.GetRequiredBytes(), length);
     }
 
     if (length == 0) {
-        data_group.Reset();
-        state = State::WAIT_LENGTH;
+        m_data_group.Reset();
+        m_state = State::WAIT_LENGTH;
         return;
     }
 
     if (length < MIN_REQUIRED_BYTES) {
         LOG_ERROR("Insufficient size for header and crc {}<{}", length, MIN_REQUIRED_BYTES);
-        data_group.Reset();
-        state = State::WAIT_LENGTH;
+        m_data_group.Reset();
+        m_state = State::WAIT_LENGTH;
         return;
     } 
 
-    data_group.Reset();
-    data_group.SetRequiredBytes(length);
-    state = State::WAIT_START;
+    m_data_group.Reset();
+    m_data_group.SetRequiredBytes(length);
+    m_state = State::WAIT_START;
 }
 
 size_t PAD_MOT_Processor::Consume(
@@ -80,40 +78,40 @@ size_t PAD_MOT_Processor::Consume(
     const size_t N = buf.size();
     // Wait until we get the corresponding data group length indicator
     // NOTE: We can get null padding bytes which triggers this erroneously
-    if (state == State::WAIT_LENGTH) {
+    if (m_state == State::WAIT_LENGTH) {
         return N;
     }
 
-    if ((state == State::WAIT_START) && !is_start) {
+    if ((m_state == State::WAIT_START) && !is_start) {
         return N;
     }
 
     if (is_start) {
-        if ((state != State::WAIT_START) && !data_group.IsComplete()) {
-            LOG_MESSAGE("Discarding partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
+        if ((m_state != State::WAIT_START) && !m_data_group.IsComplete()) {
+            LOG_MESSAGE("Discarding partial data group {}/{}", m_data_group.GetCurrentBytes(), m_data_group.GetRequiredBytes());
         }
-        state = State::READ_DATA;
+        m_state = State::READ_DATA;
     }
 
-    const size_t nb_read = data_group.Consume({buf.data(), N});
+    const size_t nb_read = m_data_group.Consume({buf.data(), N});
     // TODO: This takes quite a long time for some broadcasters
     //       Signal this data group information to a listener
-    LOG_MESSAGE("Progress partial data group {}/{}", data_group.GetCurrentBytes(), data_group.GetRequiredBytes());
-    if (!data_group.IsComplete()) {
+    LOG_MESSAGE("Progress partial data group {}/{}", m_data_group.GetCurrentBytes(), m_data_group.GetRequiredBytes());
+    if (!m_data_group.IsComplete()) {
         return nb_read;
     }
 
     Interpret();
-    state = State::WAIT_LENGTH;
-    data_group.Reset();
+    m_state = State::WAIT_LENGTH;
+    m_data_group.Reset();
     return nb_read;
 }
 
 
 void PAD_MOT_Processor::Interpret(void) {
-    const auto buf = data_group.GetData();
-    const size_t N = data_group.GetRequiredBytes();
-    const auto res = msc_xpad_processor->Process({buf.data(), N});
+    const auto buf = m_data_group.GetData();
+    const size_t N = m_data_group.GetRequiredBytes();
+    const auto res = MSC_XPAD_Processor::Process({buf.data(), N});
     if (!res.is_success) {
         return;
     }
@@ -140,5 +138,5 @@ void PAD_MOT_Processor::Interpret(void) {
     header.is_last_segment = res.segment_field.is_last_segment;
     header.segment_number = res.segment_field.segment_number;
     header.transport_id = res.user_access_field.transport_id;
-    mot_processor->Process_Segment(header, res.data_field);
+    m_mot_processor->Process_Segment(header, res.data_field);
 }

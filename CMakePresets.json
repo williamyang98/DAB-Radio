@@ -45,7 +45,7 @@
       "name": "windows-clang-warnings",
       "inherits": ["windows-clang"],
       "cacheVariables": {
-        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter"
+        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wshadow"
       }
     },
     {
@@ -62,7 +62,7 @@
       "name": "gcc-warnings",
       "inherits": ["gcc"],
       "cacheVariables": {
-        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter"
+        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wshadow"
       }
     },
     {
@@ -79,7 +79,7 @@
       "name": "clang-warnings",
       "inherits": ["clang"],
       "cacheVariables": {
-        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter"
+        "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "-Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter -Wshadow"
       }
     },
     {

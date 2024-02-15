@@ -23,15 +23,15 @@ class PAD_Processor
 {
 private:
     // The incoming XPAD field has reversed byte order which we unreverse
-    std::vector<uint8_t> xpad_unreverse_buf;
-    std::vector<PAD_Content_Indicator> ci_list;
+    std::vector<uint8_t> m_xpad_unreverse_buf;
+    std::vector<PAD_Content_Indicator> m_ci_list;
 
-    std::unique_ptr<PAD_Data_Length_Indicator> data_length_indicator;
-    std::unique_ptr<PAD_Dynamic_Label> dynamic_label;
-    std::unique_ptr<PAD_MOT_Processor> pad_mot_processor;
+    std::unique_ptr<PAD_Data_Length_Indicator> m_data_length_indicator;
+    std::unique_ptr<PAD_Dynamic_Label> m_dynamic_label;
+    std::unique_ptr<PAD_MOT_Processor> m_pad_mot_processor;
 
     // We associated MOT XPAD lengths to the most recently declared data length indicator
-    uint16_t previous_mot_length;
+    uint16_t m_previous_mot_length;
 public:
     PAD_Processor();
     ~PAD_Processor();

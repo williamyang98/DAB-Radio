@@ -36,13 +36,12 @@ public:
         }
     };
 private:
-    const struct Params params;
+    const struct Params m_params;
     // constants
     // libfaad objects
-    std::vector<uint8_t> mp4_bitfile_config;
-    int nb_mp4_bitfile_config_bytes = 0;
-    void* decoder_handle;
-    struct NeAACDecFrameInfo* decoder_frame_info;
+    std::vector<uint8_t> m_mp4_bitfile_config;
+    void* m_decoder_handle;
+    struct NeAACDecFrameInfo* m_decoder_frame_info;
 public:
     AAC_Audio_Decoder(const struct Params _params);
     ~AAC_Audio_Decoder();
@@ -51,7 +50,7 @@ public:
     AAC_Audio_Decoder& operator=(AAC_Audio_Decoder&) = delete;
     AAC_Audio_Decoder& operator=(AAC_Audio_Decoder&&) = delete;
     Result DecodeFrame(tcb::span<uint8_t> data);
-    Params GetParams() { return params; }
+    Params GetParams() { return m_params; }
 private:
     void GenerateBitfileConfig();
 };
