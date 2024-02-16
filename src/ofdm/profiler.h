@@ -163,10 +163,10 @@ private:
     }
 public:
     InstrumentorThread& GetInstrumentorThread(std::thread::id id) {
+        auto lock = std::unique_lock(m_mutex_threads_list);
         auto res = m_threads.find(id);
         if (res == m_threads.end()) {
             res = m_threads.try_emplace(id).first;
-            auto lock = std::unique_lock(m_mutex_threads_list);
             m_threads_ref_list.push_back({id, res->second});
         }
         return res->second;
