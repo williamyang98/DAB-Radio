@@ -130,12 +130,11 @@ int MSC_Decoder::DecodeUEP() {
         symbols_buf = symbols_buf.subspan(N);
     }
 
-
-    // TODO: How to we deal with padding bits?
     const int curr_decoded_bit = int(m_vitdec->get_current_decoded_bit());
     const int nb_tail_bits = 24/int(DAB_Viterbi_Decoder::m_code_rate);
-    const int nb_padding_bits = (int)descriptor.total_padding_bits;
-    const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits-nb_padding_bits;
+    // const int nb_padding_bits = (int)descriptor.total_padding_bits;
+    const int nb_decoded_bits = curr_decoded_bit-nb_tail_bits;
+    assert(nb_decoded_bits % 8 == 0);
     const int nb_decoded_bytes = nb_decoded_bits/8;
     const uint64_t error = m_vitdec->chainback({m_decoded_bytes_buf.data(), (size_t)nb_decoded_bytes});
     LOG_MESSAGE("vitdec_error: {}", error);

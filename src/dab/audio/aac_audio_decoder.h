@@ -37,9 +37,8 @@ public:
     };
 private:
     const struct Params m_params;
-    // constants
-    // libfaad objects
     std::vector<uint8_t> m_mp4_bitfile_config;
+    std::vector<uint8_t> m_mpeg4_header;
     void* m_decoder_handle;
     struct NeAACDecFrameInfo* m_decoder_frame_info;
 public:
@@ -51,6 +50,8 @@ public:
     AAC_Audio_Decoder& operator=(AAC_Audio_Decoder&&) = delete;
     Result DecodeFrame(tcb::span<uint8_t> data);
     Params GetParams() { return m_params; }
+    tcb::span<const uint8_t> GetMPEG4Header(uint16_t frame_length_bytes);
 private:
     void GenerateBitfileConfig();
+    void GenerateMPEG4Header();
 };

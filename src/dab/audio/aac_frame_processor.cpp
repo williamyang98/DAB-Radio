@@ -24,7 +24,7 @@ constexpr int NB_RS_PADDING_BYTES = 255 - NB_RS_MESSAGE_BYTES;
 
 // Helper function to read 12bit segments from a buffer
 // It returns the number of bytes that were read (rounded up to nearest byte)
-int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
+static int read_au_start(const uint8_t* buf, uint16_t* data, const int N) {
     int curr_value = 0;
     int curr_value_bits = 0;
     const int nb_total_bits = 12;

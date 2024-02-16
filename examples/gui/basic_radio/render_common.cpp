@@ -71,7 +71,7 @@ void RenderSubchannels(BasicRadio& radio) {
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%u kb/s", bitrate_kbps);
 
-                auto* dab_plus_channel = radio.Get_DAB_Plus_Channel(subchannel.id);
+                auto* dab_plus_channel = radio.Get_Audio_Channel(subchannel.id);
                 if (dab_plus_channel != NULL) {
                     auto& controls = dab_plus_channel->GetControls();
                     const bool is_selected = controls.GetAllEnabled();

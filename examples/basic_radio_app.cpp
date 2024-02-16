@@ -298,8 +298,8 @@ int main(int argc, char** argv) {
         auto basic_scraper = std::make_shared<BasicScraper>(args.scraper_output);
         fprintf(stderr, "basic scraper is writing to folder '%s'\n", args.scraper_output.c_str()); 
         BasicScraper::attach_to_radio(basic_scraper, radio_block->get_basic_radio());
-        radio_block->get_basic_radio().On_DAB_Plus_Channel().Attach(
-            [](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+        radio_block->get_basic_radio().On_Audio_Channel().Attach(
+            [](subchannel_id_t subchannel_id, Basic_Audio_Channel& channel) {
                 auto& controls = channel.GetControls();
                 controls.SetIsDecodeAudio(true);
                 controls.SetIsDecodeData(true);
@@ -310,8 +310,8 @@ int main(int argc, char** argv) {
 #if BUILD_COMMAND_LINE
     // benchmark
     if (args.is_dab_used && args.radio_enable_benchmark) {
-        radio_block->get_basic_radio().On_DAB_Plus_Channel().Attach(
-            [](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+        radio_block->get_basic_radio().On_Audio_Channel().Attach(
+            [](subchannel_id_t subchannel_id, Basic_Audio_Channel& channel) {
                 auto& controls = channel.GetControls();
                 controls.SetIsDecodeAudio(true);
                 controls.SetIsDecodeData(true);

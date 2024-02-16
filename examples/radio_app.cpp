@@ -323,8 +323,8 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "basic_scraper is writing to folder '%s'\n", dir.c_str()); 
                 BasicScraper::attach_to_radio(scraper, radio);
                 if (!args.scraper_disable_auto) {
-                    radio.On_DAB_Plus_Channel().Attach(
-                        [](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+                    radio.On_Audio_Channel().Attach(
+                        [](subchannel_id_t subchannel_id, Basic_Audio_Channel& channel) {
                             auto& controls = channel.GetControls();
                             controls.SetIsDecodeAudio(true);
                             controls.SetIsDecodeData(true);

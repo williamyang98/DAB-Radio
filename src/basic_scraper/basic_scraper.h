@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <memory>
 
+#include "dab/audio/aac_frame_processor.h"
 #include "utility/span.h"
 namespace fs = std::filesystem;
 
@@ -60,23 +61,40 @@ public:
     void OnMOTEntity(MOT_Entity mot);
 };
 
-class Basic_DAB_Plus_Scraper
+class BasicBinaryWriter
+{
+private:
+    FILE* m_fp = nullptr;
+public:
+    BasicBinaryWriter(FILE* fp): m_fp(fp) {}
+    ~BasicBinaryWriter();
+    BasicBinaryWriter(BasicBinaryWriter&) = delete;
+    BasicBinaryWriter(BasicBinaryWriter&&) = delete;
+    BasicBinaryWriter& operator=(BasicBinaryWriter&) = delete;
+    BasicBinaryWriter& operator=(BasicBinaryWriter&&) = delete;
+    void Write(tcb::span<const uint8_t> data);
+};
+
+class Basic_Audio_Channel_Scraper
 {
 private:
     const fs::path m_dir;
     BasicAudioScraper m_audio_scraper;
     BasicSlideshowScraper m_slideshow_scraper;
     BasicMOTScraper m_mot_scraper;
+    std::unique_ptr<BasicBinaryWriter> m_audio_aac_writer;
+    std::unique_ptr<BasicBinaryWriter> m_audio_mp2_writer;
+    SuperFrameHeader m_old_aac_header;
 public:
-    Basic_DAB_Plus_Scraper(const fs::path& dir);
-    static void attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Scraper> scraper, Basic_DAB_Plus_Channel& channel);
+    Basic_Audio_Channel_Scraper(const fs::path& dir);
+    static void attach_to_channel(std::shared_ptr<Basic_Audio_Channel_Scraper> scraper, Basic_Audio_Channel& channel);
 };
 
 class BasicScraper 
 {
 private:
     std::string root_directory;
-    std::vector<std::shared_ptr<Basic_DAB_Plus_Scraper>> scrapers;
+    std::vector<std::shared_ptr<Basic_Audio_Channel_Scraper>> scrapers;
 public:
     template <typename T>
     BasicScraper(T _root_directory): root_directory(_root_directory) {}

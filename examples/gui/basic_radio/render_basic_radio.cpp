@@ -1,5 +1,6 @@
 #include "./render_basic_radio.h"
 #include "./basic_radio_view_controller.h"
+#include "dab/database/dab_database_entities.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -15,6 +16,8 @@
 
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
+#include "basic_radio/basic_dab_plus_channel.h"
+#include "basic_radio/basic_dab_channel.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
 
@@ -30,11 +33,13 @@ static void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController
 static void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
 static void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
 static void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& controller, ServiceComponent& component);
-static void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_DAB_Plus_Channel& channel, const subchannel_id_t subchannel_id);
+static void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, const subchannel_id_t subchannel_id);
 static void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller);
 static void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
 static void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& controller, const LinkService& link_service);
 static void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio);
+static void RenderSimple_Basic_DAB_Plus_Channel_Status(Basic_DAB_Plus_Channel& channel);
+static void RenderSimple_Basic_DAB_Channel_Status(Basic_DAB_Channel& channel);
 
 void RenderBasicRadio(BasicRadio& radio, BasicRadioViewController& controller) {
     auto lock = std::scoped_lock(radio.GetMutex());
@@ -96,7 +101,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
                 bool is_decode_data  = false;
                 for (auto& component: db.service_components) {
                     if (component.service_reference != service.reference) continue;
-                    auto* channel = radio.Get_DAB_Plus_Channel(component.subchannel_id);
+                    auto* channel = radio.Get_Audio_Channel(component.subchannel_id);
                     if (channel) {
                         auto& controls = channel->GetControls();
                         if (controls.GetIsPlayAudio())   is_play_audio   = true;
@@ -260,16 +265,16 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
 
     #undef FIELD_MACRO
 
-    auto* dab_plus_channel = radio.Get_DAB_Plus_Channel(subchannel_id);
-    if (dab_plus_channel != nullptr) {
-        if (ImGui::Begin("DAB Plus Channel")) {
-            RenderSimple_Basic_DAB_Plus_Channel(radio, controller, *dab_plus_channel, subchannel_id);
+    auto* audio_channel = radio.Get_Audio_Channel(subchannel_id);
+    if (audio_channel != nullptr) {
+        if (ImGui::Begin("Audio Channel")) {
+            RenderSimple_Basic_Audio_Channel(radio, controller, *audio_channel, subchannel_id);
         }
         ImGui::End();
     }
 }
 
-void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_DAB_Plus_Channel& channel, subchannel_id_t subchannel_id) {
+void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, subchannel_id_t subchannel_id) {
     // Channel controls
     auto& controls = channel.GetControls();
     if (ImGui::Button("Run All")) {
@@ -296,52 +301,24 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
         controls.SetIsPlayAudio(v);
     }
 
-    static const auto ERROR_INDICATOR = [](const char* label, bool is_error) {
-        static const auto COLOR_NO_ERROR = ImColor(0,255,0).Value;
-        static const auto COLOR_ERROR    = ImColor(255,0,0).Value;
-        const auto padding = ImGui::GetStyle().FramePadding / 2;
-        const auto pos_group_start = ImGui::GetCursorScreenPos();
-        ImGui::BeginGroup();
-        ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
-        ImGui::Text("%s", ICON_FA_CIRCLE);
-        ImGui::PopStyleColor();
-        ImGui::SameLine();
-        ImGui::Text("%s", label);
-        ImGui::EndGroup();
-        const auto pos_group_end = ImGui::GetItemRectMax();
-        ImGui::GetWindowDrawList()->AddRect(
-            pos_group_start-padding, pos_group_end+padding, 
-            ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)), 
-            ImGui::GetStyle().FrameBorderSize);
-    };
-
-    ImGui::SameLine();
-
-    ImGui::BeginGroup();
-    ERROR_INDICATOR("Firecode", channel.IsFirecodeError());
-    ImGui::SameLine();
-    ERROR_INDICATOR("Reed Solomon", channel.IsRSError());
-    ImGui::SameLine();
-    ERROR_INDICATOR("Access Unit CRC", channel.IsAUError());
-    ImGui::SameLine();
-    ERROR_INDICATOR("AAC Decoder", channel.IsCodecError());
-    ImGui::EndGroup();
-
-    const auto& superframe_header = channel.GetSuperFrameHeader();
-    if (superframe_header.sampling_rate != 0) {
-        const char* mpeg_surround = GetMPEGSurroundString(superframe_header.mpeg_surround);
-        ImGui::Text("Codec: %uHz %s %s %s", 
-            superframe_header.sampling_rate, 
-            superframe_header.is_stereo ? "Stereo" : "Mono",  
-            GetAACDescriptionString(superframe_header.SBR_flag, superframe_header.PS_flag),
-            mpeg_surround ? mpeg_surround : "");
+    const auto ascty = channel.GetType();
+    switch (ascty) {
+    case AudioServiceType::DAB_PLUS:
+        RenderSimple_Basic_DAB_Plus_Channel_Status(dynamic_cast<Basic_DAB_Plus_Channel&>(channel));
+        break;
+    case AudioServiceType::DAB:
+        RenderSimple_Basic_DAB_Channel_Status(dynamic_cast<Basic_DAB_Channel&>(channel));
+        break;
+    case AudioServiceType::UNDEFINED:
+    default:
+        break;
     }
 
     // Programme associated data
     // 1. Dynamic label
     // 2. MOT slideshow
-    auto& label = channel.GetDynamicLabel();
-    ImGui::Text("Dynamic label: %.*s", int(label.length()), label.c_str());
+    auto label = channel.GetDynamicLabel();
+    ImGui::Text("Dynamic label: %.*s", int(label.length()), label.data());
 
     auto& slideshow_manager = channel.GetSlideshowManager();
     ImGuiChildFlags child_flags = ImGuiChildFlags_Border;
@@ -393,6 +370,64 @@ void RenderSimple_Basic_DAB_Plus_Channel(BasicRadio& radio, BasicRadioViewContro
         }
     }
     ImGui::EndChild();
+}
+
+static void render_error_indicator(const char* label, bool is_error) {
+    static const auto COLOR_NO_ERROR = ImColor(0,255,0).Value;
+    static const auto COLOR_ERROR    = ImColor(255,0,0).Value;
+    const auto padding = ImGui::GetStyle().FramePadding / 2;
+    const auto pos_group_start = ImGui::GetCursorScreenPos();
+    ImGui::BeginGroup();
+    ImGui::PushStyleColor(ImGuiCol_Text, is_error ? COLOR_ERROR : COLOR_NO_ERROR);
+    ImGui::Text("%s", ICON_FA_CIRCLE);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::Text("%s", label);
+    ImGui::EndGroup();
+    const auto pos_group_end = ImGui::GetItemRectMax();
+    ImGui::GetWindowDrawList()->AddRect(
+        pos_group_start-padding, pos_group_end+padding, 
+        ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)), 
+        ImGui::GetStyle().FrameBorderSize);
+};
+
+void RenderSimple_Basic_DAB_Plus_Channel_Status(Basic_DAB_Plus_Channel& channel) {
+    ImGui::SameLine();
+    ImGui::BeginGroup();
+    render_error_indicator("Firecode", channel.IsFirecodeError());
+    ImGui::SameLine();
+    render_error_indicator("Reed Solomon", channel.IsRSError());
+    ImGui::SameLine();
+    render_error_indicator("Access Unit CRC", channel.IsAUError());
+    ImGui::SameLine();
+    render_error_indicator("AAC Decoder", channel.IsCodecError());
+    ImGui::EndGroup();
+
+    const auto& superframe_header = channel.GetSuperFrameHeader();
+    if (superframe_header.sampling_rate != 0) {
+        const char* mpeg_surround = GetMPEGSurroundString(superframe_header.mpeg_surround);
+        ImGui::Text("Codec: %uHz %s %s %s", 
+            superframe_header.sampling_rate, 
+            superframe_header.is_stereo ? "Stereo" : "Mono",  
+            GetAACDescriptionString(superframe_header.SBR_flag, superframe_header.PS_flag),
+            mpeg_surround ? mpeg_surround : "");
+    }
+}
+
+void RenderSimple_Basic_DAB_Channel_Status(Basic_DAB_Channel& channel) {
+    ImGui::SameLine();
+    ImGui::BeginGroup();
+    render_error_indicator("MP2 Decoder", channel.GetIsError());
+    ImGui::EndGroup();
+
+    const auto& audio_params_opt = channel.GetAudioParams();
+    if (audio_params_opt.has_value()) {
+        auto& params = audio_params_opt.value();
+        ImGui::Text("Codec: %dHz %s %dkb/s MP2", 
+            params.sample_rate, 
+            params.is_stereo ? "Stereo" : "Mono",  
+            params.bitrate_kbps);
+    }
 }
 
 void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller) {
@@ -620,7 +655,7 @@ void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio) {
     }
 
     for (auto& subchannel: subchannels) {
-        auto* channel = radio.Get_DAB_Plus_Channel(subchannel.id);
+        auto* channel = radio.Get_Audio_Channel(subchannel.id);
         if (channel == nullptr) continue;
 
         auto& control = channel->GetControls();

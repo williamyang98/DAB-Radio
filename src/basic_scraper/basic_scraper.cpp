@@ -1,6 +1,9 @@
 #include "./basic_scraper.h"
+#include "basic_radio/basic_dab_channel.h"
+#include "basic_radio/basic_dab_plus_channel.h"
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
+#include "dab/database/dab_database_entities.h"
 #include "dab/mot/MOT_processor.h"
 #include "dab/database/dab_database.h"
 #include <string.h>
@@ -24,8 +27,8 @@ static std::string GetCurrentTime(void) {
 void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio) {
     if (scraper == nullptr) return;
     auto root_directory = scraper->root_directory;
-    radio.On_DAB_Plus_Channel().Attach(
-        [scraper, root_directory, &radio](subchannel_id_t id, Basic_DAB_Plus_Channel& channel) {
+    radio.On_Audio_Channel().Attach(
+        [scraper, root_directory, &radio](subchannel_id_t id, Basic_Audio_Channel& channel) {
             // determine root folder
             auto& db = radio.GetDatabase();
             ServiceComponent* component = nullptr;
@@ -45,14 +48,14 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             auto base_path = fs::path(root_folder) / fs::path(child_folder);
             auto abs_path = fs::absolute(base_path);
 
-            auto dab_plus_scraper = std::make_shared<Basic_DAB_Plus_Scraper>(abs_path);
+            auto dab_plus_scraper = std::make_shared<Basic_Audio_Channel_Scraper>(abs_path);
             scraper->scrapers.push_back(dab_plus_scraper);
-            Basic_DAB_Plus_Scraper::attach_to_channel(dab_plus_scraper, channel);
+            Basic_Audio_Channel_Scraper::attach_to_channel(dab_plus_scraper, channel);
         }
     );
 }
 
-Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& dir) 
+Basic_Audio_Channel_Scraper::Basic_Audio_Channel_Scraper(const fs::path& dir) 
 : m_dir(dir), 
   m_audio_scraper(dir / "audio"), 
   m_slideshow_scraper(dir / "slideshow"),
@@ -61,7 +64,7 @@ Basic_DAB_Plus_Scraper::Basic_DAB_Plus_Scraper(const fs::path& dir)
     LOG_MESSAGE("[DAB+] Opened directory {}", m_dir.string());
 }
 
-void Basic_DAB_Plus_Scraper::attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Scraper> scraper, Basic_DAB_Plus_Channel& channel) {
+void Basic_Audio_Channel_Scraper::attach_to_channel(std::shared_ptr<Basic_Audio_Channel_Scraper> scraper, Basic_Audio_Channel& channel) {
     if (scraper == nullptr) return;
     channel.OnAudioData().Attach(
         [scraper](BasicAudioParams params, tcb::span<const uint8_t> data) {
@@ -78,10 +81,60 @@ void Basic_DAB_Plus_Scraper::attach_to_channel(std::shared_ptr<Basic_DAB_Plus_Sc
             scraper->m_mot_scraper.OnMOTEntity(mot);
         }
     );
+ 
+    const auto ascty = channel.GetType();
+    if (ascty == AudioServiceType::DAB) {
+        auto& derived = dynamic_cast<Basic_DAB_Channel&>(channel);
+        derived.OnMP2Data().Attach([scraper](tcb::span<const uint8_t> data) {
+            auto& writer = scraper->m_audio_mp2_writer;
+            if (writer == nullptr) {
+                auto dir = scraper->m_dir / "mp2";
+                fs::create_directories(dir);
+                auto filepath = dir / fmt::format("{}_audio.mp2", GetCurrentTime());
+                auto filepath_str = filepath.string();
+                FILE* fp = fopen(filepath_str.c_str(), "wb+");
+                if (fp != nullptr) LOG_MESSAGE("[mp2] Opened file {}", filepath_str);
+                writer = std::make_unique<BasicBinaryWriter>(fp);
+            }
+            writer->Write(data);
+        });
+    } else if (ascty == AudioServiceType::DAB_PLUS) {
+        auto& derived = dynamic_cast<Basic_DAB_Plus_Channel&>(channel);
+        derived.OnAACData().Attach([scraper](auto superframe_header, auto mpeg4_header, auto buf) {
+            auto& writer = scraper->m_audio_aac_writer;
+            auto& old_header = scraper->m_old_aac_header;
+            if ((writer == nullptr) || (old_header != superframe_header)) {
+                auto dir = scraper->m_dir / "aac";
+                fs::create_directories(dir);
+                auto filepath = dir / fmt::format("{}_audio.aac", GetCurrentTime());
+                auto filepath_str = filepath.string();
+                FILE* fp = fopen(filepath_str.c_str(), "wb+");
+                if (fp != nullptr) LOG_MESSAGE("[aac] Opened file {}", filepath_str);
+                writer = std::make_unique<BasicBinaryWriter>(fp);
+                old_header = superframe_header;
+            }
+            writer->Write(mpeg4_header);
+            writer->Write(buf);
+        });
+    }
+
     auto& controls = channel.GetControls();
     controls.SetIsDecodeAudio(true);
     controls.SetIsDecodeData(true);
     controls.SetIsPlayAudio(false);
+}
+
+BasicBinaryWriter::~BasicBinaryWriter() {
+    if (m_fp != nullptr) {
+        fclose(m_fp);
+        m_fp = nullptr;
+    }
+}
+
+void BasicBinaryWriter::Write(tcb::span<const uint8_t> data) {
+    if (m_fp != nullptr) {
+        fwrite(data.data(), sizeof(uint8_t), data.size(), m_fp);
+    }
 }
 
 BasicAudioScraper::~BasicAudioScraper() {

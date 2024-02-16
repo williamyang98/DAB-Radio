@@ -1,5 +1,8 @@
 #include "./basic_radio.h"
+#include "./basic_dab_plus_channel.h"
+#include "./basic_dab_channel.h"
 #include "dab/database/dab_database.h"
+#include "dab/database/dab_database_entities.h"
 #include "dab/database/dab_database_updater.h"
 #include "dab/dab_misc_info.h"
 #include <fmt/core.h>
@@ -32,7 +35,7 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
         m_fic_runner.Process(fic_buf);
     });
 
-    for (auto& [_, channel]: m_dab_plus_channels) {
+    for (auto& [_, channel]: m_audio_channels) {
         auto& dab_plus_channel = *(channel.get());
         m_thread_pool.PushTask([&dab_plus_channel, &msc_buf] {
             dab_plus_channel.Process(msc_buf);
@@ -44,9 +47,9 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
     UpdateAfterProcessing();
 }
 
-Basic_DAB_Plus_Channel* BasicRadio::Get_DAB_Plus_Channel(const subchannel_id_t id) {
-    auto res = m_dab_plus_channels.find(id);
-    if (res == m_dab_plus_channels.end()) {
+Basic_Audio_Channel* BasicRadio::Get_Audio_Channel(const subchannel_id_t id) {
+    auto res = m_audio_channels.find(id);
+    if (res == m_audio_channels.end()) {
         return nullptr; 
     }
     return res->second.get();
@@ -68,7 +71,7 @@ void BasicRadio::UpdateAfterProcessing() {
     *m_dab_database_stats = new_dab_database_stats;
 
     for (auto& subchannel: m_dab_database->subchannels) {
-        if (m_dab_plus_channels.find(subchannel.id) != m_dab_plus_channels.end()) {
+        if (m_audio_channels.find(subchannel.id) != m_audio_channels.end()) {
             continue;
         }
  
@@ -89,14 +92,18 @@ void BasicRadio::UpdateAfterProcessing() {
         }
 
         const auto ascty = service_component->audio_service_type;
-        if (ascty != AudioServiceType::DAB_PLUS) {
-            continue;
+        if (ascty == AudioServiceType::DAB_PLUS) {
+            LOG_MESSAGE("Added DAB+ subchannel {}", subchannel.id);
+            auto channel_ptr = std::make_unique<Basic_DAB_Plus_Channel>(m_params, subchannel, ascty);
+            auto& channel = *(channel_ptr.get());
+            m_audio_channels.insert({subchannel.id, std::move(channel_ptr)});
+            m_obs_audio_channel.Notify(subchannel.id, channel);
+        } else if (ascty == AudioServiceType::DAB) {
+            LOG_MESSAGE("Added DAB subchannel {}", subchannel.id);
+            auto channel_ptr = std::make_unique<Basic_DAB_Channel>(m_params, subchannel, ascty);
+            auto& channel = *(channel_ptr.get());
+            m_audio_channels.insert({subchannel.id, std::move(channel_ptr)});
+            m_obs_audio_channel.Notify(subchannel.id, channel);
         }
-
-        LOG_MESSAGE("Added subchannel {}", subchannel.id);
-        auto channel_ptr = std::make_unique<Basic_DAB_Plus_Channel>(m_params, subchannel);
-        auto& channel = *(channel_ptr.get());
-        m_dab_plus_channels.insert({subchannel.id, std::move(channel_ptr)});
-        m_obs_dab_plus_channel.Notify(subchannel.id, channel);
     }
 }

@@ -18,6 +18,7 @@ add_library(dab_core STATIC
     ${SRC_DIR}/audio/aac_frame_processor.cpp
     ${SRC_DIR}/audio/aac_audio_decoder.cpp
     ${SRC_DIR}/audio/aac_data_decoder.cpp
+    ${SRC_DIR}/audio/mp2_audio_decoder.cpp
     ${SRC_DIR}/mot/MOT_assembler.cpp
     ${SRC_DIR}/mot/MOT_processor.cpp
     ${SRC_DIR}/mot/MOT_slideshow_processor.cpp

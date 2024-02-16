@@ -17,6 +17,17 @@ struct SuperFrameHeader {
     bool SBR_flag = false;
     bool is_stereo = false;
     MPEG_Surround mpeg_surround = MPEG_Surround::NOT_USED;
+    bool operator==(const SuperFrameHeader& other) {
+        return 
+            (sampling_rate == other.sampling_rate) &&
+            (PS_flag == other.PS_flag) &&
+            (SBR_flag == other.SBR_flag) &&
+            (is_stereo == other.is_stereo) &&
+            (mpeg_surround == other.mpeg_surround);
+    }
+    bool operator !=(const SuperFrameHeader& other) {
+        return !(*this == other);
+    }
 };
 
 // Reads in DAB main service channel frames

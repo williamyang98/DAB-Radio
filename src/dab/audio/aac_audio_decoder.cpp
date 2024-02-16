@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <neaacdec.h>
 #include <fmt/core.h>
+#include <assert.h>
 
 #include "../dab_logging.h"
 #define TAG "aac-audio-decoder"
@@ -51,25 +52,34 @@ public:
         curr_byte = 0;
         curr_bit = 0;
     }
+    int GetTotalBytesCeil() const {
+        return curr_byte + (curr_bit ? 1 : 0);
+    }
 };
 
 // Copied from libfaad/common.c
-uint8_t get_sr_index(const uint32_t samplerate)
-{
-    if (92017 <= samplerate) return 0;
-    if (75132 <= samplerate) return 1;
-    if (55426 <= samplerate) return 2;
-    if (46009 <= samplerate) return 3;
-    if (37566 <= samplerate) return 4;
-    if (27713 <= samplerate) return 5;
-    if (23004 <= samplerate) return 6;
-    if (18783 <= samplerate) return 7;
-    if (13856 <= samplerate) return 8;
-    if (11502 <= samplerate) return 9;
-    if (9391 <= samplerate) return 10;
-    if (16428320 <= samplerate) return 11;
-
+static uint8_t get_index_from_sample_rate(const uint32_t samplerate) {
+    // Does rounding to nearest sample rate
+    if (samplerate >= 92017) return 0; 
+    if (samplerate >= 75132) return 1;
+    if (samplerate >= 55426) return 2;
+    if (samplerate >= 46009) return 3;
+    if (samplerate >= 37566) return 4;
+    if (samplerate >= 27713) return 5;
+    if (samplerate >= 23004) return 6;
+    if (samplerate >= 18783) return 7;
+    if (samplerate >= 13856) return 8;
+    if (samplerate >= 11502) return 9;
+    if (samplerate >=  9391) return 10;
     return 11;
+}
+
+static uint32_t get_sample_rate_from_index(const size_t index) {
+    static const uint32_t sample_rates[12] = {
+        96000, 88200, 64000, 48000, 44100, 32000,
+        24000, 22050, 16000, 12000, 11025, 8000
+    };
+    return sample_rates[index];
 }
 
 void AAC_Audio_Decoder::GenerateBitfileConfig() {
@@ -186,14 +196,13 @@ void AAC_Audio_Decoder::GenerateBitfileConfig() {
     const uint8_t AAC_LC_index = 2;
     const uint8_t SBR_index    = 5;
 
-    const uint8_t sample_rate_index = get_sr_index(m_params.sampling_frequency);
+    const uint8_t sample_rate_index = get_index_from_sample_rate(m_params.sampling_frequency);
 
     // DOC: ETSI TS 102 563 
     // In Table 4 it states that when the SBR flag is used that 
     // the sampling rate of the AAC core is half the sampling rate of the DAC
-    const uint32_t core_sample_rate = 
-        m_params.is_SBR ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
-    const uint8_t core_sample_rate_index = get_sr_index(core_sample_rate);
+    const uint32_t core_sample_rate = m_params.is_SBR ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
+    const uint8_t core_sample_rate_index = get_index_from_sample_rate(core_sample_rate);
 
     // Source: https://wiki.multimedia.cx/index.php/MPEG-4_Audio
     // Subsection - Channel configurations
@@ -237,13 +246,60 @@ void AAC_Audio_Decoder::GenerateBitfileConfig() {
         bit_pusher.Push(m_mp4_bitfile_config, 1, 1);
         bit_pusher.Push(m_mp4_bitfile_config, sample_rate_index, 4);
     }
+    m_mp4_bitfile_config.resize(size_t(bit_pusher.GetTotalBytesCeil()));
+}
+
+void AAC_Audio_Decoder::GenerateMPEG4Header() {
+    const uint8_t AAC_LC_index = 2;
+    const uint8_t channel_config  = m_params.is_stereo ? 2 : 1;
+
+    // DOC: ETSI TS 102 563 
+    // In Table 4 it states that when the SBR flag is used that 
+    // the sampling rate of the AAC core is half the sampling rate of the DAC
+    const uint32_t core_sample_rate = m_params.is_SBR ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
+    const uint8_t core_sample_rate_index = get_index_from_sample_rate(core_sample_rate);
+ 
+    // Source: https://wiki.multimedia.cx/index.php/ADTS
+    BitPusherHelper bit_pusher;
+    bit_pusher.Push(m_mpeg4_header, 0xFFF, 12); // Syncword all 1s
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // MPEG Version: 0 = MPEG4, 1 = MPEG2
+    bit_pusher.Push(m_mpeg4_header, 0, 2); // Layer all 0s
+    bit_pusher.Push(m_mpeg4_header, 1, 1); // Protection absence: 1 for no CRC
+    bit_pusher.Push(m_mpeg4_header, AAC_LC_index-1, 2); // Profile
+    bit_pusher.Push(m_mpeg4_header, core_sample_rate_index, 4); // Sampling frequency index
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // Private bit (unused in decoding)
+    bit_pusher.Push(m_mpeg4_header, channel_config, 3); // Channel config
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // Originality
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // Home usage
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // Copyright
+    bit_pusher.Push(m_mpeg4_header, 0, 1); // Copyright id start
+    bit_pusher.Push(m_mpeg4_header, 0, 13); // Frame length including headers (placeholder)
+    bit_pusher.Push(m_mpeg4_header, 0x7FF, 11); // Variable bitrate
+    bit_pusher.Push(m_mpeg4_header, 1-1, 2); // Number of raw data blocks in frame - 1 (Single AAC frame raw data block is advised)
+    const int total_size = bit_pusher.GetTotalBytesCeil();
+    assert(total_size == 7);
+    m_mpeg4_header.resize(size_t(total_size));
+}
+
+// Generate MPEG4 Header for ADTS format
+tcb::span<const uint8_t> AAC_Audio_Decoder::GetMPEG4Header(uint16_t frame_length_bytes) {
+    // frame length is stored 30bits into the header
+    uint16_t total_frame_bytes = uint16_t(m_mpeg4_header.size()) + frame_length_bytes;
+    total_frame_bytes &= 0b1'1111'1111'1111;
+    // introduce 24bit offset
+    m_mpeg4_header[3] = (m_mpeg4_header[3] & 0b1111'1100) | ((total_frame_bytes & 0b1'1000'0000'0000) >> 11); // 2bits
+    m_mpeg4_header[4] = (m_mpeg4_header[4] & 0b0000'0000) | ((total_frame_bytes & 0b0'0111'1111'1000) >> 3);  // 8bits
+    m_mpeg4_header[5] = (m_mpeg4_header[5] & 0b0001'1111) | ((total_frame_bytes & 0b0'0000'0000'0111) << 5);  // 3bits
+    return m_mpeg4_header;
 }
 
 AAC_Audio_Decoder::AAC_Audio_Decoder(const struct Params _params)
 : m_params(_params)
 {
     m_mp4_bitfile_config.resize(32);
+    m_mpeg4_header.resize(32);
     GenerateBitfileConfig();
+    GenerateMPEG4Header();
 
     m_decoder_handle = NeAACDecOpen();
     m_decoder_frame_info = new NeAACDecFrameInfo();

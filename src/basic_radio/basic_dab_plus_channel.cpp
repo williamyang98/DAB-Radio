@@ -11,20 +11,19 @@
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
-Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters& _params, const Subchannel _subchannel) 
-: m_params(_params), m_subchannel(_subchannel) {
-    m_msc_decoder = std::make_unique<MSC_Decoder>(m_subchannel);
+Basic_DAB_Plus_Channel::Basic_DAB_Plus_Channel(const DAB_Parameters& params, const Subchannel subchannel, const AudioServiceType audio_service_type)
+: Basic_Audio_Channel(params, subchannel, audio_service_type)
+{
     m_aac_frame_processor = std::make_unique<AAC_Frame_Processor>();
-    m_aac_audio_decoder = NULL;
+    m_aac_audio_decoder = nullptr;
     m_aac_data_decoder = std::make_unique<AAC_Data_Decoder>();
-    m_slideshow_manager = std::make_unique<Basic_Slideshow_Manager>();
     SetupCallbacks();
 }
 
 Basic_DAB_Plus_Channel::~Basic_DAB_Plus_Channel() = default;
 
 void Basic_DAB_Plus_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
-    BASIC_RADIO_SET_THREAD_NAME(fmt::format("MSC-subchannel-{}", m_subchannel.id));
+    BASIC_RADIO_SET_THREAD_NAME(fmt::format("MSC-dab-plus-subchannel-{}", m_subchannel.id));
 
     const int nb_msc_bits = (int)msc_bits_buf.size();
     if (nb_msc_bits != m_params.nb_msc_bits) {
@@ -75,9 +74,15 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
             return;
         }
 
-        if (m_aac_audio_decoder == NULL) {
+        if (m_aac_audio_decoder == nullptr) {
             return;
         }
+ 
+        if (!buf.empty()) {
+            auto header = m_aac_audio_decoder->GetMPEG4Header(uint16_t(buf.size()));
+            m_obs_aac_data.Notify(m_super_frame_header, header, buf);
+        }
+
         const auto res = m_aac_audio_decoder->DecodeFrame(buf);
         // reset error flag on new superframe
         if (au_index == 0) {
@@ -143,67 +148,4 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
             m_is_au_error = false;
         }
     });
-}
-
-// controls
-constexpr uint8_t CONTROL_FLAG_DECODE_AUDIO = 0b10000000;
-constexpr uint8_t CONTROL_FLAG_DECODE_DATA  = 0b01000000;
-constexpr uint8_t CONTROL_FLAG_PLAY_AUDIO   = 0b00100000;
-constexpr uint8_t CONTROL_FLAG_ALL_SELECTED = 0b11100000;
-
-bool Basic_DAB_Plus_Controls::GetAnyEnabled(void) const {
-    return (flags != 0);
-}
-
-bool Basic_DAB_Plus_Controls::GetAllEnabled(void) const {
-    return (flags == CONTROL_FLAG_ALL_SELECTED);
-}
-
-void Basic_DAB_Plus_Controls::RunAll(void) {
-    flags = CONTROL_FLAG_ALL_SELECTED;
-}
-
-void Basic_DAB_Plus_Controls::StopAll(void) {
-    flags = 0;
-}
-
-// Decode AAC audio elements
-bool Basic_DAB_Plus_Controls::GetIsDecodeAudio(void) const {
-    return (flags & CONTROL_FLAG_DECODE_AUDIO) != 0;
-}
-
-void Basic_DAB_Plus_Controls::SetIsDecodeAudio(bool v) {
-    SetFlag(CONTROL_FLAG_DECODE_AUDIO, v);
-    if (!v) {
-        SetFlag(CONTROL_FLAG_PLAY_AUDIO, false);
-    }
-}
-
-// Decode AAC data_stream_element
-bool Basic_DAB_Plus_Controls::GetIsDecodeData(void) const {
-    return (flags & CONTROL_FLAG_DECODE_DATA) != 0;
-}
-
-void Basic_DAB_Plus_Controls::SetIsDecodeData(bool v) {
-    SetFlag(CONTROL_FLAG_DECODE_DATA, v);
-}
-
-// Play audio data through sound device
-bool Basic_DAB_Plus_Controls::GetIsPlayAudio(void) const {
-    return (flags & CONTROL_FLAG_PLAY_AUDIO) != 0;
-}
-
-void Basic_DAB_Plus_Controls::SetIsPlayAudio(bool v) { 
-    SetFlag(CONTROL_FLAG_PLAY_AUDIO, v);
-    if (v) {
-        SetFlag(CONTROL_FLAG_DECODE_AUDIO, true);
-    }
-}
-
-void Basic_DAB_Plus_Controls::SetFlag(const uint8_t flag, const bool state) {
-    if (state) {
-        flags |= flag;
-    } else {
-        flags &= ~flag;
-    }
 }

@@ -6,8 +6,8 @@
 
 static void attach_audio_pipeline_to_radio(std::shared_ptr<AudioPipeline> audio_pipeline, BasicRadio& basic_radio) {
     if (audio_pipeline == nullptr) return;
-    basic_radio.On_DAB_Plus_Channel().Attach(
-        [audio_pipeline](subchannel_id_t subchannel_id, Basic_DAB_Plus_Channel& channel) {
+    basic_radio.On_Audio_Channel().Attach(
+        [audio_pipeline](subchannel_id_t subchannel_id, Basic_Audio_Channel& channel) {
             auto& controls = channel.GetControls();
             auto audio_source = std::make_shared<AudioPipelineSource>();
             audio_pipeline->add_source(audio_source);
