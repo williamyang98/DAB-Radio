@@ -77,6 +77,13 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             channel.OnMOTEntity().Attach([mot_scraper](MOT_Entity mot_entity) {
                 mot_scraper->OnMOTEntity(mot_entity);
             });
+
+            auto slideshow_scraper = std::make_shared<BasicSlideshowScraper>(abs_path / "slideshow");
+            channel.GetSlideshowManager().OnNewSlideshow().Attach(
+                [slideshow_scraper](std::shared_ptr<Basic_Slideshow>& slideshow) {
+                    slideshow_scraper->OnSlideshow(*slideshow);
+                }
+            );
         }
     );
 }

@@ -8,7 +8,7 @@ typedef uint16_t mot_transport_id_t;
 
 struct MOT_Header_Extension_Parameter {
     uint8_t type;
-    tcb::span<const uint8_t> data;
+    std::vector<uint8_t> data;
 };
 
 struct MOT_UTC_Time {
@@ -31,7 +31,7 @@ struct MOT_Header_Entity {
     struct {
         bool exists = false;
         uint8_t charset = 0;
-        std::string_view name;
+        std::string name;
     } content_name;
 
     MOT_UTC_Time trigger_time;

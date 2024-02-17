@@ -1,8 +1,11 @@
 #include "./MOT_processor.h"
 #include "../algorithms/modified_julian_date.h"
+#include <cstring>
 #include <fmt/core.h>
+#include <assert.h>
 
 #include "../dab_logging.h"
+#include "mot/MOT_entities.h"
 #define TAG "mot-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
@@ -25,31 +28,28 @@ static bool ValidateDataType(const MOT_Data_Type type) {
     return false;
 }
 
-MOT_Processor::MOT_Processor(const int max_transport_objects)
-: m_assembler_tables(max_transport_objects) 
-{
-
+MOT_Processor::MOT_Processor(const size_t max_transport_entities, const size_t max_header_entities) {
+    m_assembler_tables.set_max_size(max_transport_entities);
+    m_body_headers.set_max_size(max_header_entities);
 }
 
-void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf) {
+void MOT_Processor::Process_MSC_Data_Group(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 5.1.1: Segmentation header 
     // Figure 7: Segmentation header
-    const size_t N = buf.size();
     const size_t MIN_SEGMENT_HEADER_BYTES = 2;
-    if (N < MIN_SEGMENT_HEADER_BYTES) {
-        LOG_ERROR("Insufficient length for segment header {}<{}", N, MIN_SEGMENT_HEADER_BYTES);
+    if (buf.size() < MIN_SEGMENT_HEADER_BYTES) {
+        LOG_ERROR("Insufficient length for segment header ({}<{})", buf.size(), MIN_SEGMENT_HEADER_BYTES);
         return;
     }
 
     const uint8_t repetition_count =  (buf[0] & 0b11100000) >> 5;
     const uint16_t segment_size    = ((buf[0] & 0b00011111) << 8) | buf[1];
+ 
+    auto data = buf.subspan(MIN_SEGMENT_HEADER_BYTES);
 
-    auto* data = &buf[MIN_SEGMENT_HEADER_BYTES];
-    const size_t nb_data_bytes = N-MIN_SEGMENT_HEADER_BYTES;
-
-    if (nb_data_bytes != segment_size) {
-        LOG_ERROR("Segment length mismatch seg_size={} data_size={}", segment_size, nb_data_bytes);
+    if (data.size() != segment_size) {
+        LOG_ERROR("Segment length mismatch seg_size={} data_size={}", segment_size, data.size());
         return;
     }
 
@@ -59,25 +59,42 @@ void MOT_Processor::Process_Segment(const MOT_MSC_Data_Group_Header header, tcb:
     }
 
     if (header.repetition_index != repetition_count) {
-        LOG_WARN("Mismatching repetition count in MSC header and segmentation header {}!={}", 
-            header.repetition_index, repetition_count);
+        LOG_WARN("Mismatching repetition count in MSC header and segmentation header {}!={}", header.repetition_index, repetition_count);
     }
 
     // TODO: For MOT body entities the time taken to assemble them can be quite long
     //       Signal the progress of the assembler to a listener for MOT body entities
-    auto& assembler_table = GetAssemblerTable(header.transport_id);
-    auto& assembler = GetAssembler(assembler_table, header.data_group_type);
+    auto* assembler_table = m_assembler_tables.find(header.transport_id);
+    if (assembler_table == nullptr) {
+        assembler_table = &m_assembler_tables.emplace(header.transport_id);
+    }
+
+    auto& assembler = GetAssembler(*assembler_table, header.data_group_type);
     if (header.is_last_segment) {
         assembler.SetTotalSegments(header.segment_number+1);
     }
-    const bool is_updated = assembler.AddSegment(header.segment_number, data, nb_data_bytes);
-    if (is_updated) {
-        CheckEntityComplete(header.transport_id);
+    const bool is_updated = assembler.AddSegment(header.segment_number, data);
+    if (!is_updated) {
+        return;
     }
-}
 
-MOT_Assembler_Table& MOT_Processor::GetAssemblerTable(const mot_transport_id_t transport_id) {
-    return m_assembler_tables.emplace(transport_id);
+    if (!assembler.CheckComplete()) {
+        return;
+    }
+ 
+    // TODO: Handle other mot data types
+    if (header.data_group_type == MOT_Data_Type::UNCOMPRESSED_DIRECTORY) {
+        ProcessDirectory(header.transport_id);
+    } else if (header.data_group_type == MOT_Data_Type::HEADER) {
+        auto header_buf = assembler.GetData();
+        MOT_Header_Entity entity_header;
+        auto res = ProcessHeader(entity_header, header_buf);
+        if (res == std::nullopt) return;
+        m_body_headers.insert(header.transport_id, std::move(entity_header)); 
+        CheckBodyComplete(header.transport_id);
+    } else if (header.data_group_type == MOT_Data_Type::UNSCRAMBLED_BODY) {
+        CheckBodyComplete(header.transport_id);
+    }
 }
 
 MOT_Assembler& MOT_Processor::GetAssembler(MOT_Assembler_Table& table, const MOT_Data_Type type) {
@@ -88,75 +105,142 @@ MOT_Assembler& MOT_Processor::GetAssembler(MOT_Assembler_Table& table, const MOT
     return res->second;
 }
 
-bool MOT_Processor::CheckEntityComplete(const mot_transport_id_t transport_id) {
-    // TODO: Support directory mode MOT entities
-    auto& assembler_table = GetAssemblerTable(transport_id);
-    auto& header_assembler = GetAssembler(assembler_table, MOT_Data_Type::HEADER);
-    auto& body_assembler = GetAssembler(assembler_table, MOT_Data_Type::UNSCRAMBLED_BODY);
-
-    if (!header_assembler.CheckComplete()) {
+bool MOT_Processor::CheckBodyComplete(const mot_transport_id_t transport_id) {
+    // DOC: ETSI EN 301 234
+    // Clause 5.3.1 Single object transmission (MOT header mode)
+    // Figure 12: Repetition on object level (example)
+    auto* assembler_table = m_assembler_tables.find(transport_id);
+    if (assembler_table == nullptr) {
         return false;
     }
-
+    auto* header = m_body_headers.find(transport_id);
+    if (header == nullptr) {
+        return false;
+    }
+    auto& body_assembler = GetAssembler(*assembler_table, MOT_Data_Type::UNSCRAMBLED_BODY);
     if (!body_assembler.CheckComplete()) {
         return false;
     }
 
-    const auto header_buf = header_assembler.GetData();
     const auto body_buf = body_assembler.GetData();
+    if (header->body_size != uint32_t(body_buf.size())) {
+        LOG_ERROR("Mismatching body length fields {}!={}", header->body_size, body_buf.size());
+        return false;
+    }
 
     MOT_Entity entity;
     entity.transport_id = transport_id;
     entity.body_buf = body_buf;
+    entity.header = *header;
 
-    // TODO: Sometimes we get the header first, meaning we can extra useful length information
-    //       Signal this information to a listener
-    const bool is_success = ProcessHeader(entity.header, header_buf);
-    if (!is_success) {
-        return false;
-    }
-    
-    if (entity.header.header_size != uint32_t(header_buf.size())) {
-        LOG_ERROR("Mismatching header length fields {}!={}",
-            entity.header.header_size, header_buf.size());
-        return false;
-    }
-
-    if (entity.header.body_size != uint32_t(body_buf.size())) {
-        LOG_ERROR("Mismatching body length fields {}!={}",
-            entity.header.body_size, body_buf.size());
-        return false;
-    }
-
-    LOG_MESSAGE("Completed a MOT header entity with header={} body={} tid={}",
-        entity.header.header_size, entity.header.body_size,
-        entity.transport_id);
+    LOG_MESSAGE("Completed a MOT header entity with header={} body={} tid={}", entity.header.header_size, entity.header.body_size, entity.transport_id);
     m_obs_on_entity_complete.Notify(entity);
     return true;
 }
 
-bool MOT_Processor::ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
+bool MOT_Processor::ProcessDirectory(const mot_transport_id_t transport_id) {
+    // DOC: ETSI EN 301 234
+    // Clause 5.3.2 Multiple object transmissions (MOT directory mode)
+    auto* assembler_table = m_assembler_tables.find(transport_id);
+    if (assembler_table == nullptr) {
+        return false;
+    }
+    auto& directory_assembler = GetAssembler(*assembler_table, MOT_Data_Type::UNCOMPRESSED_DIRECTORY);
+    if (!directory_assembler.CheckComplete()) {
+        return false;
+    }
+
+    // DOC: ETSI EN 301 234
+    // Figure 30: Structure of the MOT directory
+    auto buf = directory_assembler.GetData();
+    constexpr size_t MIN_HEADER_SIZE = 13;
+    if (buf.size() < MIN_HEADER_SIZE) {
+        LOG_ERROR("Directory object has insufficient length for header ({}<{})", buf.size(), MIN_HEADER_SIZE);
+        return false;
+    }
+ 
+    // TODO: Do we need to deal with the data carousel?
+    // const uint8_t compression_flag =  (buf[0]  & 0b10000000) >> 7;
+    // const uint8_t rfu0             =  (buf[0]  & 0b01000000) >> 6;
+    // const uint32_t directory_size  = ((buf[0]  & 0b00111111) << 24) | 
+    //                                  ((buf[1]  & 0b11111111) << 16) | 
+    //                                  ((buf[2]  & 0b11111111) << 8) | 
+    //                                  ((buf[3]  & 0b11111111) << 0);
+    const uint16_t total_objects =   ((buf[4]  & 0b11111111) << 8) |
+                                     ((buf[5]  & 0b11111111) << 0);
+    // const uint32_t carousel_period = ((buf[6]  & 0b11111111) << 16) |
+    //                                  ((buf[7]  & 0b11111111) << 8) |
+    //                                  ((buf[8]  & 0b11111111) << 0);
+    // const uint8_t rfu1             =  (buf[9]  & 0b10000000) >> 7;
+    // const uint8_t rfa0             =  (buf[9]  & 0b01100000) >> 5;
+    // const uint16_t segment_size    = ((buf[9]  & 0b00011111) << 8) |
+    //                                  ((buf[10] & 0b11111111) << 0);
+    const uint16_t dir_ext_length  = ((buf[11] & 0b11111111) << 8) |
+                                     ((buf[12] & 0b11111111) << 0);
+    buf = buf.subspan(MIN_HEADER_SIZE);
+
+    if (buf.size() < dir_ext_length) {
+        LOG_ERROR("Directory object has insufficient length for directory extension ({}<{})", buf.size(), dir_ext_length);
+        return false;
+    }
+
+    // TODO: Clause 7.2.4 List of all MOT parameters in the MOT directory extension
+    // auto dir_extension_parameters = buf.first(dir_ext_length);
+    buf = buf.subspan(dir_ext_length);
+ 
+    size_t current_directory_entity = 0;
+    while (true) {
+        constexpr size_t TRANSPORT_ID_SIZE = 2;
+        if (buf.size() < TRANSPORT_ID_SIZE) {
+            LOG_ERROR("Directory entries buffer has insufficient length ({}<{})", buf.size(), TRANSPORT_ID_SIZE);
+            break;
+        }
+        const uint16_t body_transport_id = (buf[0] << 8) | buf[1];
+        buf = buf.subspan(TRANSPORT_ID_SIZE);
+
+        MOT_Header_Entity body_header;
+        const auto total_read_opt = ProcessHeader(body_header, buf);
+        // terminate reading of all directories entries if we encounter an intermittent error, this is not recoverable
+        if (!total_read_opt.has_value()) {
+            LOG_ERROR("Directry entry failed to read header, index={}", current_directory_entity);
+            break;
+        }
+
+        // NOTE: Directory entries seem to be sent very rarely, so we want to be generous about which headers to cache
+        m_body_headers.insert(body_transport_id, std::move(body_header));
+        auto* body_assembler_table = m_assembler_tables.find(body_transport_id);
+        if (body_assembler_table != nullptr) {
+            CheckBodyComplete(body_transport_id);
+        }
+
+        const size_t total_read = total_read_opt.value();
+        assert(total_read <= buf.size());
+        buf = buf.subspan(total_read);
+        current_directory_entity++;
+    }
+
+    if (current_directory_entity != total_objects) {
+        LOG_ERROR("Some directory entries were missed ({} != {})", current_directory_entity, total_objects);
+    }
+
+    return true;
+}
+
+std::optional<size_t> MOT_Processor::ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 5.3.1: Single object transmission (MOT header mode) 
     // Figure 14: Repeated transmission of header information
     // The header consists of the header core and header extension
-
-    const int N = (int)buf.size();
-    int curr_byte = 0;
-    const uint8_t* data = &buf[curr_byte];
-    int nb_remain = N-curr_byte;
-
+ 
+    auto data = buf;
     // DOC: ETSI EN 301 234
     // Clause 6.1: Header core 
     const int TOTAL_HEADER_CORE = 7;
-    if (nb_remain < TOTAL_HEADER_CORE) {
-        LOG_ERROR("Insufficient length for header core {}<{}", nb_remain, TOTAL_HEADER_CORE);
-        return false;
+    if (data.size() < TOTAL_HEADER_CORE) {
+        LOG_ERROR("Insufficient length for header core ({}<{})", data.size(), TOTAL_HEADER_CORE);
+        return std::nullopt;
     }
 
-    data = &buf[curr_byte];
-    curr_byte += TOTAL_HEADER_CORE;
-    nb_remain = N-curr_byte;
     const uint32_t body_size        = ((data[0] & 0b11111111) << 20) | 
                                       ((data[1] & 0b11111111) << 12) | 
                                       ((data[2] & 0b11111111) << 4)  | 
@@ -167,30 +251,37 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uin
     const uint8_t content_type      = ((data[5] & 0b01111110) >> 1);
     const uint16_t content_sub_type = ((data[5] & 0b00000001) << 8) |
                                       ((data[6] & 0b11111111) >> 0);
-    
+    data = data.subspan(TOTAL_HEADER_CORE);
+
     entity.body_size = body_size;
     entity.header_size = header_size;
     entity.content_type = content_type;
     entity.content_sub_type = content_sub_type;
 
+    if (header_size < TOTAL_HEADER_CORE) {
+        LOG_ERROR("Provided header size is smaller than the header core size ({}<{})", header_size, TOTAL_HEADER_CORE);
+        return std::nullopt;
+    }
+
+    const size_t header_ext_size = header_size - TOTAL_HEADER_CORE;
+    if (data.size() < header_ext_size) {
+        LOG_ERROR("Header extension buffer is smaller than header specified size ({}<{})", data.size(), header_ext_size);
+        return std::nullopt;
+    }
+ 
+    data = data.first(header_ext_size);
+
     // DOC: ETSI TS 101 756
     // Clause 6: Registered tables in ETSI EN 301 234 (MOT) 
     // Table 17: Content type and content subtypes 
-    LOG_MESSAGE("[header-core] body_size={} header_size={} content_type={}|{}", 
-        body_size, header_size, content_type, content_sub_type);
-
-    // DOC: ETSI EN 301 234
     // Clause 6.2: Header extension 
-    while (curr_byte < N) {
-        data = &buf[curr_byte];
-        curr_byte += 1;
-        nb_remain = N-curr_byte;
-
+    while (!data.empty()) {
         // Parameter length indicator
         const uint8_t pli      = (data[0] & 0b11000000) >> 6;
         const uint8_t param_id = (data[0] & 0b00111111) >> 0;
+        data = data.subspan(1);
 
-        uint32_t nb_data_bytes = 0;
+        size_t nb_data_bytes = 0;
         bool is_length_indicator = false;
 
         switch (pli) {
@@ -217,53 +308,38 @@ bool MOT_Processor::ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uin
         }
 
         if (is_length_indicator) {
-            data = &buf[curr_byte];
-
-            if (nb_remain < 1) {
-                LOG_ERROR("Insufficient length for data field indicator {}<{}",
-                    nb_remain, 1);
-                return false;
+            if (data.size() < 1) {
+                LOG_ERROR("Insufficient length for data field indicator ({}<{})", data.size(), 1);
+                break;
             }
-
             const uint8_t ext_flag = (data[0] & 0b10000000) >> 7;
-            if (ext_flag && (nb_remain < 2)) {
-                LOG_ERROR("Insufficient length for extended data field indicator {}<{}",
-                    nb_remain, 2);
-                return false;
-            }
-
-            if (!ext_flag) {
-                nb_data_bytes = ((data[0] & 0b01111111) << 0);
-                curr_byte += 1;
+            if (ext_flag) {
+                if (data.size() < 2) {
+                    LOG_ERROR("Insufficient length for extended data field indicator ({}<{})", data.size(), 2);
+                    break;
+                }
+                nb_data_bytes = ((data[0] & 0b01111111) << 8) | data[1];
+                data = data.subspan(2);
             } else {
-                nb_data_bytes = ((data[0] & 0b01111111) << 8) |
-                                ((data[1] & 0b11111111) << 0);
-                curr_byte += 2;
+                nb_data_bytes =  (data[0] & 0b01111111) << 0;
+                data = data.subspan(1);
             }
-            nb_remain = N-curr_byte;
         }
 
-        if (nb_remain < static_cast<int>(nb_data_bytes)) {
-            LOG_ERROR("Insufficient length for data field {}<{} pli={} param_id={}", 
-                nb_remain, nb_data_bytes, pli, param_id);
-            return false;
+        if (data.size() < nb_data_bytes) {
+            LOG_ERROR("Insufficient length for data field ({}<{}) pli={} param_id={}", data.size(), nb_data_bytes, pli, param_id);
+            break;
         }
 
-        data = &buf[curr_byte];
-        curr_byte += nb_data_bytes;
-        nb_remain = N-curr_byte;
-
-        ProcessHeaderExtensionParameter(entity, param_id, {data, (size_t)nb_data_bytes});
+        auto field = data.first(nb_data_bytes); 
+        data = data.subspan(nb_data_bytes);
+        ProcessHeaderExtensionParameter(entity, param_id, field);
     }
 
-    return true;
+    return std::optional(header_size);
 }
 
-bool MOT_Processor::ProcessHeaderExtensionParameter(
-    MOT_Header_Entity& entity, const uint8_t id, 
-    tcb::span<const uint8_t> buf) 
-{
-    const int N = (int)buf.size();
+bool MOT_Processor::ProcessHeaderExtensionParameter(MOT_Header_Entity& entity, const uint8_t id, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 6.3: List of all MOT parameters in the MOT header extension 
     // Table 2: Coding of extension parameter 
@@ -272,19 +348,20 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     if ((id >= 0b100101) && (id <= 0b111111)) {
         MOT_Header_Extension_Parameter param;
         param.type = id;
-        param.data = {buf.data(), (size_t)N};
-        entity.user_app_params.push_back(param);
+        param.data.resize(buf.size());
+        std::memcpy(param.data.data(), buf.data(), buf.size());
+        entity.user_app_params.push_back(std::move(param));
         return true;
     }
 
     if (id > 0b111111) {
-        LOG_ERROR("[header-ext] Out of table param_id={} length={}", id, N);
+        LOG_ERROR("[header-ext] Out of table param_id={} length={}", id, buf.size());
         return false;
     }
 
     #define UNIMPLEMENTED_CASE(_id, name) {\
     case _id:\
-        LOG_WARN("[header-ext] Unimplemented param_id={} length={} type=" name, _id, N);\
+        LOG_WARN("[header-ext] Unimplemented param_id={} length={} type=" name, _id, buf.size());\
         return false;\
     }
 
@@ -307,7 +384,7 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
     UNIMPLEMENTED_CASE(0b100100, "conditional_access_replacement_object");
     // Reserved for MOT protocol extension
     default:
-        LOG_WARN("[header-ext] Reserved for extension: param_id={} length={}", id, N);
+        LOG_WARN("[header-ext] Reserved for extension: param_id={} length={}", id, buf.size());
         return false;
     }
     #undef UNIMPLEMENTED_CASE
@@ -316,26 +393,21 @@ bool MOT_Processor::ProcessHeaderExtensionParameter(
 bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 6.2.2.1.1: Content name
-    const int N = (int)buf.size();
-    if (N < 2) {
-        LOG_ERROR("[header-ext] type=content_name Insufficient length for content name header and data {}<{}",
-            N, 2);
+    if (buf.size() < 2) {
+        LOG_ERROR("[header-ext] type=content_name Insufficient length for content name header and data {}<{}", buf.size(), 2);
         return false;
     }
 
     const uint8_t charset = (buf[0] & 0b11110000) >> 4;
     const uint8_t rfa0    = (buf[0] & 0b00001111) >> 0;
-
-    const auto* name = &buf[1];
-    const auto* name_str = reinterpret_cast<const char*>(name);
-    const int nb_name_bytes = N-1;
+    auto name_buf = buf.subspan(1);
+    auto name = std::string_view(reinterpret_cast<const char*>(name_buf.data()), name_buf.size());
 
     entity.content_name.exists = true;
     entity.content_name.charset = charset;
-    entity.content_name.name = {name_str, (size_t)nb_name_bytes};
+    entity.content_name.name = name;
 
-    LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}",
-        charset, rfa0, nb_name_bytes, entity.content_name.name);
+    LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}", charset, rfa0, name.length(), entity.content_name.name);
     return true;
 }
 
@@ -356,10 +428,9 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_TriggerTime(MOT_Header_Entit
 bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time& entity, tcb::span<const uint8_t> buf) {
     // DOC: ETSI EN 301 234
     // Clause 6.2.4.1: Coding of time parameters 
-    const int N = (int)buf.size();
-    if (N < 4) {
-        LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and data {}<{}", 
-            N, 4);
+    constexpr size_t MIN_HEADER_SIZE = 4;
+    if (buf.size() < MIN_HEADER_SIZE) {
+        LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and data ({}<{})", buf.size(), MIN_HEADER_SIZE);
         return false;
     }
 
@@ -389,17 +460,17 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_UTCTime(MOT_UTC_Time& entity
     const uint8_t minutes   =  (buf[3] & 0b00111111) >> 0;
     uint8_t seconds = 0;
     uint16_t milliseconds = 0;
-
+    buf = buf.subspan(MIN_HEADER_SIZE);
+ 
     if (UTC_flag) {
-        if (N < 6) {
-            LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and long UTC {}<{}", 
-                N, 6);
+        constexpr size_t UTC_FIELD_SIZE = 2;
+        if (buf.size() < UTC_FIELD_SIZE) {
+            LOG_ERROR("[header-ext] type=utc_time Insufficient length for time header and long UTC ({}<{})", buf.size(), UTC_FIELD_SIZE);
             return false;
         }
-
-        seconds      =  (buf[4] & 0b11111100) >> 2;
-        milliseconds = ((buf[4] & 0b00000011) << 8) |
-                       ((buf[5] & 0b11111111) >> 0);
+        seconds      =  (buf[0] & 0b11111100) >> 2;
+        milliseconds = ((buf[0] & 0b00000011) << 8) | buf[1];
+        buf = buf.subspan(UTC_FIELD_SIZE);
     }
 
     int year, month, day;

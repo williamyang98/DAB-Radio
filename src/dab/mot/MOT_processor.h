@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
 #include "./MOT_entities.h"
 #include "./MOT_assembler.h"
@@ -40,28 +41,25 @@ struct MOT_MSC_Data_Group_Header {
 
 typedef std::unordered_map<MOT_Data_Type, MOT_Assembler> MOT_Assembler_Table;
 
-// Create either header or directory mode MOT entities from msc MOT segment data groups
+// Create MOT entities from MSC data groups
 class MOT_Processor
 {
 private:
     // DOC: ETSI EN 301 234
     // Clause 5.3.2.1: Interleaving MOT entities in one MOT stream 
-    // NOTE: In MOT directory mode we can encounter multiple parallel transport ids
-    //       We use an LRU queue to forget entries that are no longer updated
     LRU_Cache<mot_transport_id_t, MOT_Assembler_Table> m_assembler_tables;
-
-    // args: entity update
+    LRU_Cache<mot_transport_id_t, MOT_Header_Entity> m_body_headers;
     Observable<MOT_Entity> m_obs_on_entity_complete;
 public:
-    MOT_Processor(const int max_transport_objects=10);
-    void Process_Segment(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf);
+    // Header entities are quite small so we set a generous upper bound
+    MOT_Processor(const size_t max_transport_entities=20, const size_t max_header_entities=200);
+    void Process_MSC_Data_Group(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf);
     auto& OnEntityComplete(void) { return m_obs_on_entity_complete; }
 private:
-    MOT_Assembler_Table& GetAssemblerTable(const mot_transport_id_t transport_id);
     MOT_Assembler& GetAssembler(MOT_Assembler_Table& table, const MOT_Data_Type type);
-    bool CheckEntityComplete(const mot_transport_id_t transport_id);
-private:
-    bool ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf);
+    bool CheckBodyComplete(const mot_transport_id_t transport_id);
+    bool ProcessDirectory(const mot_transport_id_t transport_id);
+    std::optional<size_t> ProcessHeader(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf);
     bool ProcessHeaderExtensionParameter(MOT_Header_Entity& entity, const uint8_t id, tcb::span<const uint8_t> buf);
     bool ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf);
     bool ProcessHeaderExtensionParameter_ExpireTime(MOT_Header_Entity& entity, tcb::span<const uint8_t> buf);

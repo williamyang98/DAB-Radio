@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <vector>
+#include <optional>
 #include "utility/span.h"
 
 // Assembles MOT entity from segments
@@ -21,14 +22,12 @@ private:
     std::vector<uint8_t> m_unordered_buffer;
     std::vector<uint8_t> m_ordered_buffer;
     std::vector<Segment> m_segments;
-    size_t m_total_segments = 0;
-    size_t m_curr_unordered_index = 0;
+    std::optional<size_t> m_total_segments = std::nullopt;
 public:
     MOT_Assembler();
-    ~MOT_Assembler() {}
     void Reset(void);
     void SetTotalSegments(const size_t N);
-    bool AddSegment(const size_t index, const uint8_t* buf, const size_t N);
+    bool AddSegment(const size_t index, tcb::span<const uint8_t> buf);
     tcb::span<uint8_t> GetData() { return m_ordered_buffer; }
     bool CheckComplete();
 private:

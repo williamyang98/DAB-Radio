@@ -173,5 +173,5 @@ void MSC_Data_Packet_Processor::HandleDataGroup(tcb::span<const uint8_t> data_gr
     header.is_last_segment = res.segment_field.is_last_segment;
     header.segment_number = res.segment_field.segment_number;
     header.transport_id = res.transport_id;
-    m_mot_processor->Process_Segment(header, res.data_field);
+    m_mot_processor->Process_MSC_Data_Group(header, res.data_field);
 }
