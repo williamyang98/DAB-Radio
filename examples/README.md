@@ -12,6 +12,7 @@ Applications that use the OFDM and DAB code.
 | apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
 | convert_viterbi | Decodes/encodes between a viterbi_bit_t array of soft decision bits to a packed byte |
 | simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an 8bit IQ stream to stdout. |
+| loop_file | Loop file infinitely |
 
 ## Example usage scenarios (using git-bash on Windows)
 Refer to ```-h``` or ```--help``` for more information on each application.

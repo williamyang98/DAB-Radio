@@ -52,6 +52,10 @@ add_executable(read_wav ${SRC_DIR}/read_wav.cpp)
 init_example(read_wav)
 target_link_libraries(read_wav PRIVATE argparse::argparse)
 
+add_executable(loop_file ${SRC_DIR}/loop_file.cpp)
+init_example(loop_file)
+target_link_libraries(loop_file PRIVATE argparse::argparse)
+
 # Example applications
 add_executable(basic_radio_app_cli ${SRC_DIR}/basic_radio_app.cpp)
 init_example(basic_radio_app_cli)
