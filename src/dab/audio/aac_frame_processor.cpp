@@ -98,12 +98,14 @@ AAC_Frame_Processor::AAC_Frame_Processor() {
     // DOC: ETSI TS 102 563 
     // Refer to clause 6.1 on reed solomon coding
     // The polynomial for this is given as
-    // G(x) = x^8 + x^4 + x^3 + x^2 + 1
-    const int galois_field_poly = 0b100011101;
+    // P(x) = x^8 + x^4 + x^3 + x^2 + 1
+    const int GALOIS_FIELD_POLY = 0b100011101;
+    // G(x) = (x+λ^0)*(x+λ^1)*...*(x+λ^9)
+    const int CODE_TOTAL_ROOTS = 10;
     // The Phil Karn reed solmon decoder works with the 2^8 Galois field
     // Therefore we need to use the RS(255,245) decoder
     // As according to the spec we should insert 135 padding symbols (bytes)
-    m_rs_decoder = std::make_unique<Reed_Solomon_Decoder>(8, galois_field_poly, 0, 1, 10, NB_RS_PADDING_BYTES);
+    m_rs_decoder = std::make_unique<Reed_Solomon_Decoder>(8, GALOIS_FIELD_POLY, 0, 1, CODE_TOTAL_ROOTS, NB_RS_PADDING_BYTES);
     m_rs_encoded_buf.resize(NB_RS_MESSAGE_BYTES, 0);
     // Reed solomon code can correct up to floor(t/2) symbols that were wrong
     // where t = the number of parity symbols

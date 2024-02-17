@@ -6,6 +6,7 @@
 #include <fmt/core.h>
 
 #include "./dab_logging.h"
+#include "database/dab_database_entities.h"
 #define TAG "radio-fig-handler"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
@@ -482,7 +483,8 @@ void Radio_FIG_Handler::OnSubchannel_2_FEC(
 {
     if (!m_updater) return;
     auto& u = m_updater->GetSubchannelUpdater(subchannel_id);
-    u.SetFECScheme(fec_type);
+    auto fec_scheme = static_cast<FEC_Scheme>(fec_type & 0b11);
+    u.SetFECScheme(fec_scheme);
 }
 
 // fig 0/17 - Programme type

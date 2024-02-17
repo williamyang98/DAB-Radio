@@ -69,7 +69,7 @@ UpdateResult EnsembleUpdater::SetInternationalTableID(const uint8_t internationa
 }
 
 bool EnsembleUpdater::IsComplete() {
-    return (m_dirty_field & ENSEMBLE_FLAG_REQUIRED) == ENSEMBLE_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & ENSEMBLE_FLAG_REQUIRED) == ENSEMBLE_FLAG_REQUIRED);
 }
 
 // Service form
@@ -110,7 +110,7 @@ UpdateResult ServiceUpdater::SetClosedCaption(const closed_caption_id_t closed_c
 }
 
 bool ServiceUpdater::IsComplete() {
-    return (m_dirty_field & SERVICE_FLAG_REQUIRED) == SERVICE_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & SERVICE_FLAG_REQUIRED) == SERVICE_FLAG_REQUIRED);
 }
 
 // Service component form
@@ -122,7 +122,7 @@ const uint8_t SERVICE_COMPONENT_FLAG_SUBCHANNEL     = 0b00001000;
 const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID      = 0b00000100;
 // two different set of fields required between audio and data
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01011000;
+const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01001000;
 
 UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
     auto new_label = std::string_view((const char*)buf.data(), buf.size());
@@ -174,7 +174,9 @@ uint32_t ServiceComponentUpdater::GetServiceReference() {
 bool ServiceComponentUpdater::IsComplete() {
     const bool audio_complete = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
     const bool data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
-    return (GetData().transport_mode == TransportMode::STREAM_MODE_AUDIO) ? audio_complete : data_complete;
+    const bool is_complete = (GetData().transport_mode == TransportMode::STREAM_MODE_AUDIO) ? audio_complete : data_complete;
+    GetData().is_complete = is_complete;
+    return is_complete;
 }
 
 // Subchannel form
@@ -224,14 +226,16 @@ UpdateResult SubchannelUpdater::SetEEPType(const EEP_Type eep_type) {
     return UpdateField(GetData().eep_type, eep_type, SUBCHANNEL_FLAG_EEP_TYPE);
 }
 
-UpdateResult SubchannelUpdater::SetFECScheme(const fec_scheme_t fec_scheme) {
+UpdateResult SubchannelUpdater::SetFECScheme(const FEC_Scheme fec_scheme) {
     return UpdateField(GetData().fec_scheme, fec_scheme, SUBCHANNEL_FLAG_FEC_SCHEME);
 }
 
 bool SubchannelUpdater::IsComplete() {
     const bool eep_complete = (m_dirty_field & SUBCHANNEL_FLAG_REQUIRED_EEP) == SUBCHANNEL_FLAG_REQUIRED_EEP;
     const bool uep_complete = (m_dirty_field & SUBCHANNEL_FLAG_REQUIRED_UEP) == SUBCHANNEL_FLAG_REQUIRED_UEP;
-    return GetData().is_uep ? uep_complete : eep_complete;
+    const bool is_complete = GetData().is_uep ? uep_complete : eep_complete;
+    GetData().is_complete = is_complete;
+    return is_complete;
 }
 
 // link service form
@@ -262,7 +266,7 @@ service_id_t LinkServiceUpdater::GetServiceReference() {
 }
 
 bool LinkServiceUpdater::IsComplete() {
-    return (m_dirty_field & LINK_FLAG_REQUIRED) == LINK_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & LINK_FLAG_REQUIRED) == LINK_FLAG_REQUIRED);
 }
 
 // fm service form
@@ -288,7 +292,7 @@ UpdateResult FM_ServiceUpdater::AddFrequency(const freq_t frequency) {
 }
 
 bool FM_ServiceUpdater::IsComplete() {
-    return (m_dirty_field & FM_FLAG_REQUIRED) == FM_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & FM_FLAG_REQUIRED) == FM_FLAG_REQUIRED);
 }
 
 // drm service form
@@ -314,7 +318,7 @@ UpdateResult DRM_ServiceUpdater::AddFrequency(const freq_t frequency) {
 }
 
 bool DRM_ServiceUpdater::IsComplete() {
-    return (m_dirty_field & DRM_FLAG_REQUIRED) == DRM_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & DRM_FLAG_REQUIRED) == DRM_FLAG_REQUIRED);
 }
 
 // amss service form
@@ -335,7 +339,7 @@ UpdateResult AMSS_ServiceUpdater::AddFrequency(const freq_t frequency) {
 }
 
 bool AMSS_ServiceUpdater::IsComplete() {
-    return (m_dirty_field & AMSS_FLAG_REQUIRED) == AMSS_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & AMSS_FLAG_REQUIRED) == AMSS_FLAG_REQUIRED);
 }
 
 // other ensemble form
@@ -367,7 +371,7 @@ UpdateResult OtherEnsembleUpdater::SetFrequency(const freq_t frequency) {
 }
 
 bool OtherEnsembleUpdater::IsComplete() {
-    return (m_dirty_field & OE_FLAG_REQUIRED) == OE_FLAG_REQUIRED;
+    return GetData().is_complete = ((m_dirty_field & OE_FLAG_REQUIRED) == OE_FLAG_REQUIRED);
 }
 
 // updater parent

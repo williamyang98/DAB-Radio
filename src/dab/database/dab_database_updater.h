@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include "./dab_database.h"
+#include "dab/database/dab_database_entities.h"
 #include "utility/span.h"
 
 struct DatabaseUpdaterGlobalStatistics {
@@ -172,7 +173,7 @@ public:
     UpdateResult SetUEPProtIndex(const uep_protection_index_t uep_prot_index);
     UpdateResult SetEEPProtLevel(const eep_protection_level_t eep_prot_level);
     UpdateResult SetEEPType(const EEP_Type eep_type);
-    UpdateResult SetFECScheme(const fec_scheme_t fec_scheme);
+    UpdateResult SetFECScheme(const FEC_Scheme fec_scheme);
     auto& GetData() { return m_db.subchannels[m_index]; }
 private:
     bool IsComplete() override;

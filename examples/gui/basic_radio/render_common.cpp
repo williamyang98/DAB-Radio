@@ -5,8 +5,10 @@
 #include <imgui.h>
 #include <fmt/core.h>
 #include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_audio_channel.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
+#include "dab/dab_misc_info.h"
 #include "./formatters.h"
 
 template <typename T, typename F>

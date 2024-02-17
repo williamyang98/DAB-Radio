@@ -1,14 +1,14 @@
 #pragma once
-#include "basic_radio/basic_radio.h"
-
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
 #include <filesystem>
 #include <memory>
-
+#include "basic_radio/basic_audio_params.h"
+#include "dab/mot/MOT_entities.h"
 #include "dab/audio/aac_frame_processor.h"
 #include "utility/span.h"
+
 namespace fs = std::filesystem;
 
 // Scraping output directory structure
@@ -21,6 +21,9 @@ namespace fs = std::filesystem;
 //     │ └─{date}_{transport_id}_{label}.{ext}
 //     └─MOT
 //       └─{date}_{transport_id}_{label}.{ext}
+class BasicRadio;
+class Basic_Audio_Channel;
+struct Basic_Slideshow;
 
 class BasicAudioScraper 
 {

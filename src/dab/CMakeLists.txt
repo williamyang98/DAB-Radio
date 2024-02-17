@@ -14,7 +14,9 @@ add_library(dab_core STATIC
     ${SRC_DIR}/database/dab_database_updater.cpp
     ${SRC_DIR}/msc/msc_decoder.cpp
     ${SRC_DIR}/msc/cif_deinterleaver.cpp
-    ${SRC_DIR}/msc/msc_xpad_processor.cpp
+    ${SRC_DIR}/msc/msc_data_group_processor.cpp
+    ${SRC_DIR}/msc/msc_data_packet_processor.cpp
+    ${SRC_DIR}/msc/msc_reed_solomon_data_packet_processor.cpp
     ${SRC_DIR}/audio/aac_frame_processor.cpp
     ${SRC_DIR}/audio/aac_audio_decoder.cpp
     ${SRC_DIR}/audio/aac_data_decoder.cpp

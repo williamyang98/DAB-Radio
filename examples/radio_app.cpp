@@ -12,6 +12,8 @@
 #include <imgui.h>
 #include <argparse/argparse.hpp>
 #include <fmt/core.h>
+#include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_audio_channel.h"
 #include "basic_scraper/basic_scraper.h"
 #include "./block_frequencies.h"
 #include "./app_helpers/app_io_buffers.h"

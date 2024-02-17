@@ -1,6 +1,4 @@
-#include "./render_basic_radio.h"
-#include "./basic_radio_view_controller.h"
-#include "dab/database/dab_database_entities.h"
+#include "./render_common.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -12,12 +10,16 @@
 #include <algorithm>
 #include "../font_awesome_definitions.h"
 #include "./formatters.h"
-#include "./render_common.h"
+#include "./render_basic_radio.h"
+#include "./basic_radio_view_controller.h"
 
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
+#include "basic_radio/basic_data_packet_channel.h"
+#include "basic_radio/basic_audio_channel.h"
 #include "basic_radio/basic_dab_plus_channel.h"
 #include "basic_radio/basic_dab_channel.h"
+#include "dab/database/dab_database_entities.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_updater.h"
 
@@ -34,6 +36,7 @@ static void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& co
 static void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
 static void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& controller, ServiceComponent& component);
 static void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, const subchannel_id_t subchannel_id);
+static void RenderSimple_Basic_Data_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Data_Packet_Channel& channel, const subchannel_id_t subchannel_id);
 static void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller);
 static void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
 static void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& controller, const LinkService& link_service);
@@ -267,60 +270,32 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
 
     auto* audio_channel = radio.Get_Audio_Channel(subchannel_id);
     if (audio_channel != nullptr) {
-        if (ImGui::Begin("Audio Channel")) {
+        const auto ascty = audio_channel->GetType();
+        const char* channel_name = "Unknown";
+        switch (ascty) {
+            case AudioServiceType::DAB_PLUS: channel_name = "DAB+"; break;
+            case AudioServiceType::DAB: channel_name = "DAB"; break;
+            default: channel_name = "Unknown"; break;
+        }
+        auto label = fmt::format("{} Channel###Channel", channel_name);
+        if (ImGui::Begin(label.c_str())) {
             RenderSimple_Basic_Audio_Channel(radio, controller, *audio_channel, subchannel_id);
         }
         ImGui::End();
+        return;
+    }
+
+    auto* data_channel = radio.Get_Data_Packet_Channel(subchannel_id);
+    if (data_channel != nullptr) {
+        if (ImGui::Begin("Data Channel###Channel")) {
+            RenderSimple_Basic_Data_Channel(radio, controller, *data_channel, subchannel_id);
+        }
+        ImGui::End();
+        return;
     }
 }
 
-void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, subchannel_id_t subchannel_id) {
-    // Channel controls
-    auto& controls = channel.GetControls();
-    if (ImGui::Button("Run All")) {
-        controls.RunAll();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Stop All")) {
-        controls.StopAll();
-    }
-    bool v = false;
-    v = controls.GetIsDecodeAudio();
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Decode audio", &v)) {
-        controls.SetIsDecodeAudio(v);
-    }
-    v = controls.GetIsDecodeData();
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Decode data", &v)) {
-        controls.SetIsDecodeData(v);
-    }
-    v = controls.GetIsPlayAudio();
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Play audio", &v)) {
-        controls.SetIsPlayAudio(v);
-    }
-
-    const auto ascty = channel.GetType();
-    switch (ascty) {
-    case AudioServiceType::DAB_PLUS:
-        RenderSimple_Basic_DAB_Plus_Channel_Status(dynamic_cast<Basic_DAB_Plus_Channel&>(channel));
-        break;
-    case AudioServiceType::DAB:
-        RenderSimple_Basic_DAB_Channel_Status(dynamic_cast<Basic_DAB_Channel&>(channel));
-        break;
-    case AudioServiceType::UNDEFINED:
-    default:
-        break;
-    }
-
-    // Programme associated data
-    // 1. Dynamic label
-    // 2. MOT slideshow
-    auto label = channel.GetDynamicLabel();
-    ImGui::Text("Dynamic label: %.*s", int(label.length()), label.data());
-
-    auto& slideshow_manager = channel.GetSlideshowManager();
+static void RenderSimple_Slideshow_Manager(BasicRadioViewController& controller, Basic_Slideshow_Manager& slideshow_manager, subchannel_id_t subchannel_id) {
     ImGuiChildFlags child_flags = ImGuiChildFlags_Border;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
     if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), child_flags, window_flags)) {
@@ -370,6 +345,61 @@ void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewControlle
         }
     }
     ImGui::EndChild();
+}
+
+void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, subchannel_id_t subchannel_id) {
+    // Channel controls
+    auto& controls = channel.GetControls();
+    if (ImGui::Button("Run All")) {
+        controls.RunAll();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Stop All")) {
+        controls.StopAll();
+    }
+    bool v = false;
+    v = controls.GetIsDecodeAudio();
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Decode audio", &v)) {
+        controls.SetIsDecodeAudio(v);
+    }
+    v = controls.GetIsDecodeData();
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Decode data", &v)) {
+        controls.SetIsDecodeData(v);
+    }
+    v = controls.GetIsPlayAudio();
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Play audio", &v)) {
+        controls.SetIsPlayAudio(v);
+    }
+
+    const auto ascty = channel.GetType();
+    switch (ascty) {
+    case AudioServiceType::DAB_PLUS:
+        RenderSimple_Basic_DAB_Plus_Channel_Status(dynamic_cast<Basic_DAB_Plus_Channel&>(channel));
+        break;
+    case AudioServiceType::DAB:
+        RenderSimple_Basic_DAB_Channel_Status(dynamic_cast<Basic_DAB_Channel&>(channel));
+        break;
+    case AudioServiceType::UNDEFINED:
+    default:
+        break;
+    }
+
+    // Programme associated data
+    // 1. Dynamic label
+    // 2. MOT slideshow
+    auto label = channel.GetDynamicLabel();
+    ImGui::Text("Dynamic label: %.*s", int(label.length()), label.data());
+
+    auto& slideshow_manager = channel.GetSlideshowManager();
+    RenderSimple_Slideshow_Manager(controller, slideshow_manager, subchannel_id);
+}
+
+void RenderSimple_Basic_Data_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Data_Packet_Channel& channel, const subchannel_id_t subchannel_id) {
+    auto& slideshow_manager = channel.GetSlideshowManager();
+    RenderSimple_Slideshow_Manager(controller, slideshow_manager, subchannel_id);
 }
 
 static void render_error_indicator(const char* label, bool is_error) {

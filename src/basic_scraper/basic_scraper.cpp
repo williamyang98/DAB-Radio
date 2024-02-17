@@ -1,9 +1,13 @@
 #include "./basic_scraper.h"
+#include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_audio_channel.h"
 #include "basic_radio/basic_dab_channel.h"
 #include "basic_radio/basic_dab_plus_channel.h"
+#include "basic_radio/basic_data_packet_channel.h"
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
 #include "dab/database/dab_database_entities.h"
+#include "dab/database/dab_database_types.h"
 #include "dab/mot/MOT_processor.h"
 #include "dab/database/dab_database.h"
 #include <string.h>
@@ -24,6 +28,17 @@ static std::string GetCurrentTime(void) {
         tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
+static ServiceComponent* find_service_component(DAB_Database& db, subchannel_id_t id) {
+    ServiceComponent* component = nullptr;
+    for (auto& e: db.service_components) {
+        if (e.subchannel_id == id) {
+            component = &e;
+            break;
+        };
+    }
+    return component;
+}
+
 void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio) {
     if (scraper == nullptr) return;
     auto root_directory = scraper->root_directory;
@@ -31,16 +46,8 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
         [scraper, root_directory, &radio](subchannel_id_t id, Basic_Audio_Channel& channel) {
             // determine root folder
             auto& db = radio.GetDatabase();
-            ServiceComponent* component = nullptr;
-            for (auto& e: db.service_components) {
-                if (e.subchannel_id == id) {
-                    component = &e;
-                    break;
-                };
-            }
-            if (component == nullptr) {
-                return;
-            }
+            auto* component = find_service_component(db, id);
+            if (component == nullptr) return;
             const auto service_id = component->service_reference;
             const auto component_id = component->component_id;
             const auto root_folder = fmt::format("{:s}", root_directory);
@@ -51,6 +58,25 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             auto dab_plus_scraper = std::make_shared<Basic_Audio_Channel_Scraper>(abs_path);
             scraper->scrapers.push_back(dab_plus_scraper);
             Basic_Audio_Channel_Scraper::attach_to_channel(dab_plus_scraper, channel);
+        }
+    );
+    radio.On_Data_Packet_Channel().Attach(
+        [scraper, root_directory, &radio](subchannel_id_t id, Basic_Data_Packet_Channel& channel) {
+            // determine root folder
+            auto& db = radio.GetDatabase();
+            auto* component = find_service_component(db, id);
+            if (component == nullptr) return;
+            const auto service_id = component->service_reference;
+            const auto component_id = component->component_id;
+            const auto root_folder = fmt::format("{:s}", root_directory);
+            const auto child_folder = fmt::format("service_{}_component_{}", service_id, component_id);
+            auto base_path = fs::path(root_folder) / fs::path(child_folder);
+            auto abs_path = fs::absolute(base_path);
+
+            auto mot_scraper = std::make_shared<BasicMOTScraper>(abs_path / "MOT");
+            channel.OnMOTEntity().Attach([mot_scraper](MOT_Entity mot_entity) {
+                mot_scraper->OnMOTEntity(mot_entity);
+            });
         }
     );
 }

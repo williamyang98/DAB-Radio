@@ -1,5 +1,5 @@
 #include "./pad_MOT_processor.h"
-#include "../msc/msc_xpad_processor.h"
+#include "../msc/msc_data_group_processor.h"
 #include "../mot/MOT_processor.h"
 #include <fmt/core.h>
 
@@ -111,8 +111,9 @@ size_t PAD_MOT_Processor::Consume(
 void PAD_MOT_Processor::Interpret(void) {
     const auto buf = m_data_group.GetData();
     const size_t N = m_data_group.GetRequiredBytes();
-    const auto res = MSC_XPAD_Processor::Process({buf.data(), N});
-    if (!res.is_success) {
+    const auto res = MSC_Data_Group_Process({buf.data(), N});
+    using Status = MSC_Data_Group_Process_Result::Status;
+    if (res.status != Status::SUCCESS) {
         return;
     }
 
@@ -126,7 +127,7 @@ void PAD_MOT_Processor::Interpret(void) {
         return;
     }
     // 2. Transport id - So we can identify if a new MOT object is being transmitted
-    if (!res.has_user_access_field || !res.user_access_field.has_transport_id) {
+    if (!res.has_transport_id) {
         LOG_ERROR("Missing transport if field in MSC XPAD header");
         return;
     }
@@ -137,6 +138,6 @@ void PAD_MOT_Processor::Interpret(void) {
     header.repetition_index = res.repetition_index;
     header.is_last_segment = res.segment_field.is_last_segment;
     header.segment_number = res.segment_field.segment_number;
-    header.transport_id = res.user_access_field.transport_id;
+    header.transport_id = res.transport_id;
     m_mot_processor->Process_Segment(header, res.data_field);
 }

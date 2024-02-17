@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 
+#include "./basic_msc_runner.h"
 #include "./basic_audio_params.h"
 #include "./basic_audio_controls.h"
 #include "dab/constants/dab_parameters.h"
@@ -20,7 +21,7 @@ struct Basic_Slideshow;
 class Basic_Slideshow_Manager;
 
 // Shared interface for DAB+/DAB channels
-class Basic_Audio_Channel
+class Basic_Audio_Channel: public Basic_MSC_Runner
 {
 protected:
     const DAB_Parameters m_params;
@@ -38,8 +39,8 @@ protected:
     Observable<MOT_Entity> m_obs_MOT_entity;
 public:
     explicit Basic_Audio_Channel(const DAB_Parameters& params, const Subchannel subchannel, const AudioServiceType audio_service_type);
-    virtual ~Basic_Audio_Channel();
-    virtual void Process(tcb::span<const viterbi_bit_t> msc_bits_buf) = 0;
+    virtual ~Basic_Audio_Channel() override;
+    virtual void Process(tcb::span<const viterbi_bit_t> msc_bits_buf) override = 0;
     AudioServiceType GetType(void) const { return m_audio_service_type; }
     auto& GetControls(void) { return m_controls; }
     std::string_view GetDynamicLabel(void) const { return m_dynamic_label; }

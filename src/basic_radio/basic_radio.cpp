@@ -1,4 +1,9 @@
 #include "./basic_radio.h"
+#include "./basic_thread_pool.h"
+#include "./basic_fic_runner.h"
+#include "./basic_msc_runner.h"
+#include "./basic_data_packet_channel.h"
+#include "./basic_audio_channel.h"
 #include "./basic_dab_plus_channel.h"
 #include "./basic_dab_channel.h"
 #include "dab/database/dab_database.h"
@@ -11,15 +16,21 @@
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
-BasicRadio::BasicRadio(const DAB_Parameters& _params, const size_t nb_threads)
-: m_params(_params), m_thread_pool(nb_threads), m_fic_runner(_params)
+BasicRadio::BasicRadio(const DAB_Parameters& params, const size_t nb_threads)
+: m_params(params)
 {
+    m_thread_pool = std::make_unique<BasicThreadPool>(nb_threads);
+    m_fic_runner = std::make_unique<BasicFICRunner>(m_params);
     m_dab_misc_info = std::make_unique<DAB_Misc_Info>();
     m_dab_database = std::make_unique<DAB_Database>();
     m_dab_database_stats = std::make_unique<DatabaseUpdaterGlobalStatistics>();
 }
 
 BasicRadio::~BasicRadio() = default;
+
+size_t BasicRadio::GetTotalThreads() const {
+    return m_thread_pool->GetTotalThreads();
+}
 
 void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
     const int N = (int)buf.size();
@@ -31,18 +42,18 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
     auto fic_buf = buf.subspan(0,                  m_params.nb_fic_bits);
     auto msc_buf = buf.subspan(m_params.nb_fic_bits, m_params.nb_msc_bits);
 
-    m_thread_pool.PushTask([this, &fic_buf] {
-        m_fic_runner.Process(fic_buf);
+    m_thread_pool->PushTask([this, &fic_buf] {
+        m_fic_runner->Process(fic_buf);
     });
 
-    for (auto& [_, channel]: m_audio_channels) {
-        auto& dab_plus_channel = *(channel.get());
-        m_thread_pool.PushTask([&dab_plus_channel, &msc_buf] {
-            dab_plus_channel.Process(msc_buf);
+    for (const auto& [_, _msc_runner]: m_msc_runners) {
+        auto* msc_runner = _msc_runner.get();
+        m_thread_pool->PushTask([msc_runner, msc_buf]() {
+            msc_runner->Process(msc_buf);
         });
     }
 
-    m_thread_pool.WaitAll();
+    m_thread_pool->WaitAll();
 
     UpdateAfterProcessing();
 }
@@ -55,10 +66,18 @@ Basic_Audio_Channel* BasicRadio::Get_Audio_Channel(const subchannel_id_t id) {
     return res->second.get();
 }
 
+Basic_Data_Packet_Channel* BasicRadio::Get_Data_Packet_Channel(const subchannel_id_t id) {
+    auto res = m_data_packet_channels.find(id);
+    if (res == m_data_packet_channels.end()) {
+        return nullptr; 
+    }
+    return res->second.get();
+}
+
 void BasicRadio::UpdateAfterProcessing() {
     auto lock = std::scoped_lock(m_mutex_data);
-    const auto& new_misc_info = m_fic_runner.GetMiscInfo();
-    const auto& dab_database_updater = m_fic_runner.GetDatabaseUpdater();
+    const auto& new_misc_info = m_fic_runner->GetMiscInfo();
+    const auto& dab_database_updater = m_fic_runner->GetDatabaseUpdater();
     const auto& new_dab_database = dab_database_updater.GetDatabase();
     const auto& new_dab_database_stats = dab_database_updater.GetStatistics();
 
@@ -71,7 +90,9 @@ void BasicRadio::UpdateAfterProcessing() {
     *m_dab_database_stats = new_dab_database_stats;
 
     for (auto& subchannel: m_dab_database->subchannels) {
-        if (m_audio_channels.find(subchannel.id) != m_audio_channels.end()) {
+        if (!subchannel.is_complete) continue;
+
+        if (m_msc_runners.find(subchannel.id) != m_msc_runners.end()) {
             continue;
         }
  
@@ -85,25 +106,42 @@ void BasicRadio::UpdateAfterProcessing() {
         if (!service_component) {
             continue;
         }
-
-        const auto mode = service_component->transport_mode;
-        if (mode != TransportMode::STREAM_MODE_AUDIO) {
+        if (!service_component->is_complete) {
             continue;
         }
 
-        const auto ascty = service_component->audio_service_type;
-        if (ascty == AudioServiceType::DAB_PLUS) {
+        const auto mode = service_component->transport_mode;
+        const auto audio_type = service_component->audio_service_type;
+        const auto data_type = service_component->data_service_type;
+
+        if (audio_type == AudioServiceType::DAB_PLUS && mode == TransportMode::STREAM_MODE_AUDIO) {
             LOG_MESSAGE("Added DAB+ subchannel {}", subchannel.id);
-            auto channel_ptr = std::make_unique<Basic_DAB_Plus_Channel>(m_params, subchannel, ascty);
-            auto& channel = *(channel_ptr.get());
-            m_audio_channels.insert({subchannel.id, std::move(channel_ptr)});
-            m_obs_audio_channel.Notify(subchannel.id, channel);
-        } else if (ascty == AudioServiceType::DAB) {
+            auto channel = std::make_shared<Basic_DAB_Plus_Channel>(m_params, subchannel, audio_type);
+            m_msc_runners.insert({ subchannel.id, channel });
+            m_audio_channels.insert({ subchannel.id, channel });
+            m_obs_audio_channel.Notify(subchannel.id, *channel);
+            continue;
+        }
+
+        if (audio_type == AudioServiceType::DAB && mode == TransportMode::STREAM_MODE_AUDIO) {
             LOG_MESSAGE("Added DAB subchannel {}", subchannel.id);
-            auto channel_ptr = std::make_unique<Basic_DAB_Channel>(m_params, subchannel, ascty);
-            auto& channel = *(channel_ptr.get());
-            m_audio_channels.insert({subchannel.id, std::move(channel_ptr)});
-            m_obs_audio_channel.Notify(subchannel.id, channel);
+            auto channel = std::make_shared<Basic_DAB_Channel>(m_params, subchannel, audio_type);
+            m_msc_runners.insert({ subchannel.id, channel });
+            m_audio_channels.insert({ subchannel.id, channel });
+            m_obs_audio_channel.Notify(subchannel.id, *channel);
+            continue;
+        } 
+ 
+        // DOC: EN 300 401
+        // Clause: 5.3.5 FEC for MSC packet mode
+        // Data packet channels require the FEC scheme to be defined for outer encoding
+        if (mode == TransportMode::PACKET_MODE_DATA && (subchannel.fec_scheme != FEC_Scheme::UNDEFINED)) {
+            LOG_MESSAGE("Added data packet subchannel {}", subchannel.id);
+            auto channel = std::make_shared<Basic_Data_Packet_Channel>(m_params, subchannel, data_type);
+            m_msc_runners.insert({ subchannel.id, channel });
+            m_data_packet_channels.insert({ subchannel.id, channel });
+            m_obs_data_packet_channel.Notify(subchannel.id, *channel);
+            continue;
         }
     }
 }
