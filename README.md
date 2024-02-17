@@ -55,6 +55,5 @@ If you can't find any DAB ensembles in your area, then you can download binary f
 - [tcbrindle](https://github.com/tcbrindle) for his C++ single header template library implementation of std::span which can be found [here](https://github.com/tcbrindle/span)
 
 # TODO
-- Decode MPEG-II audio for DAB channels.
 - For DAB+ determine how to perform error correction on the firecode CRC16 in the AAC super frame.
 - Add TII (transmitter identificaton information) decoding
