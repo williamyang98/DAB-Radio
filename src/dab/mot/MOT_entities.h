@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <vector>
-#include <string_view>
+#include <string>
 #include "utility/span.h"
 
 typedef uint16_t mot_transport_id_t;
