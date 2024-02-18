@@ -164,7 +164,8 @@ UpdateResult ServiceComponentUpdater::SetSubchannel(const subchannel_id_t subcha
 }
 
 UpdateResult ServiceComponentUpdater::SetGlobalID(const service_component_global_id_t global_id) {
-    return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID);
+    // In some transmitters they keep changing this for some reason?
+    return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID, true);
 }
 
 uint32_t ServiceComponentUpdater::GetServiceReference() {

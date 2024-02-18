@@ -69,13 +69,14 @@ public:
         m_total_updates++;
         m_stats.nb_updates++;
     }
-    UpdateResult UpdateField(std::string& dst, std::string_view src, T dirty_flag) {
+    UpdateResult UpdateField(std::string& dst, std::string_view src, T dirty_flag, bool ignore_conflict=false) {
         if (m_dirty_field & dirty_flag) {
-            if (src.compare(dst) != 0) {
+            if (src.compare(dst) == 0) {
+                return UpdateResult::NO_CHANGE;
+            } else if (!ignore_conflict) {
                 OnConflict();
                 return UpdateResult::CONFLICT;
             }
-            return UpdateResult::NO_CHANGE;
         }
         m_dirty_field |= dirty_flag;
         dst = src;
@@ -84,13 +85,14 @@ public:
         return UpdateResult::SUCCESS;
     }
     template <typename U>
-    UpdateResult UpdateField(U& dst, U src, T dirty_flag) {
+    UpdateResult UpdateField(U& dst, U src, T dirty_flag, bool ignore_conflict=false) {
         if (m_dirty_field & dirty_flag) {
-            if (dst != src) {
+            if (dst == src) {
+                return UpdateResult::NO_CHANGE;
+            } else if (!ignore_conflict) {
                 OnConflict();
                 return UpdateResult::CONFLICT;
             }
-            return UpdateResult::NO_CHANGE;
         }
         m_dirty_field |= dirty_flag;
         dst = src;
