@@ -93,34 +93,33 @@ size_t MSC_Data_Packet_Processor::ReadPacket(tcb::span<const uint8_t> buf) {
  
     // Determine if we should scratch current assembly
     const uint8_t expected_continuity_index = (m_last_continuity_index+1) % 4; // mod4 counter
+    const bool is_continuity_assured = (expected_continuity_index == continuity_index);
     m_last_continuity_index = continuity_index;
-
-    const bool is_restart = [&]() -> bool {
-        if (!m_last_address.has_value()) return false;
-        if (m_last_address.value() != address) return true;
-        if (expected_continuity_index != continuity_index) return true;
-        if (packet_location == PacketLocation::FIRST) return true; // missed last packet
-        if (packet_location == PacketLocation::SINGLE) return true; // interrupted
-        return false;
-    } ();
-
-    if (is_restart) ResetAssembler();
 
     switch (packet_location) {
     case PacketLocation::SINGLE:
         HandleDataGroup(data_field);
         break;
     case PacketLocation::FIRST:
+        ResetAssembler(); 
         m_last_address = std::optional(address);
         PushPiece(data_field);
         break;
     case PacketLocation::INTERMEDIATE:
-        PushPiece(data_field);
+        if (m_last_address != std::optional(address) || !is_continuity_assured) {
+            ResetAssembler();
+        } else {
+            PushPiece(data_field);
+        }
         break;
     case PacketLocation::LAST:
-        PushPiece(data_field);
-        HandleDataGroup(m_assembly_buffer);
-        ResetAssembler();
+        if (m_last_address != std::optional(address) || !is_continuity_assured) {
+            ResetAssembler();
+        } else {
+            PushPiece(data_field);
+            HandleDataGroup(m_assembly_buffer);
+            ResetAssembler();
+        }
         break;
     }
 
