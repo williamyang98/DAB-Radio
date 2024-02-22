@@ -39,7 +39,7 @@ private:
     size_t m_max_size;
     std::mutex m_mutex_slideshows;
 public:
-    Basic_Slideshow_Manager(size_t max_slideshows=25);
+    explicit Basic_Slideshow_Manager(size_t max_slideshows=25);
     // returns nullptr if MOT entity wasn't a slideshow
     std::shared_ptr<Basic_Slideshow> Process_MOT_Entity(MOT_Entity& entity);
     auto& GetSlideshowsMutex(void) { return m_mutex_slideshows; }

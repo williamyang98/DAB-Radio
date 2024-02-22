@@ -198,15 +198,7 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
         m_pipeline_threads.emplace_back(std::make_unique<std::thread>(
             [this, &pipeline, dependent_pipeline]() {
                 PROFILE_TAG_THREAD("OFDM_Demod::PipelineThread");
-
-                // Give custom data to profiler
-                union Data { 
-                    struct { uint32_t start, end; } fields; 
-                    uint64_t data;
-                } X;
-                X.fields.start = uint32_t(pipeline.GetSymbolStart());
-                X.fields.end   = uint32_t(pipeline.GetSymbolEnd());
-                PROFILE_TAG_DATA_THREAD(X.data);
+                PROFILE_TAG_DATA_THREAD(std::optional(InstrumentorThread::Descriptor{pipeline.GetSymbolStart(), pipeline.GetSymbolEnd()}));
                 while (PipelineThread(pipeline, dependent_pipeline));
             }
         ));
@@ -608,7 +600,7 @@ bool OFDM_Demod::CoordinatorThread() {
         // Clause 3.13.1 - Fraction frequency offset estimation
         PROFILE_BEGIN(calculate_phase_error);
         float average_cyclic_error = 0;
-        for (auto& pipeline: m_pipelines) {
+        for (const auto& pipeline: m_pipelines) {
             const float cyclic_error = pipeline->GetAveragePhaseError();
             average_cyclic_error += cyclic_error;
         }

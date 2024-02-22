@@ -10,8 +10,8 @@
 class AdditiveScrambler 
 {
 private:
-    uint16_t m_syncword;
-    uint16_t m_reg;
+    uint16_t m_syncword = 0;
+    uint16_t m_reg = 0;
 public:
     uint8_t Process() {
         uint8_t b = 0x00;

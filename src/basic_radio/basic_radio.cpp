@@ -39,17 +39,17 @@ void BasicRadio::Process(tcb::span<const viterbi_bit_t> buf) {
         return;
     }
 
-    auto fic_buf = buf.subspan(0,                  m_params.nb_fic_bits);
+    auto fic_buf = buf.subspan(0, m_params.nb_fic_bits);
     auto msc_buf = buf.subspan(m_params.nb_fic_bits, m_params.nb_msc_bits);
 
-    m_thread_pool->PushTask([this, &fic_buf] {
+    m_thread_pool->PushTask([this, fic_buf] {
         m_fic_runner->Process(fic_buf);
     });
 
-    for (const auto& [_, _msc_runner]: m_msc_runners) {
-        auto* msc_runner = _msc_runner.get();
-        m_thread_pool->PushTask([msc_runner, msc_buf]() {
-            msc_runner->Process(msc_buf);
+    for (const auto& [_, msc_runner]: m_msc_runners) {
+        const auto runner = msc_runner;
+        m_thread_pool->PushTask([runner, msc_buf]() {
+            runner->Process(msc_buf);
         });
     }
 
@@ -96,7 +96,7 @@ void BasicRadio::UpdateAfterProcessing() {
             continue;
         }
  
-        ServiceComponent* service_component = nullptr;
+        const ServiceComponent* service_component = nullptr;
         for (auto& e: m_dab_database->service_components) {
             if (e.subchannel_id == subchannel.id) {
                 service_component = &e;

@@ -37,15 +37,19 @@ bool PAD_Dynamic_Label_Assembler::UpdateSegment(tcb::span<const uint8_t> data, c
     }
 
     auto& segment = m_segments[seg_num];
-    const size_t index = seg_num * m_MAX_SEGMENT_BYTES;
-    auto* ref_data = &m_unordered_buf[index];
+    const auto ref_data = tcb::span(m_unordered_buf).subspan(seg_num * m_MAX_SEGMENT_BYTES, length);
 
     const bool length_mismatch = (segment.length != length);
     bool content_mismatch = false;
+    for (size_t i = 0; i < length; i++) {
+        if (ref_data[i] != data[i]) {
+            content_mismatch = true;
+            break;
+        }
+    }
 
     for (size_t i = 0; i < length; i++) {
         ref_data[i] = data[i];
-        content_mismatch = content_mismatch || (ref_data[i] != data[i]);
     }
 
     // Received a conflicting length if a previous segment was provided
@@ -92,7 +96,7 @@ bool PAD_Dynamic_Label_Assembler::CombineSegments(void) {
     }
 
     for (size_t i = 0; i < m_nb_required_segments; i++) {
-        auto& segment = m_segments[i];
+        const auto& segment = m_segments[i];
         if (segment.length == 0) {
             return false;
         }
@@ -101,8 +105,8 @@ bool PAD_Dynamic_Label_Assembler::CombineSegments(void) {
     // combine segments 
     size_t curr_byte = 0;
     for (size_t i = 0; i < m_nb_required_segments; i++) {
-        auto& segment = m_segments[i];
-        auto* buf = &m_unordered_buf[i * m_MAX_SEGMENT_BYTES];
+        const auto& segment = m_segments[i];
+        const auto buf = tcb::span(m_unordered_buf).subspan(i * m_MAX_SEGMENT_BYTES, segment.length);
         for (size_t j = 0; j < segment.length; j++) {
             m_ordered_buf[curr_byte++] = buf[j];
         }

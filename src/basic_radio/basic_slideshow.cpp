@@ -9,7 +9,7 @@
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
-static std::time_t Convert_MOT_Time(MOT_UTC_Time& time) {
+static std::time_t Convert_MOT_Time(const MOT_UTC_Time& time) {
     std::tm t;
     t.tm_sec = time.seconds;
     t.tm_min = time.minutes;
@@ -50,7 +50,7 @@ std::shared_ptr<Basic_Slideshow> Basic_Slideshow_Manager::Process_MOT_Entity(MOT
     slideshow->image_type = image_type;
 
     MOT_Slideshow slideshow_header;
-    for (auto& p: entity.header.user_app_params) {
+    for (const auto& p: entity.header.user_app_params) {
         MOT_Slideshow_Processor::ProcessHeaderExtension(slideshow_header, p.type, p.data);
     }
 

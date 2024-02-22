@@ -41,7 +41,7 @@ static ServiceComponent* find_service_component(DAB_Database& db, subchannel_id_
 
 void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio) {
     if (scraper == nullptr) return;
-    auto root_directory = scraper->root_directory;
+    auto root_directory = scraper->m_root_directory;
     radio.On_Audio_Channel().Attach(
         [scraper, root_directory, &radio](subchannel_id_t id, Basic_Audio_Channel& channel) {
             // determine root folder
@@ -56,7 +56,7 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             auto abs_path = fs::absolute(base_path);
 
             auto dab_plus_scraper = std::make_shared<Basic_Audio_Channel_Scraper>(abs_path);
-            scraper->scrapers.push_back(dab_plus_scraper);
+            scraper->m_scrapers.push_back(dab_plus_scraper);
             Basic_Audio_Channel_Scraper::attach_to_channel(dab_plus_scraper, channel);
         }
     );
@@ -179,7 +179,7 @@ BasicAudioScraper::~BasicAudioScraper() {
 }
 
 void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uint8_t> data) {
-    if (m_old_params != params) {
+    if (!m_old_params.has_value() || (m_old_params.value() != params)) {
         if (m_fp_wav != nullptr) {
             CloseWavFile(m_fp_wav, m_total_bytes_written);
             m_fp_wav = nullptr;
@@ -188,7 +188,7 @@ void BasicAudioScraper::OnAudioData(BasicAudioParams params, tcb::span<const uin
 
         m_fp_wav = CreateWavFile(params);
         m_total_bytes_written = 0;
-        m_old_params = params;
+        m_old_params = std::optional(params);
     }
 
     if (m_fp_wav == nullptr) {

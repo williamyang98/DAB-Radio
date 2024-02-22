@@ -108,7 +108,7 @@ void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
         // If data occupying less than 30 bytes, delimiter present and any 0x00 padding afterwards
         case 7:
             curr_byte = N;
-            return;
+            break;
         // reserved 
         case 3:
         case 4:

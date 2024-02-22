@@ -5,14 +5,15 @@
 #include "./profiler.h"
 
 // Pipeline thread
-OFDM_Demod_Pipeline::OFDM_Demod_Pipeline(const size_t _start, const size_t _end) 
-: m_symbol_start(_start), m_symbol_end(_end)
+OFDM_Demod_Pipeline::OFDM_Demod_Pipeline(const size_t start, const size_t end) 
+: m_symbol_start(start), m_symbol_end(end)
 {
     m_is_start = false;
     m_is_phase_error_done = false;
     m_is_fft_done = false;
     m_is_end = false;
     m_is_terminated = false;
+    m_average_phase_error = 0.0f;
 }
 
 OFDM_Demod_Pipeline::~OFDM_Demod_Pipeline() {

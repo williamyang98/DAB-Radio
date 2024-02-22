@@ -96,9 +96,6 @@ void RenderSubchannels(BasicRadio& radio) {
 
 // Render the ensemble information
 void RenderEnsemble(BasicRadio& radio) {
-    auto& db = radio.GetDatabase();
-    auto& ensemble = db.ensemble;
-
     if (ImGui::Begin("Ensemble")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Ensemble description", 2, flags)) {
@@ -117,6 +114,8 @@ void RenderEnsemble(BasicRadio& radio) {
             }\
 
             int row_id = 0;
+            auto& db = radio.GetDatabase();
+            auto& ensemble = db.ensemble;
             const float LTO = float(ensemble.local_time_offset) / 10.0f;
             FIELD_MACRO("Name", "%.*s", int(ensemble.label.length()), ensemble.label.c_str());
             FIELD_MACRO("ID", "%u", ensemble.reference);
@@ -137,7 +136,6 @@ void RenderEnsemble(BasicRadio& radio) {
 
 // Render misc information about the date and time
 void RenderDateTime(BasicRadio& radio) {
-    const auto& info = radio.GetMiscInfo();
     if (ImGui::Begin("Date & Time")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -156,6 +154,7 @@ void RenderDateTime(BasicRadio& radio) {
             }\
 
             int row_id = 0;
+            const auto& info = radio.GetMiscInfo();
             FIELD_MACRO("Date", "%02d/%02d/%04d", 
                 info.datetime.day, info.datetime.month, info.datetime.year);
             FIELD_MACRO("Time", "%02u:%02u:%02u.%03u", 
@@ -174,7 +173,6 @@ void RenderDateTime(BasicRadio& radio) {
 
 // Database statistics
 void RenderDatabaseStatistics(BasicRadio& radio) {
-    const auto& stats = radio.GetDatabaseStatistics();
     if (ImGui::Begin("Database Stats")) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Date & Time", 2, flags)) {
@@ -193,6 +191,7 @@ void RenderDatabaseStatistics(BasicRadio& radio) {
             }\
 
             int row_id = 0;
+            const auto& stats = radio.GetDatabaseStatistics();
             FIELD_MACRO("Total", "%zu", stats.nb_total);
             FIELD_MACRO("Pending", "%zu", stats.nb_pending);
             FIELD_MACRO("Completed", "%zu", stats.nb_completed);
@@ -209,8 +208,7 @@ void RenderDatabaseStatistics(BasicRadio& radio) {
 // Linked ensembles
 void RenderOtherEnsembles(BasicRadio& radio) {
     auto& db = radio.GetDatabase();
-    auto label = fmt::format("Other Ensembles ({})###Other Ensembles",
-        db.other_ensembles.size());
+    auto label = fmt::format("Other Ensembles ({})###Other Ensembles", db.other_ensembles.size());
 
     if (ImGui::Begin(label.c_str())) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
@@ -225,7 +223,7 @@ void RenderOtherEnsembles(BasicRadio& radio) {
             ImGui::TableHeadersRow();
 
             int row_id  = 0;
-            for (auto& ensemble: db.other_ensembles) {
+            for (const auto& ensemble: db.other_ensembles) {
                 ImGui::PushID(row_id++);
 
                 const float frequency =  static_cast<float>(ensemble.frequency) * 1e-6f;

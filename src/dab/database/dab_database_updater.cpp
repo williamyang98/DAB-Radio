@@ -12,7 +12,7 @@ static auto _logger = DAB_LOG_REGISTER(TAG);
 
 template <typename T>
 bool insert_if_unique(std::vector<T>& vec, T value) {
-    for (auto& v: vec) {
+    for (const auto& v: vec) {
         if (v == value) return false;
     }
     vec.push_back(value);
@@ -48,7 +48,7 @@ UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t
 }
 
 UpdateResult EnsembleUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view((const char*)buf.data(), buf.size());
+    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
     return UpdateField(GetData().label, new_label, ENSEMBLE_FLAG_LABEL);
 }
 
@@ -93,7 +93,7 @@ UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t 
 }
 
 UpdateResult ServiceUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view((const char*)buf.data(), buf.size());
+    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
     return UpdateField(GetData().label, new_label, SERVICE_FLAG_LABEL);
 }
 
@@ -125,7 +125,7 @@ const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01001000;
 
 UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view((const char*)buf.data(), buf.size());
+    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
     return UpdateField(GetData().label, new_label, SERVICE_COMPONENT_FLAG_LABEL);
 }
 

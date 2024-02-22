@@ -31,7 +31,7 @@ private:
 
     bool m_is_terminated;
 public:
-    OFDM_Demod_Pipeline(const size_t _start, const size_t _end);
+    OFDM_Demod_Pipeline(const size_t start, const size_t end);
     ~OFDM_Demod_Pipeline();
     // This thread contains mutexes which we do not intend to copy/move
     OFDM_Demod_Pipeline(OFDM_Demod_Pipeline&) = delete;

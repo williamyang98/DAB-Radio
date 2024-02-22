@@ -235,7 +235,7 @@ private:
     std::function<void(std::shared_ptr<Device>)> m_device_change_callback;
 public:
     template <typename F>
-    DeviceSource(F&& device_change_callback)
+    explicit DeviceSource(F&& device_change_callback)
     : m_device_change_callback(device_change_callback) 
     {}
     std::shared_ptr<Device> get_device() { 

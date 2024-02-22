@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <optional>
 
 // Crossplatform pretty function
 #ifdef _MSC_VER
@@ -46,9 +47,13 @@ public:
         profile_trace_t trace;
     };
     typedef std::unordered_map<uint64_t, TraceLog> profile_trace_logger_t;
+    struct Descriptor {
+        size_t symbol_start = 0;
+        size_t symbol_end = 0;
+    };
 private:
     const char* m_label = "";
-    uint64_t m_data = 0;
+    std::optional<Descriptor> m_data = std::nullopt;
 
     // Log all traces with a unique hash
     bool m_is_trace_logging = false;
@@ -93,8 +98,8 @@ public:
     const char* GetLabel() const { return m_label; }
     void SetLabel(const char* _label) { m_label = _label; }
 
-    void SetData(uint64_t _data) { m_data = _data; }
-    uint64_t GetData() const { return m_data; }
+    void SetData(const std::optional<Descriptor>& data) { m_data = data; }
+    const auto& GetData() const { return m_data; }
 
     void SetIsLogTraces(bool _is_trace_logging) { m_is_trace_logging = _is_trace_logging; }
     bool GetIsLogTraces() const { return m_is_trace_logging; }
@@ -131,10 +136,10 @@ private:
             m_results_length = 0;
         }
     }
-    uint64_t CalculateHash(profile_trace_t& stack_trace) {
+    uint64_t CalculateHash(const profile_trace_t& stack_trace) const {
         uint64_t hash = 0;
         hash = (hash >> 32) ^ (hash << 32) ^ stack_trace.size();
-        for (auto& e: stack_trace) {
+        for (const auto& e: stack_trace) {
             hash = (hash >> 32) ^ (hash << 32) ^ e.stack_index;
             // if (e.stack_index >= 2) continue;
             if (e.name != NULL) {
@@ -195,7 +200,7 @@ private:
     InstrumentorThread* m_thread_ptr;
     std::thread::id m_thread_id;
 public:
-    InstrumentationTimer(const char* name)
+    explicit InstrumentationTimer(const char* name)
     : m_name(name), m_is_stopped(false)
     {
         m_thread_id = std::this_thread::get_id();

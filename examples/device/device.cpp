@@ -65,7 +65,7 @@ void Device::SetAutoGain(void) {
 void Device::SetNearestGain(const float target_gain) {
     float min_err = 10000.0f;
     float nearest_gain = 0.0f;
-    for (auto& gain: m_gain_list) {
+    for (const auto& gain: m_gain_list) {
         const float err = std::abs(gain-target_gain);
         if (err < min_err) {
             min_err = err;

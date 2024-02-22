@@ -55,15 +55,14 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
     // If we have no XPAD, reset the CI list
     // NOTE: Some broadcasters violate this part of the standard and assume the CI list will be preserved
     //       Hence we choose to be lenient and don't reset the CI list
-    const size_t nb_xpad_bytes = xpad_reversed.size();
     if (xpad_reversed.empty()) {
         // LOG_MESSAGE("Resetting XPAD on NULL");
         // ci_list_length = 0;
         return;
     }
 
-    if (nb_xpad_bytes > MAX_XPAD_BYTES) {
-        LOG_ERROR("XPAD larger than allowable max {}>{}", nb_xpad_bytes, MAX_XPAD_BYTES);
+    if (xpad_reversed.size() > MAX_XPAD_BYTES) {
+        LOG_ERROR("XPAD larger than allowable max {}>{}", xpad_reversed.size(), MAX_XPAD_BYTES);
         return;
     }
 
@@ -89,12 +88,9 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
     const uint8_t xpad_L_type    = (fpad_byte_L0 & 0b00001111) >> 0;
     // const uint8_t xpad_L_data    = fpad_byte_L1;
 
-    if ((xpad_indicator == 0b00) || (xpad_reversed.empty()) || (nb_xpad_bytes == 0)) {
-        if ((xpad_indicator != 0b00) || !xpad_reversed.empty() || (nb_xpad_bytes != 0)) {
-            LOG_ERROR("Inconsistent NULL xpad information indicator={} xpad_null={} xpad_bytes={}",
-                xpad_indicator, xpad_reversed.empty(), nb_xpad_bytes);
-            return;
-        }
+    if ((xpad_indicator == 0b00) && !xpad_reversed.empty()) {
+        LOG_ERROR("Inconsistent NULL xpad information indicator={} xpad_bytes={}", xpad_indicator, xpad_reversed.size());
+        return;
     }
 
     switch (xpad_L_type) {
@@ -114,17 +110,17 @@ void PAD_Processor::Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8
     // Clause 7.4.2.0 Structure of X-PAD (General)
     // NOTE: The byte order of the XPAD is reversed before transmission
     //       The bit order is preserved
-    for (size_t i = 0; i < nb_xpad_bytes; i++) {
-        m_xpad_unreverse_buf[i] = xpad_reversed[nb_xpad_bytes-1-i];
+    for (size_t i = 0; i < xpad_reversed.size(); i++) {
+        m_xpad_unreverse_buf[i] = xpad_reversed[xpad_reversed.size()-1-i];
     }
 
-    auto xpad_data = tcb::span(m_xpad_unreverse_buf).first(nb_xpad_bytes);
+    auto xpad_data = tcb::span(m_xpad_unreverse_buf).first(xpad_reversed.size());
 
     switch (xpad_indicator) {
     // No xpad field
     case 0b00:
-        if (nb_xpad_bytes != 0) {
-            LOG_ERROR("XPAD indicator indicates no data field but got {} bytes", nb_xpad_bytes);
+        if (xpad_data.size() != 0) {
+            LOG_ERROR("XPAD indicator indicates no data field but got {} bytes", xpad_data.size());
         }
         break;
     // RFU xpad field

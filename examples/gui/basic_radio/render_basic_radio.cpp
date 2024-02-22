@@ -19,8 +19,9 @@
 #include "basic_radio/basic_audio_channel.h"
 #include "basic_radio/basic_dab_plus_channel.h"
 #include "basic_radio/basic_dab_channel.h"
-#include "dab/database/dab_database_entities.h"
 #include "dab/database/dab_database.h"
+#include "dab/database/dab_database_entities.h"
+#include "dab/database/dab_database_types.h"
 #include "dab/database/dab_database_updater.h"
 
 template <typename T, typename F>
@@ -32,13 +33,13 @@ static T* find_by_callback(std::vector<T>& vec, F&& func) {
 }
 
 static void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& controller);
-static void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
-static void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, const Service* service);
+static void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, const Service* service);
 static void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& controller, ServiceComponent& component);
 static void RenderSimple_Basic_Audio_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Audio_Channel& channel, const subchannel_id_t subchannel_id);
 static void RenderSimple_Basic_Data_Channel(BasicRadio& radio, BasicRadioViewController& controller, Basic_Data_Packet_Channel& channel, const subchannel_id_t subchannel_id);
 static void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewController& controller);
-static void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service);
+static void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, const Service* service);
 static void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& controller, const LinkService& link_service);
 static void RenderSimple_GlobalBasicAudioChannelControls(BasicRadio& radio);
 static void RenderSimple_Basic_DAB_Plus_Channel_Status(Basic_DAB_Plus_Channel& channel);
@@ -128,12 +129,9 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
     ImGui::End();
 }
 
-void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, Service* service) {
-    auto& db = radio.GetDatabase();
-    auto& ensemble = db.ensemble;
-
+void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, const Service* service) {
     if (ImGui::Begin("Service Description") && service) {
-        ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
+        const ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Service Description", 2, flags)) {
             ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
@@ -150,17 +148,20 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
                 ImGui::PopID();\
             }\
 
+            const auto& db = radio.GetDatabase();
+            const auto& ensemble = db.ensemble;
             FIELD_MACRO("Name", "%.*s", int(service->label.length()), service->label.c_str());
             FIELD_MACRO("ID", "%u", service->reference);
-            FIELD_MACRO("Country Code", "0x%02X.%01X", service->extended_country_code, service->country_id);
+            {
+                extended_country_id_t extended_country_code = (service->extended_country_code != 0) ? service->extended_country_code : ensemble.extended_country_code;
+                extended_country_id_t country_id = (service->country_id != 0) ? service->country_id : ensemble.country_id;
+                FIELD_MACRO("Country", "%s (0x%02X.%01X)", GetCountryString(extended_country_code, country_id), extended_country_code, country_id);
+            }
             FIELD_MACRO("Programme Type", "%s (%u)", 
                 GetProgrammeTypeString(ensemble.international_table_id, service->programme_type),
                 service->programme_type);
             FIELD_MACRO("Language", "%s (%u)", GetLanguageTypeString(service->language), service->language);
             FIELD_MACRO("Closed Caption", "%u", service->closed_caption);
-            // FIELD_MACRO("Country Name", "%s", GetCountryString(
-            //     service->extended_country_code ? service->extended_country_code : ensemble.extended_country_code, 
-            //     service->country_id ? service->country_id : ensemble.country_id));
 
             #undef FIELD_MACRO
 
@@ -170,7 +171,7 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
     ImGui::End();
 }
 
-void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, Service* service) {
+void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewController& controller, const Service* service) {
     auto& db = radio.GetDatabase();
     static std::vector<ServiceComponent*> service_components;
     service_components.clear();
@@ -299,7 +300,7 @@ static void RenderSimple_Slideshow_Manager(BasicRadioViewController& controller,
     ImGuiChildFlags child_flags = ImGuiChildFlags_Border;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
     if (ImGui::BeginChild("Slideshow", ImVec2(0, 0), child_flags, window_flags)) {
-        ImGuiStyle& style = ImGui::GetStyle();
+        const ImGuiStyle& style = ImGui::GetStyle();
         static std::vector<std::shared_ptr<Basic_Slideshow>> slideshows;
         {
             auto lock = std::unique_lock(slideshow_manager.GetSlideshowsMutex());
@@ -313,7 +314,7 @@ static void RenderSimple_Slideshow_Manager(BasicRadioViewController& controller,
         float curr_x = 0.0f;
         int slideshow_id = 0;
         for (auto& slideshow: slideshows) {
-            auto& texture = controller.GetTexture(subchannel_id, slideshow->transport_id, slideshow->image_data);
+            const auto& texture = controller.GetTexture(subchannel_id, slideshow->transport_id, slideshow->image_data);
             // Determine size of thumbnail
             const auto texture_id = reinterpret_cast<ImTextureID>(texture.GetTextureID());
             const float target_height = 200.0f;
@@ -530,8 +531,8 @@ void RenderSimple_BasicSlideshowSelected(BasicRadio& radio, BasicRadioViewContro
     }
 }
 
-void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, Service* service) {
-    auto& db = radio.GetDatabase();
+void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& controller, const Service* service) {
+    const auto& db = radio.GetDatabase();
     static std::vector<const LinkService*> link_services;
     link_services.clear();
     if (service) {
@@ -599,7 +600,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                     ImGui::TableHeadersRow();
 
                     int row_id  = 0;
-                    for (auto& fm_service: fm_services) {
+                    for (const auto& fm_service: fm_services) {
                         ImGui::PushID(row_id++);
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
@@ -607,7 +608,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                         ImGui::TableSetColumnIndex(1);
                         ImGui::TextWrapped("%s", fm_service->is_time_compensated ? "Yes" : "No");
                         ImGui::TableSetColumnIndex(2);
-                        for (auto& freq: fm_service->frequencies) {
+                        for (const auto& freq: fm_service->frequencies) {
                             ImGui::Text("%3.3f MHz", static_cast<float>(freq)*1e-6f);
                         }
                         ImGui::PopID();
@@ -634,7 +635,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                     ImGui::TableHeadersRow();
 
                     int row_id  = 0;
-                    for (auto& drm_service: drm_services) {
+                    for (const auto& drm_service: drm_services) {
                         ImGui::PushID(row_id++);
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
@@ -642,7 +643,36 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                         ImGui::TableSetColumnIndex(1);
                         ImGui::TextWrapped("%s", drm_service->is_time_compensated ? "Yes" : "No");
                         ImGui::TableSetColumnIndex(2);
-                        for (auto& freq: drm_service->frequencies) {
+                        for (const auto& freq: drm_service->frequencies) {
+                            ImGui::Text("%3.3f MHz", static_cast<float>(freq)*1e-6f);
+                        }
+                        ImGui::PopID();
+                    }
+                    ImGui::EndTable();
+                }
+            }
+        }
+
+        // AMSS Services
+        if (db.amss_services.size() > 0) {
+            const auto amss_label = fmt::format("AMSS Services ({})###AMSS Services", db.amss_services.size());
+            if (ImGui::CollapsingHeader(amss_label.c_str())) {
+                if (ImGui::BeginTable("AMSS Table", 3, flags)) {
+                    ImGui::TableSetupColumn("ID",               ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("Time compensated", ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("Frequencies",      ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableHeadersRow();
+
+                    int row_id  = 0;
+                    for (const auto& amss_service: db.amss_services) {
+                        ImGui::PushID(row_id++);
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextWrapped("%u", amss_service.amss_code);
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::TextWrapped("%s", amss_service.is_time_compensated ? "Yes" : "No");
+                        ImGui::TableSetColumnIndex(2);
+                        for (const auto& freq: amss_service.frequencies) {
                             ImGui::Text("%3.3f MHz", static_cast<float>(freq)*1e-6f);
                         }
                         ImGui::PopID();

@@ -49,7 +49,7 @@ struct plm_buffer_t {
 };
 
 static void plm_buffer_discard_read_bytes(plm_buffer_t *self);
-static bool plm_buffer_has_bits(plm_buffer_t *self, size_t count);
+static bool plm_buffer_has_bits(const plm_buffer_t *self, size_t count);
 static int plm_buffer_read(plm_buffer_t *self, int count);
 static void plm_buffer_align(plm_buffer_t *self);
 static void plm_buffer_skip(plm_buffer_t *self, size_t count);
@@ -57,10 +57,10 @@ static int plm_buffer_skip_bytes(plm_buffer_t *self, uint8_t v);
 
 plm_buffer_t *plm_buffer_create_with_capacity(size_t capacity) {
     assert(capacity != 0);
-    plm_buffer_t *self = (plm_buffer_t *)PLM_MALLOC(sizeof(plm_buffer_t));
+    plm_buffer_t *self = reinterpret_cast<plm_buffer_t *>(PLM_MALLOC(sizeof(plm_buffer_t)));
     memset(self, 0, sizeof(plm_buffer_t));
     self->capacity = capacity;
-    self->bytes = (uint8_t *)PLM_MALLOC(capacity);
+    self->bytes = reinterpret_cast<uint8_t *>(PLM_MALLOC(capacity));
     return self;
 }
 
@@ -69,16 +69,15 @@ void plm_buffer_destroy(plm_buffer_t *self) {
     PLM_FREE(self);
 }
 
-size_t plm_buffer_get_size(plm_buffer_t *self) {
+size_t plm_buffer_get_size(const plm_buffer_t *self) {
     return self->length;
 }
 
-size_t plm_buffer_get_remaining(plm_buffer_t *self) {
+size_t plm_buffer_get_remaining(const plm_buffer_t *self) {
     return self->length - plm_buffer_get_read_head_bytes(self);
 }
 
-size_t plm_buffer_write(plm_buffer_t *self, uint8_t *bytes, size_t length) {
-
+size_t plm_buffer_write(plm_buffer_t *self, const uint8_t *bytes, size_t length) {
     // This should be a ring buffer, but instead it just shifts all unread 
     // data to the beginning of the buffer and appends new data at the end. 
     // Seems to be good enough.
@@ -92,7 +91,7 @@ size_t plm_buffer_write(plm_buffer_t *self, uint8_t *bytes, size_t length) {
         do {
             new_size *= 2;
         } while (new_size - self->length < length);
-        self->bytes = (uint8_t *)PLM_REALLOC(self->bytes, new_size);
+        self->bytes = reinterpret_cast<uint8_t *>(PLM_REALLOC(self->bytes, new_size));
         self->capacity = new_size;
     }
 
@@ -108,11 +107,11 @@ void plm_buffer_rewind(plm_buffer_t *self) {
     self->total_size = 0;
 }
 
-size_t plm_buffer_get_read_head_bytes(plm_buffer_t *self) {
+size_t plm_buffer_get_read_head_bytes(const plm_buffer_t *self) {
     return self->bit_index >> 3;
 }
 
-bool plm_buffer_has_bits(plm_buffer_t *self, size_t count) {
+bool plm_buffer_has_bits(const plm_buffer_t *self, size_t count) {
     if (((self->length << 3) - self->bit_index) >= count) {
         return true;
     }
@@ -436,7 +435,7 @@ static void plm_audio_read_samples(plm_audio_t *self, int ch, int sb, int part);
 static void plm_audio_idct36(int s[32][3], int ss, float *d, int dp);
 
 plm_audio_t *plm_audio_create_with_buffer(plm_buffer_t *buffer) {
-    plm_audio_t *self = (plm_audio_t *)PLM_MALLOC(sizeof(plm_audio_t));
+    plm_audio_t *self = reinterpret_cast<plm_audio_t *>(PLM_MALLOC(sizeof(plm_audio_t)));
     memset(self, 0, sizeof(plm_audio_t));
 
     self->samples.count = PLM_AUDIO_SAMPLES_PER_FRAME;
@@ -454,19 +453,19 @@ void plm_audio_destroy(plm_audio_t *self) {
     PLM_FREE(self);
 }
 
-bool plm_audio_has_header(plm_audio_t *self) {
+bool plm_audio_has_header(const plm_audio_t *self) {
     return self->has_header;
 }
 
-int plm_audio_get_samplerate(plm_audio_t *self) {
+int plm_audio_get_samplerate(const plm_audio_t *self) {
     return plm_audio_has_header(self) ? PLM_AUDIO_SAMPLE_RATE[self->samplerate_index] : 0;
 }
 
-int plm_audio_get_bitrate(plm_audio_t *self) {
+int plm_audio_get_bitrate(const plm_audio_t *self) {
     return plm_audio_has_header(self) ? PLM_AUDIO_BIT_RATE[self->bitrate_index] : 0;
 }
 
-int plm_audio_get_channels(plm_audio_t *self) {
+int plm_audio_get_channels(const plm_audio_t *self) {
     if (!plm_audio_has_header(self)) return 0; 
     switch (self->mode) {
     case PLM_AUDIO_MODE::MONO: return 1;
@@ -477,7 +476,7 @@ int plm_audio_get_channels(plm_audio_t *self) {
     }
 }
 
-double plm_audio_get_time(plm_audio_t *self) {
+double plm_audio_get_time(const plm_audio_t *self) {
     return self->time;
 }
 

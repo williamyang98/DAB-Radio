@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include "basic_radio/basic_audio_params.h"
 #include "dab/mot/MOT_entities.h"
 #include "dab/audio/aac_frame_processor.h"
@@ -28,12 +29,12 @@ struct Basic_Slideshow;
 class BasicAudioScraper 
 {
 private:
-    BasicAudioParams m_old_params;
-    FILE* m_fp_wav = NULL;
+    std::optional<BasicAudioParams> m_old_params = std::nullopt;
+    FILE* m_fp_wav = nullptr;
     int m_total_bytes_written = 0;
     const fs::path m_dir;    
 public:
-    BasicAudioScraper(const fs::path& dir): m_dir(dir) {}
+    explicit BasicAudioScraper(const fs::path& dir): m_dir(dir) {}
     ~BasicAudioScraper();
     BasicAudioScraper(BasicAudioScraper&) = delete;
     BasicAudioScraper(BasicAudioScraper&&) = delete;
@@ -51,7 +52,7 @@ class BasicSlideshowScraper
 private:
     const fs::path m_dir;
 public:
-    BasicSlideshowScraper(const fs::path& dir): m_dir(dir) {}
+    explicit BasicSlideshowScraper(const fs::path& dir): m_dir(dir) {}
     void OnSlideshow(Basic_Slideshow& slideshow);
 };
 
@@ -60,7 +61,7 @@ class BasicMOTScraper
 private:
     const fs::path m_dir;
 public:
-    BasicMOTScraper(const fs::path& dir): m_dir(dir) {}
+    explicit BasicMOTScraper(const fs::path& dir): m_dir(dir) {}
     void OnMOTEntity(MOT_Entity mot);
 };
 
@@ -69,7 +70,7 @@ class BasicBinaryWriter
 private:
     FILE* m_fp = nullptr;
 public:
-    BasicBinaryWriter(FILE* fp): m_fp(fp) {}
+    explicit BasicBinaryWriter(FILE* fp): m_fp(fp) {}
     ~BasicBinaryWriter();
     BasicBinaryWriter(BasicBinaryWriter&) = delete;
     BasicBinaryWriter(BasicBinaryWriter&&) = delete;
@@ -89,17 +90,17 @@ private:
     std::unique_ptr<BasicBinaryWriter> m_audio_mp2_writer;
     SuperFrameHeader m_old_aac_header;
 public:
-    Basic_Audio_Channel_Scraper(const fs::path& dir);
+    explicit Basic_Audio_Channel_Scraper(const fs::path& dir);
     static void attach_to_channel(std::shared_ptr<Basic_Audio_Channel_Scraper> scraper, Basic_Audio_Channel& channel);
 };
 
 class BasicScraper 
 {
 private:
-    std::string root_directory;
-    std::vector<std::shared_ptr<Basic_Audio_Channel_Scraper>> scrapers;
+    std::string m_root_directory;
+    std::vector<std::shared_ptr<Basic_Audio_Channel_Scraper>> m_scrapers;
 public:
     template <typename T>
-    BasicScraper(T _root_directory): root_directory(_root_directory) {}
+    explicit BasicScraper(T root_directory): m_root_directory(root_directory) {}
     static void attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicRadio& radio);
 };

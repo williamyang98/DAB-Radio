@@ -140,16 +140,13 @@ void get_DAB_PRS_reference(const int transmission_mode, tcb::span<std::complex<f
     const int nb_fft = int(buf.size());
     if (transmission_mode <= 0 || transmission_mode > 4) {
         throw std::runtime_error(fmt::format("Invalid transmission mode {}", transmission_mode));
-        return;
     }
 
     auto p_table = PRS_PARAMS_MODE_TABLE[transmission_mode-1];
     const int nb_carriers = -2*p_table[0].k_min + 1;
 
     if (nb_fft < nb_carriers) {
-        throw std::runtime_error(fmt::format("FFT buffer not large enough to fit phase reference symbol {}<{}", 
-            nb_fft, nb_carriers));
-        return;
+        throw std::runtime_error(fmt::format("FFT buffer not large enough to fit phase reference symbol {}<{}", nb_fft, nb_carriers));
     }
 
     for (int i = 0; i < nb_fft; i++) {

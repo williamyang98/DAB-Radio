@@ -10,11 +10,11 @@
 
 static void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
 static void RenderControls(OFDM_Demod& demod);
-static void RenderState(OFDM_Demod& demod);
-static void RenderPlots(OFDM_Demod& demod);
-static void RenderMagnitudeSpectrum(OFDM_Demod& demod);
-static void RenderDemodulatedSymbols(OFDM_Demod& demod);
-static void RenderSynchronisation(OFDM_Demod& demod);
+static void RenderState(const OFDM_Demod& demod);
+static void RenderPlots(const OFDM_Demod& demod);
+static void RenderMagnitudeSpectrum(const OFDM_Demod& demod);
+static void RenderDemodulatedSymbols(const OFDM_Demod& demod);
+static void RenderSynchronisation(const OFDM_Demod& demod);
 
 constexpr float Fs = 2.048e6f; // OFDM sampling frequency
 
@@ -24,7 +24,7 @@ void RenderOFDMDemodulator(OFDM_Demod& demod) {
     RenderPlots(demod);
 }
 
-void RenderPlots(OFDM_Demod& demod) {
+void RenderPlots(const OFDM_Demod& demod) {
     RenderMagnitudeSpectrum(demod);
     RenderSynchronisation(demod);
     RenderDemodulatedSymbols(demod);
@@ -79,7 +79,7 @@ void RenderControls(OFDM_Demod& demod) {
     ImGui::End();
 }
 
-void RenderState(OFDM_Demod& demod) {
+void RenderState(const OFDM_Demod& demod) {
     #define ENUM_TO_STRING(NAME) \
     case OFDM_Demod::State::NAME: ImGui::Text("State: "#NAME); break;
 
@@ -106,7 +106,7 @@ void RenderState(OFDM_Demod& demod) {
     #undef ENUM_TO_STRING
 }
 
-void RenderDemodulatedSymbols(OFDM_Demod& demod) {
+void RenderDemodulatedSymbols(const OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
     const int total_symbols = (int)params.nb_frame_symbols;
     const int total_dqpsk_symbols = total_symbols-1;
@@ -222,9 +222,9 @@ void RenderDemodulatedSymbols(OFDM_Demod& demod) {
     ImGui::End();
 }
 
-void RenderSynchronisation(OFDM_Demod& demod) {
+void RenderSynchronisation(const OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
-    auto& cfg = demod.GetConfig();
+    const auto& cfg = demod.GetConfig();
 
     if (ImGui::Begin("Fine time synchronisation")) {
         if (ImPlot::BeginPlot("Fine time response")) {
@@ -297,7 +297,7 @@ void RenderSynchronisation(OFDM_Demod& demod) {
     ImGui::End();
 }
 
-void RenderMagnitudeSpectrum(OFDM_Demod& demod) {
+void RenderMagnitudeSpectrum(const OFDM_Demod& demod) {
     const auto params = demod.GetOFDMParams();
 
     // NOTE: We are calculating the magnitude spectrum in the GUI thread because

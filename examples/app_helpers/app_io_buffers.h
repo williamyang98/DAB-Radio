@@ -26,7 +26,7 @@ private:
     FILE* m_file = nullptr;
     std::shared_mutex m_mutex;
 public:
-    FileWrapper(FILE* file): m_file(file) {}
+    explicit FileWrapper(FILE* file): m_file(file) {}
     virtual ~FileWrapper() { close(); }
     void close() {
         auto lock = std::unique_lock(m_mutex);
@@ -53,7 +53,7 @@ template <typename T>
 class InputFile: public InputBuffer<T>, public FileWrapper {
 private:
 public:
-    InputFile(FILE* file): FileWrapper(file) {}
+    explicit InputFile(FILE* file): FileWrapper(file) {}
     ~InputFile() override = default; 
     size_t read(tcb::span<T> dest) override {
         return FileWrapper::read(dest);
@@ -63,7 +63,7 @@ public:
 template <typename T>
 class OutputFile: public OutputBuffer<T>, public FileWrapper {
 public:
-    OutputFile(FILE* file): FileWrapper(file) {}
+    explicit OutputFile(FILE* file): FileWrapper(file) {}
     ~OutputFile() override = default;
     size_t write(tcb::span<const T> src) override {
         return FileWrapper::write(src);
@@ -73,7 +73,7 @@ public:
 template <typename T>
 class InputOutputFile: public InputBuffer<T>, public OutputBuffer<T>, public FileWrapper {
 public:
-    InputOutputFile(FILE* file): FileWrapper(file) {}
+    explicit InputOutputFile(FILE* file): FileWrapper(file) {}
     ~InputOutputFile() override = default;
     size_t read(tcb::span<T> dest) override {
         return FileWrapper::read(dest);

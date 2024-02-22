@@ -108,7 +108,7 @@ void plm_buffer_destroy(plm_buffer_t *self);
 // Returns the number of bytes written. This will always be the same as the
 // passed in length, except when the buffer was created _with_memory() for
 // which _write() is forbidden.
-size_t plm_buffer_write(plm_buffer_t *self, uint8_t *bytes, size_t length);
+size_t plm_buffer_write(plm_buffer_t *self, const uint8_t *bytes, size_t length);
 
 // Rewind the buffer back to the beginning. When loading from a file handle,
 // this also seeks to the beginning of the file.
@@ -116,14 +116,14 @@ void plm_buffer_rewind(plm_buffer_t *self);
 
 // Get the total size. For files, this returns the file size. For all other 
 // types it returns the number of bytes currently in the buffer.
-size_t plm_buffer_get_size(plm_buffer_t *self);
+size_t plm_buffer_get_size(const plm_buffer_t *self);
 
 // Get the number of remaining (yet unread) bytes in the buffer. This can be
 // useful to throttle writing.
-size_t plm_buffer_get_remaining(plm_buffer_t *self);
+size_t plm_buffer_get_remaining(const plm_buffer_t *self);
 
 // Get the read head of the buffer in bytes
-size_t plm_buffer_get_read_head_bytes(plm_buffer_t *self);
+size_t plm_buffer_get_read_head_bytes(const plm_buffer_t *self);
 
 // -----------------------------------------------------------------------------
 // plm_audio public API
@@ -136,19 +136,19 @@ plm_audio_t *plm_audio_create_with_buffer(plm_buffer_t *buffer);
 void plm_audio_destroy(plm_audio_t *self);
 
 // Get whether a frame header was found and we can accurately report on metadata
-bool plm_audio_has_header(plm_audio_t *self);
+bool plm_audio_has_header(const plm_audio_t *self);
 
 // Get the samplerate in samples per second.
-int plm_audio_get_samplerate(plm_audio_t *self);
+int plm_audio_get_samplerate(const plm_audio_t *self);
 
 // Get the bitrate in kb/s
-int plm_audio_get_bitrate(plm_audio_t *self);
+int plm_audio_get_bitrate(const plm_audio_t *self);
 
 // Get number of channels
-int plm_audio_get_channels(plm_audio_t *self);
+int plm_audio_get_channels(const plm_audio_t *self);
 
 // Get the current internal time in seconds.
-double plm_audio_get_time(plm_audio_t *self);
+double plm_audio_get_time(const plm_audio_t *self);
 
 // Set the current internal time in seconds. This is only useful when you
 // manipulate the underlying video buffer and want to enforce a correct

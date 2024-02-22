@@ -52,7 +52,7 @@ private:
     Observable<MOT_Entity> m_obs_on_entity_complete;
 public:
     // Header entities are quite small so we set a generous upper bound
-    MOT_Processor(const size_t max_transport_entities=20, const size_t max_header_entities=200);
+    explicit MOT_Processor(const size_t max_transport_entities=20, const size_t max_header_entities=200);
     void Process_MSC_Data_Group(const MOT_MSC_Data_Group_Header header, tcb::span<const uint8_t> buf);
     auto& OnEntityComplete(void) { return m_obs_on_entity_complete; }
 private:

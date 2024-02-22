@@ -19,7 +19,7 @@ private:
     T m_final_xor_value = 0u;
 public:
     // Generator polynomial without leading coefficient (msb left)
-    CRC_Calculator(const T G): m_G(G) {
+    explicit CRC_Calculator(const T G): m_G(G) {
         m_lut = CRC_Calculator<T>::GenerateTable(m_G);
     }
     T Process(tcb::span<const uint8_t> x) {

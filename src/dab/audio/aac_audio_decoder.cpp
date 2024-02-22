@@ -30,8 +30,7 @@ public:
             const int nb_push = (curr_bits_remain < nb_bits_remain) ? curr_bits_remain : nb_bits_remain;
 
             // mask the value to the remaining bits
-            const uint32_t data_mask = 
-                (~(0xFFFFFFFF << nb_bits_remain)) & data;
+            const uint32_t data_mask = (~(uint32_t(0xFFFFFFFF) << nb_bits_remain)) & data;
             const uint8_t data_push = data_mask >> (nb_bits_remain-nb_push);
 
             // update the field most significant bit first
@@ -283,10 +282,11 @@ void AAC_Audio_Decoder::GenerateMPEG4Header() {
 
 // Generate MPEG4 Header for ADTS format
 tcb::span<const uint8_t> AAC_Audio_Decoder::GetMPEG4Header(uint16_t frame_length_bytes) {
+    // Most of MPEG4 header is pregenerated, we only need to store the number of bytes in the associated frame
     // frame length is stored 30bits into the header
     uint16_t total_frame_bytes = uint16_t(m_mpeg4_header.size()) + frame_length_bytes;
     total_frame_bytes &= 0b1'1111'1111'1111;
-    // introduce 24bit offset
+    // introduce 24bit (3 bytes) offset
     m_mpeg4_header[3] = (m_mpeg4_header[3] & 0b1111'1100) | ((total_frame_bytes & 0b1'1000'0000'0000) >> 11); // 2bits
     m_mpeg4_header[4] = (m_mpeg4_header[4] & 0b0000'0000) | ((total_frame_bytes & 0b0'0111'1111'1000) >> 3);  // 8bits
     m_mpeg4_header[5] = (m_mpeg4_header[5] & 0b0001'1111) | ((total_frame_bytes & 0b0'0000'0000'0111) << 5);  // 3bits
@@ -324,34 +324,25 @@ AAC_Audio_Decoder::~AAC_Audio_Decoder() {
 }
 
 AAC_Audio_Decoder::Result AAC_Audio_Decoder::DecodeFrame(tcb::span<uint8_t> data) {
-    const int N = (int)data.size();
-    AAC_Audio_Decoder::Result res;
-    res.audio_buf = {};
-    res.is_error = false;
-    res.error_code = -1;
-
-    auto audio_data = (uint8_t*)NeAACDecDecode(m_decoder_handle, m_decoder_frame_info, data.data(), N);
+    const uint8_t* audio_data_buf = reinterpret_cast<const uint8_t*>(NeAACDecDecode(m_decoder_handle, m_decoder_frame_info, data.data(), int(data.size())));
     LOG_MESSAGE("aac_decoder_error={}", m_decoder_frame_info->error);
 
     // abort, if no output at all
-    res.error_code = m_decoder_frame_info->error;
     const int nb_consumed_bytes = m_decoder_frame_info->bytesconsumed;
     const int nb_samples = m_decoder_frame_info->samples;
 
-    if (!nb_consumed_bytes && !nb_samples) {
+    if (nb_consumed_bytes <= 0 || nb_samples <= 0 || nb_consumed_bytes != int(data.size())) {
+        AAC_Audio_Decoder::Result res;
+        res.audio_buf = {};
         res.is_error = true;
+        res.error_code = m_decoder_frame_info->error;
         return res;
     }
 
-    if (nb_consumed_bytes != N) {
-        LOG_ERROR("aac_decoder didn't consume all bytes ({}/{})", nb_consumed_bytes, N);
-        res.is_error = true;
-        return res;
-    }
-    
-    const int nb_output_bytes = m_decoder_frame_info->samples * sizeof(uint16_t);
+    const int nb_output_bytes = nb_samples * sizeof(uint16_t);
+    AAC_Audio_Decoder::Result res;
+    res.audio_buf = tcb::span(audio_data_buf, size_t(nb_output_bytes));
     res.is_error = false;
-    res.audio_buf = {audio_data, (size_t)nb_output_bytes};
-
+    res.error_code = m_decoder_frame_info->error;
     return res;
 }

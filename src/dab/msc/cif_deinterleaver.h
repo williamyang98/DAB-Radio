@@ -14,7 +14,7 @@ private:
     int m_curr_frame = 0;
     int m_total_frames_stored = 0;
 public:
-    CIF_Deinterleaver(const int _nb_bytes);
+    explicit CIF_Deinterleaver(const int nb_bytes);
     // Consume a buffer of nb_bytes and store 
     void Consume(tcb::span<const viterbi_bit_t> bits_buf); 
     // Output the deinterleaved bits into a bits array

@@ -30,7 +30,7 @@ struct WavHeader {
     int32_t  Subchunk2Size;
 };
 
-static bool validate_wav_header(WavHeader& header);
+static bool validate_wav_header(const WavHeader& header);
 
 void init_parser(argparse::ArgumentParser& parser) {
     parser.add_argument("-n", "--block-size")
@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-bool validate_wav_header(WavHeader& header) {
+bool validate_wav_header(const WavHeader& header) {
     bool is_error = false;
     bool is_warning = false;
 

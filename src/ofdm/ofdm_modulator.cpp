@@ -92,9 +92,8 @@ void OFDM_Modulator::CreateDataSymbol(
 {
     const size_t nb_data_in = sym_data_in.size(); 
 
-    static float A = 1.0f/std::sqrt(2.0f);
-    static std::complex<float> PHASE_MAP[4] = {
-        {-A,-A}, {A,-A}, {A,A}, {-A,A}};
+    const float A = 1.0f/std::sqrt(2.0f);
+    const std::complex<float> PHASE_MAP[4] = {{-A,-A}, {A,-A}, {A,A}, {-A,A}};
 
     // Create raw fft bins
     {

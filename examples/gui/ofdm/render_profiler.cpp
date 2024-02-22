@@ -6,15 +6,14 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-void HandleInstrumentorThread(InstrumentorThread& thread);
-void RenderTrace(InstrumentorThread::profile_trace_t& trace);
-void RenderLoggedTraces(InstrumentorThread::profile_trace_logger_t& traces);
+static void RenderTrace(const InstrumentorThread::profile_trace_t& trace);
+static void RenderLoggedTraces(const InstrumentorThread::profile_trace_logger_t& traces);
 
 void RenderProfiler() {
     auto& instrumentor = Instrumentor::Get();
 
     if (ImGui::Begin("Profiler")) {
-        static InstrumentorThread* thread = NULL;
+        static InstrumentorThread* thread = nullptr;
         static std::hash<std::thread::id> thread_id_hasher;
 
         const ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
@@ -38,13 +37,18 @@ void RenderProfiler() {
                 ImGui::TableNextColumn();
                 if (ImGui::Selectable(instrumentor_thread.GetLabel(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                     if (is_selected) {
-                        thread = NULL;
+                        thread = nullptr;
                     } else {
                         thread = &instrumentor_thread;
                     }
                 }
                 ImGui::TableNextColumn();
-                HandleInstrumentorThread(instrumentor_thread);
+                const auto& data_opt = instrumentor_thread.GetData();
+                if (data_opt.has_value()) {
+                    const auto& data = data_opt.value();
+                    const size_t total_symbols = data.symbol_end-data.symbol_start;
+                    ImGui::Text("Start=%-2zu End=%-2zu Total=%-2zu", data.symbol_start, data.symbol_end, total_symbols);
+                }
                 ImGui::PopID();
             }
 
@@ -54,15 +58,15 @@ void RenderProfiler() {
         ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
         if (ImGui::BeginTabBar("Trace Viewer", tab_bar_flags))
         {
-            if ((thread != NULL) && ImGui::BeginTabItem("Last Trace")) {
+            if ((thread != nullptr) && ImGui::BeginTabItem("Last Trace")) {
                 auto lock = std::scoped_lock(thread->GetPrevTraceMutex());
-                auto& trace = thread->GetPrevTrace(); 
+                const auto& trace = thread->GetPrevTrace(); 
                 RenderTrace(trace);
                 ImGui::EndTabItem();
             }
-            if ((thread != NULL) && (thread->GetIsLogTraces()) && ImGui::BeginTabItem("Trace Logs")) {
+            if ((thread != nullptr) && (thread->GetIsLogTraces()) && ImGui::BeginTabItem("Trace Logs")) {
                 auto lock = std::scoped_lock(thread->GetTraceLogsMutex());
-                auto& traces = thread->GetTraceLogs();
+                const auto& traces = thread->GetTraceLogs();
                 RenderLoggedTraces(traces);
                 ImGui::EndTabItem();
             }
@@ -73,12 +77,12 @@ void RenderProfiler() {
     ImGui::End();
 }
 
-void RenderLoggedTraces(InstrumentorThread::profile_trace_logger_t& traces) {
-    static uint64_t selected_key = 0;
-    InstrumentorThread::profile_trace_t* selected_trace = NULL;
+void RenderLoggedTraces(const InstrumentorThread::profile_trace_logger_t& traces) {
+    const InstrumentorThread::profile_trace_t* selected_trace = nullptr;
 
-    static ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
+    const ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
     if (ImGui::BeginTable("Traces", 3, flags)) {
+        static uint64_t selected_key = 0;
         // The first column will use the default _WidthStretch when ScrollX is Off and _WidthFixed when ScrollX is On
         ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_NoHide);
         ImGui::TableSetupColumn("Hash", ImGuiTableColumnFlags_NoHide);
@@ -116,12 +120,12 @@ void RenderLoggedTraces(InstrumentorThread::profile_trace_logger_t& traces) {
         ImGui::EndTable();
     }
 
-    if (selected_trace != NULL) {
+    if (selected_trace != nullptr) {
         RenderTrace(*selected_trace);
     }
 }
 
-void RenderTrace(InstrumentorThread::profile_trace_t& trace) {
+void RenderTrace(const InstrumentorThread::profile_trace_t& trace) {
     const int N = (int)trace.size();
     static ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody;
     if (ImGui::BeginTable("Results", 4, flags)) {
@@ -136,7 +140,7 @@ void RenderTrace(InstrumentorThread::profile_trace_t& trace) {
         int prev_stack_index = 0;
         bool show_node = true;
         for (int i = 0; i < N; i++) {
-            auto& result = trace[i];
+            const auto& result = trace[i];
             // dont render child nodes
             if (!show_node && (result.stack_index > prev_stack_index)) {
                 continue;
@@ -174,26 +178,5 @@ void RenderTrace(InstrumentorThread::profile_trace_t& trace) {
         }
 
         ImGui::EndTable();
-    }
-}
-
-// NOTE: We have data stored in the (void*) pointer
-// By checking for the label associated with the thread, we can cast it back 
-void HandleInstrumentorThread(InstrumentorThread& thread) {
-    const auto* label = thread.GetLabel();
-    uint64_t data = thread.GetData();
-
-    // SOURCE: ofdm_demodulator.cpp
-    if (strncmp(label, "OFDM_Demod::PipelineThread", 28) == 0) {
-        union Data { 
-            struct { uint32_t start, end; } fields; 
-            uint64_t data;
-        } X;
-        X.data = data;
-        const int symbol_start = (int)X.fields.start;
-        const int symbol_end   = (int)X.fields.end;
-        const int total_symbols = symbol_end-symbol_start;
-        ImGui::Text("Start=%-2d End=%-2d Total=%-2d", symbol_start, symbol_end, total_symbols);
-        return;
     }
 }

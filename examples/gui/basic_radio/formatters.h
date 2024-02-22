@@ -3,8 +3,8 @@
 #include "dab/database/dab_database_entities.h"
 #include "dab/audio/aac_frame_processor.h"
 
-std::string GetSubchannelProtectionLabel(Subchannel& subchannel);
-uint32_t GetSubchannelBitrate(Subchannel& subchannel);
+std::string GetSubchannelProtectionLabel(const Subchannel& subchannel);
+uint32_t GetSubchannelBitrate(const Subchannel& subchannel);
 const char* GetTransportModeString(const TransportMode transport_mode);
 const char* GetAudioTypeString(const AudioServiceType audio_type);
 const char* GetDataTypeString(const DataServiceType data_type);

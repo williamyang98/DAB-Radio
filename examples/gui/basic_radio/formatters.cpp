@@ -6,7 +6,7 @@
 #include "dab/constants/language_table.h"
 #include "dab/constants/programme_type_table.h"
 
-std::string GetSubchannelProtectionLabel(Subchannel& subchannel) {
+std::string GetSubchannelProtectionLabel(const Subchannel& subchannel) {
     if (subchannel.is_uep) {
         return fmt::format("UEP {}", subchannel.uep_prot_index);
     }
@@ -15,7 +15,7 @@ std::string GetSubchannelProtectionLabel(Subchannel& subchannel) {
     return fmt::format("EEP {}-{}", protection_id, is_type_A ? 'A' : 'B');
 }
 
-uint32_t GetSubchannelBitrate(Subchannel& subchannel) {
+uint32_t GetSubchannelBitrate(const Subchannel& subchannel) {
     if (subchannel.is_uep) {
         const auto descriptor = GetUEPDescriptor(subchannel);
         return descriptor.bitrate;

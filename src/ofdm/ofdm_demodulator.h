@@ -124,6 +124,7 @@ public:
     OFDM_Params GetOFDMParams() const { return m_params; }
     State GetState() const { return m_state; }
     auto& GetConfig() { return m_cfg; }
+    const auto& GetConfig() const { return m_cfg; }
     float GetSignalAverage() const { return m_signal_l1_average; }
     float GetFineFrequencyOffset() const { return m_freq_fine_offset; }
     float GetCoarseFrequencyOffset() const { return m_freq_coarse_offset; }

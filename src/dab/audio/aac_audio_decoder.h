@@ -42,7 +42,7 @@ private:
     void* m_decoder_handle;
     struct NeAACDecFrameInfo* m_decoder_frame_info;
 public:
-    AAC_Audio_Decoder(const struct Params _params);
+    explicit AAC_Audio_Decoder(const struct Params _params);
     ~AAC_Audio_Decoder();
     AAC_Audio_Decoder(AAC_Audio_Decoder&) = delete;
     AAC_Audio_Decoder(AAC_Audio_Decoder&&) = delete;

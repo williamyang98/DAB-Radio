@@ -78,7 +78,7 @@ bool MOT_Assembler::CheckComplete(void) {
  
     size_t total_size = 0;
     for (size_t i = 0; i < m_total_segments.value(); i++) {
-        auto& segment = m_segments[i];
+        const auto& segment = m_segments[i];
         if (segment.length == 0) return false;
         total_size += segment.length;
     }

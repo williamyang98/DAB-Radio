@@ -27,7 +27,7 @@ private:
     std::unique_ptr<DAB_Viterbi_Decoder> m_vitdec;
     std::unique_ptr<AdditiveScrambler> m_scrambler;
 public:
-    MSC_Decoder(const Subchannel subchannel);
+    explicit MSC_Decoder(const Subchannel subchannel);
     ~MSC_Decoder();
     // Returns the number of bytes decoded
     // NOTE: the number of bytes decoded can be 0 if the deinterleaver is still collecting frames

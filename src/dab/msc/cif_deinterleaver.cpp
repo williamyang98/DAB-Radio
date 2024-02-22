@@ -9,8 +9,8 @@ const int CIF_INDICES_OFFSETS[TOTAL_CIF_DEINTERLEAVE] = {
     0,8,4,12, 2,10,6,14, 1,9,5,13, 3,11,7,15
 };
 
-CIF_Deinterleaver::CIF_Deinterleaver(const int _nb_bytes)
-: m_nb_bytes(_nb_bytes) 
+CIF_Deinterleaver::CIF_Deinterleaver(const int nb_bytes)
+: m_nb_bytes(nb_bytes) 
 {
     const int nb_bits = m_nb_bytes*8;
     m_bits_buffer.resize(nb_bits*TOTAL_CIF_DEINTERLEAVE);
