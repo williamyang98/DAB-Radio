@@ -33,7 +33,7 @@ static AlignedVector<uint8_t> AllocateJoint(size_t curr_joint_size, size_t joint
     const size_t new_joint_size = padded_joint_size + buf_size;
     auto data = AllocateJoint(new_joint_size, joint_alignment, args...);
 
-    const auto data_offset = tcb::span(data).subspan(padded_joint_size, buf_size);
+    const auto data_offset = tcb::span<uint8_t>(data).subspan(padded_joint_size, buf_size);
 
     // Check that alignment was met
     const auto addr_val = reinterpret_cast<uintptr_t>(data_offset.data());
