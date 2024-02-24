@@ -29,8 +29,10 @@ jobs:
   build:
     needs: skip_check
     if: needs.skip_check.outputs.should_skip != 'true'
-
     runs-on: windows-2022
+    strategy:
+      matrix:
+        architecture: ["sse2", "avx", "avx2" ]
 
     steps:
     - uses: actions/checkout@v3
@@ -48,7 +50,7 @@ jobs:
         path: vcpkg
 
     - name: Configure CMake
-      run: cmake . -B ${{env.BUILD_DIR}} --preset windows-msvc -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      run: cmake . -B ${{env.BUILD_DIR}} --preset windows-msvc-${{matrix.architecture}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/vcpkg/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: cmake --build ${{env.BUILD_DIR}} --config ${{env.BUILD_TYPE}}
@@ -65,5 +67,5 @@ jobs:
     - name: Upload files 
       uses: actions/upload-artifact@v3
       with:
-        name: dab_radio_windows_x64
+        name: dab_radio_windows_x64_${{matrix.architecture}}
         path: ${{github.workspace}}/${{env.PACKAGE_DIR}}

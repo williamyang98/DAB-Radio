@@ -12,13 +12,33 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
-        "CMAKE_CXX_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING",
-        "CMAKE_C_FLAGS_INIT": "/MP /fp:fast /arch:AVX2 /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING"
+        "CMAKE_CXX_FLAGS_INIT": "/MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING",
+        "CMAKE_C_FLAGS_INIT": "/MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING"
+      }
+    },
+    {
+      "name": "windows-msvc-sse2",
+      "inherits": ["windows-msvc"]
+    },
+    {
+      "name": "windows-msvc-avx",
+      "inherits": ["windows-msvc"],
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_INIT": "/arch:AVX /MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING",
+        "CMAKE_C_FLAGS_INIT": "/arch:AVX /MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING"
+      }
+    },
+    {
+      "name": "windows-msvc-avx2",
+      "inherits": ["windows-msvc"],
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_INIT": "/arch:AVX2 /MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING",
+        "CMAKE_C_FLAGS_INIT": "/arch:AVX2 /MP /fp:fast /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING"
       }
     },
     {
       "name": "windows-msvc-warnings",
-      "inherits": ["windows-msvc"],
+      "inherits": ["windows-msvc-avx2"],
       "cacheVariables": {
         "PROJECT_TARGET_PRIVATE_COMPILER_FLAGS": "/W3 /WX"
       }

@@ -1,20 +1,20 @@
 #!/bin/bash
-output_dir="dab_radio_windows_x64"
-build_dir="build-windows/examples"
+PACKAGE_DIR="${PACKAGE_DIR:-dab_radio_windows_x64}"
+BUILD_DIR="${BUILD_DIR:-build}"
 
 # clean directory
-rm -rf ${output_dir}
-mkdir -p ${output_dir}
+rm -rf ${PACKAGE_DIR}
+mkdir -p ${PACKAGE_DIR}
 
 # copy binaries
-cp ${build_dir}/*.exe ${output_dir}/
-cp ${build_dir}/*.dll ${output_dir}/
+cp ${BUILD_DIR}/examples/*.exe ${PACKAGE_DIR}/
+cp ${BUILD_DIR}/examples/*.dll ${PACKAGE_DIR}/
 
 # copy resources
-cp -rf res/ ${output_dir}/
+cp -rf res/ ${PACKAGE_DIR}/
 
 # copy imgui workspace files
-cp *.ini ${output_dir}/
+cp *.ini ${PACKAGE_DIR}/
 
 # copy user docs
-cp README.md ${output_dir}/
+cp README.md ${PACKAGE_DIR}/
