@@ -13,10 +13,10 @@
 #include "./circular_buffer.h"
 #include "utility/observable.h"
 #include "utility/span.h"
-#include "utility/joint_allocate.h"
+#include "utility/aligned_allocator.hpp"
 #include "viterbi_config.h"
 
-typedef struct fftwf_plan_s* fftwf_plan;                                      \
+struct fftwf_plan_s;
 
 class OFDM_Demod_Pipeline;
 class OFDM_Demod_Coordinator;
@@ -72,8 +72,8 @@ private:
     bool m_is_null_end_found;
     float m_signal_l1_average;
     // fft
-    fftwf_plan m_fft_plan;
-    fftwf_plan m_ifft_plan;
+    fftwf_plan_s* m_fft_plan;
+    fftwf_plan_s* m_ifft_plan;
     // threads
     std::unique_ptr<OFDM_Demod_Coordinator> m_coordinator;
     std::vector<std::unique_ptr<OFDM_Demod_Pipeline>> m_pipelines;
@@ -82,7 +82,7 @@ private:
     // callback for when ofdm is completed
     Observable<tcb::span<const viterbi_bit_t>> m_obs_on_ofdm_frame;
     // Joint memory allocation block
-    AlignedVector<uint8_t> m_joint_data_block;
+    std::vector<uint8_t, AlignedAllocator<uint8_t>> m_joint_data_block;
     // 1. pipeline reader double buffer
     OFDM_Frame_Buffer<std::complex<float>> m_active_buffer;
     OFDM_Frame_Buffer<std::complex<float>> m_inactive_buffer;

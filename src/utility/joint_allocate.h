@@ -3,8 +3,9 @@
 #include <stdint.h>
 #include <new>
 #include <assert.h>
-#include "span.h"
-#include "aligned_vector.h"
+#include <vector>
+#include "./span.h"
+#include "./aligned_allocator.hpp"
 
 // Define the specification for each buffer inside the joint block
 struct BufferParameters {
@@ -15,12 +16,12 @@ struct BufferParameters {
     : length(_length), alignment(_alignment) {}
 };
 
-static AlignedVector<uint8_t> AllocateJoint(size_t curr_size, size_t align_size) {
-    return AlignedVector<uint8_t>(curr_size, align_size);
+static std::vector<uint8_t, AlignedAllocator<uint8_t>> AllocateJoint(size_t curr_size, size_t align_size) {
+    return std::vector<uint8_t, AlignedAllocator<uint8_t>>(curr_size, AlignedAllocator<uint8_t>(align_size));
 }
 
 template <typename T, typename ... Ts>
-static AlignedVector<uint8_t> AllocateJoint(size_t curr_joint_size, size_t joint_alignment, tcb::span<T>& buf, BufferParameters params, Ts&& ... args) {
+static std::vector<uint8_t, AlignedAllocator<uint8_t>> AllocateJoint(size_t curr_joint_size, size_t joint_alignment, tcb::span<T>& buf, BufferParameters params, Ts&& ... args) {
     // create padding so that next buffer has its alignment
     const auto align_elem_size = params.alignment ? params.alignment : sizeof(T);
     const size_t padded_joint_size = ((curr_joint_size+align_elem_size-1) / align_elem_size) * align_elem_size;
@@ -46,6 +47,6 @@ static AlignedVector<uint8_t> AllocateJoint(size_t curr_joint_size, size_t joint
 
 // Recursive template for creating a jointly allocated block 
 template <typename T, typename ... Ts>
-static AlignedVector<uint8_t> AllocateJoint(tcb::span<T>& buf, BufferParameters params, Ts&& ... args) {
+static std::vector<uint8_t, AlignedAllocator<uint8_t>> AllocateJoint(tcb::span<T>& buf, BufferParameters params, Ts&& ... args) {
     return AllocateJoint(0, 1, buf, params, args...);
 }
