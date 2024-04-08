@@ -86,6 +86,7 @@ void Basic_DAB_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
         //       Is there a more sensible way to do this?
         if (m_controls.GetIsDecodeData()) {
             const int bitrate_per_channel = bitrate_kbps/total_channels;
+            // DOC: ETSI TS 103 466
             // Figure 6: DAB audio frame structure
             const int total_crc_bytes = (bitrate_per_channel >= 56) ? 4 : 2;
             const int total_fpad_bytes = 2;

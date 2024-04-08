@@ -35,7 +35,8 @@ Basic_Data_Packet_Channel::Basic_Data_Packet_Channel(const DAB_Parameters& param
         }
     });
  
-    // Where do we use this?
+    // TODO: Right now we just pass everything through the MOT decoder via the data packet processor
+    //       How to handle other object types besides MOT
     (void)m_type;
 }
 
