@@ -1,8 +1,15 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
 #include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_audio_channel.h"
+#include "basic_radio/basic_audio_params.h"
+#include "dab/database/dab_database_types.h"
+#include "utility/span.h"
 #include "../audio/audio_pipeline.h"
+#include "../audio/frame.h"
 
 static void attach_audio_pipeline_to_radio(std::shared_ptr<AudioPipeline> audio_pipeline, BasicRadio& basic_radio) {
     if (audio_pipeline == nullptr) return;

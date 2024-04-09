@@ -1,5 +1,6 @@
 #include "./ofdm_demodulator_threads.h"
-#include <stdint.h>
+#include <stddef.h>
+#include <mutex>
 
 #define PROFILE_ENABLE 1
 #include "./profiler.h"

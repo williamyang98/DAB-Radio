@@ -1,14 +1,12 @@
 #include "./dab_database_updater.h"
-
-#include <string>
-#include <string.h>
-#include <fmt/core.h>
-
-#include "../dab_logging.h"
-#define TAG "db-updater"
-static auto _logger = DAB_LOG_REGISTER(TAG);
-#define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
-#define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
+#include <stdint.h>
+#include <memory>
+#include <string_view>
+#include <vector>
+#include "utility/span.h"
+#include "./dab_database.h"
+#include "./dab_database_entities.h"
+#include "./dab_database_types.h"
 
 template <typename T>
 bool insert_if_unique(std::vector<T>& vec, T value) {

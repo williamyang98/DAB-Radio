@@ -1,15 +1,17 @@
-#include "./render_common.h"
 #include "./basic_radio_view_controller.h"
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
-#include <fmt/core.h>
-#include "basic_radio/basic_radio.h"
+#include <stdint.h>
+#include <vector>
+#include <fmt/format.h>
 #include "basic_radio/basic_audio_channel.h"
-#include "dab/database/dab_database.h"
-#include "dab/database/dab_database_updater.h"
+#include "basic_radio/basic_radio.h"
 #include "dab/dab_misc_info.h"
+#include "dab/database/dab_database.h"
+#include "dab/database/dab_database_entities.h"
+#include "dab/database/dab_database_updater.h"
 #include "./formatters.h"
+#include "./render_common.h"
 
 template <typename T, typename F>
 static T* find_by_callback(std::vector<T>& vec, F&& func) {
@@ -74,7 +76,7 @@ void RenderSubchannels(BasicRadio& radio) {
                 ImGui::TextWrapped("%u kb/s", bitrate_kbps);
 
                 auto* dab_plus_channel = radio.Get_Audio_Channel(subchannel.id);
-                if (dab_plus_channel != NULL) {
+                if (dab_plus_channel != nullptr) {
                     auto& controls = dab_plus_channel->GetControls();
                     const bool is_selected = controls.GetAllEnabled();
                     ImGui::SameLine();

@@ -1,13 +1,13 @@
 #pragma once
 
+#include <stdint.h>
 #include <memory>
-#include "./basic_msc_runner.h"
 #include "dab/constants/dab_parameters.h"
 #include "dab/database/dab_database_entities.h"
-#include "dab/database/dab_database_types.h"
+#include "utility/observable.h"
 #include "utility/span.h"
 #include "viterbi_config.h"
-#include "utility/observable.h"
+#include "./basic_msc_runner.h"
 
 class MSC_Decoder;
 class MSC_Data_Packet_Processor;

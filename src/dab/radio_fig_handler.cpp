@@ -1,11 +1,12 @@
 #include "./radio_fig_handler.h"
-#include "./database/dab_database_updater.h"
-#include "./dab_misc_info.h"
-#include "./constants/subchannel_protection_tables.h"
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "./algorithms/modified_julian_date.h"
-#include <fmt/core.h>
-
+#include "./constants/subchannel_protection_tables.h"
 #include "./dab_logging.h"
+#include "./dab_misc_info.h"
+#include "./database/dab_database_updater.h"
 #include "database/dab_database_entities.h"
 #define TAG "radio-fig-handler"
 static auto _logger = DAB_LOG_REGISTER(TAG);

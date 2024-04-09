@@ -1,6 +1,8 @@
 #include "./MOT_slideshow_processor.h"
-#include <fmt/core.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../dab_logging.h"
 #define TAG "mot-slideshow"
 static auto _logger = DAB_LOG_REGISTER(TAG);

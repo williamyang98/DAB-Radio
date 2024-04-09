@@ -1,17 +1,23 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
-#include <algorithm>
-#include <assert.h>
-
 #include "./ofdm_demodulator.h"
-#include "./ofdm_demodulator_threads.h"
-#include "./dsp/apply_pll.h"
-#include "./dsp/complex_conj_mul_sum.h"
-
+#include <stddef.h>
+#include <algorithm>
+#include <complex>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <thread>
 #include <fftw3.h>
 #include "detect_architecture.h"
-#include "simd_flags.h"
+#include "simd_flags.h" // NOLINT
 #include "utility/joint_allocate.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
+#include "./dsp/apply_pll.h"
+#include "./dsp/complex_conj_mul_sum.h"
+#include "./ofdm_demodulator_threads.h"
+#include "./ofdm_params.h"
 
 #define PROFILE_ENABLE 1
 #include "./profiler.h"
@@ -36,7 +42,7 @@
     constexpr size_t ALIGN_AMOUNT = 16;
 #endif
 
-constexpr float TWO_PI = float(M_PI) * 2.0f;
+constexpr float TWO_PI = float(M_PI) * 2.0f; // NOLINT
 
 
 // DOC: docs/DAB_implementation_in_SDR_detailed.pdf
@@ -104,8 +110,8 @@ OFDM_Demod::OFDM_Demod(
         m_pipeline_out_bits,              BufferParameters{ (m_params.nb_frame_symbols-1)*m_params.nb_data_carriers*2 }
     );
 
-    m_fft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, NULL, NULL, FFTW_FORWARD, FFTW_ESTIMATE);
-    m_ifft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, NULL, NULL, FFTW_BACKWARD, FFTW_ESTIMATE);
+    m_fft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, nullptr, nullptr, FFTW_FORWARD, FFTW_ESTIMATE);
+    m_ifft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, nullptr, nullptr, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     // Initial state of demodulator
     m_state = State::FINDING_NULL_POWER_DIP;
@@ -190,7 +196,7 @@ void OFDM_Demod::CreateThreads(int nb_desired_threads) {
 
         // Some pipelines depend on data being processed in other pipelines
         const size_t dependent_pipeline_index = i+1;
-        OFDM_Demod_Pipeline* dependent_pipeline = NULL;
+        OFDM_Demod_Pipeline* dependent_pipeline = nullptr;
         if (dependent_pipeline_index < m_pipelines.size()) {
             dependent_pipeline = m_pipelines[dependent_pipeline_index].get();
         }
@@ -734,7 +740,7 @@ bool OFDM_Demod::PipelineThread(OFDM_Demod_Pipeline& thread_data, OFDM_Demod_Pip
 
     // Get DQPSK result for last symbol in this thread 
     // which is dependent on other threads finishing
-    if (dependent_thread_data != NULL) {
+    if (dependent_thread_data != nullptr) {
         PROFILE_BEGIN(calculate_independent_dqpsk);
         calculate_dqpsk(symbol_start, symbol_end_dqpsk-1);
         PROFILE_END(calculate_independent_dqpsk);

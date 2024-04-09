@@ -1,9 +1,10 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
-
 #include "./dab_prs_ref.h"
+#include <complex>
 #include <stdexcept>
-#include <fmt/core.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 
 struct PRS_Table_Entry {
     int k_min;
@@ -165,7 +166,7 @@ void get_DAB_PRS_reference(const int transmission_mode, tcb::span<std::complex<f
     for (int k = k_min; k < 0; k++) {
         auto& e = p_table[p_table_index];
         const int h = H_TABLE[e.i][k-e.k_min];
-        const float phi = (float)M_PI / 2.0f * (float)(h + e.n);
+        const float phi = (float)M_PI / 2.0f * (float)(h + e.n); // NOLINT
         const auto prs = std::complex<float>(
             std::cos(phi),
             std::sin(phi)
@@ -180,7 +181,7 @@ void get_DAB_PRS_reference(const int transmission_mode, tcb::span<std::complex<f
     for (int k = 1; k <= k_max; k++) {
         auto& e = p_table[p_table_index];
         const int h = H_TABLE[e.i][k-e.k_min];
-        const float phi = (float)M_PI / 2.0f * (float)(h + e.n);
+        const float phi = (float)M_PI / 2.0f * (float)(h + e.n); // NOLINT
         const auto prs = std::complex<float>(
             std::cos(phi),
             std::sin(phi)

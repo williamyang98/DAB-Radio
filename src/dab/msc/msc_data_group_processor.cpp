@@ -1,7 +1,9 @@
 #include "./msc_data_group_processor.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../algorithms/crc.h"
-#include <fmt/core.h>
-
 #include "../dab_logging.h"
 #define TAG "msc-data-group-processor"
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <stdint.h>
-#include <new>
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <vector>
-#include "./span.h"
 #include "./aligned_allocator.hpp"
+#include "./span.h"
 
 // Define the specification for each buffer inside the joint block
 struct BufferParameters {

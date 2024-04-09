@@ -1,4 +1,5 @@
 #include "./basic_audio_controls.h"
+#include <stdint.h>
 
 // controls
 constexpr uint8_t CONTROL_FLAG_DECODE_AUDIO = 0b10000000;

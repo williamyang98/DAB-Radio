@@ -1,20 +1,27 @@
 #include "./basic_dab_channel.h"
-#include "./basic_slideshow.h"
-#include "basic_audio_channel.h"
-#include "dab/audio/mp2_audio_decoder.h"
-#include "dab/pad/pad_processor.h"
-#include "dab/msc/msc_decoder.h"
-#include "dab/mot/MOT_slideshow_processor.h"
-
-#include <fmt/core.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <limits>
-#include <assert.h>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <fmt/format.h>
+#include "dab/audio/mp2_audio_decoder.h"
+#include "dab/constants/dab_parameters.h"
+#include "dab/database/dab_database_entities.h"
+#include "dab/msc/msc_decoder.h"
+#include "dab/pad/pad_processor.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
+#include "./basic_audio_channel.h"
+#include "./basic_audio_params.h"
 #include "./basic_radio_logging.h"
+#include "./basic_slideshow.h"
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
-#undef min
-#undef max
+#undef min // NOLINT
+#undef max // NOLINT
 
 Basic_DAB_Channel::Basic_DAB_Channel(const DAB_Parameters& params, const Subchannel subchannel, const AudioServiceType audio_service_type)
 : Basic_Audio_Channel(params, subchannel, audio_service_type) 

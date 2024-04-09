@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include "utility/span.h"
 
 // Generate a carrier map with a reference fft size

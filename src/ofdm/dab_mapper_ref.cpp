@@ -1,5 +1,7 @@
 #include "./dab_mapper_ref.h"
+#include <stddef.h>
 #include <vector>
+#include "utility/span.h"
 
 // DOC: ETSI EN 300 401
 // Referring to clause 14.6 - Frequency interleaving

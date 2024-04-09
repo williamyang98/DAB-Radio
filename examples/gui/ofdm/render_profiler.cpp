@@ -1,10 +1,14 @@
 #include "./render_profiler.h"
 #include "ofdm/profiler.h"
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
-#include <stdint.h>
 #include <inttypes.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <functional>
+#include <mutex>
+#include <thread>
 
 static void RenderTrace(const InstrumentorThread::profile_trace_t& trace);
 static void RenderLoggedTraces(const InstrumentorThread::profile_trace_logger_t& traces);

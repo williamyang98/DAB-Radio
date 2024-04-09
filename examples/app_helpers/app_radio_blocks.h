@@ -1,9 +1,11 @@
 #pragma once
 
-#include <vector>
+#include <stddef.h>
 #include <memory>
+#include <vector>
 #include "basic_radio/basic_radio.h"
 #include "dab/constants/dab_parameters.h"
+#include "viterbi_config.h"
 #include "./app_io_buffers.h"
 
 class Basic_Radio_Block

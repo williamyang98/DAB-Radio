@@ -3,10 +3,9 @@
  * May be used under the terms of the GNU Lesser General Public License (LGPL)
  */
 #include "./reed_solomon_decoder.h"
-
-#include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
-
+#include <string.h>
 // alloca() for windows
 #if _WIN32
 #include <malloc.h>
@@ -65,6 +64,7 @@ static inline int modnn(struct RS_data *rs, int x) {
 #define PAD (rs->pad)
 #define A0 (NN)
 
+// NOLINTBEGIN: clang-tidy really doesn't like this code
 // Found in init_rs_char.h and init_rs_char.c with code inlined from init_rs.h
 // This is a char only version of init_rs(..)
 struct RS_data *init_rs_char(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad) {
@@ -475,6 +475,7 @@ finish:
     retval = count;
     return retval;
 }
+// NOLINTEND
 
 // C++ wrapper code
 Reed_Solomon_Decoder::Reed_Solomon_Decoder(

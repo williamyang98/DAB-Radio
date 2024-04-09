@@ -1,13 +1,13 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
-#include <unordered_map>
 #include <memory>
 #include <optional>
-#include "utility/span.h"
-#include "utility/lru_cache.h"
+#include "dab/database/dab_database_types.h"
 #include "dab/mot/MOT_entities.h"
-#include "dab/database/dab_database_entities.h"
+#include "utility/lru_cache.h"
+#include "utility/span.h"
 #include "./texture.h"
 
 struct Basic_Slideshow;

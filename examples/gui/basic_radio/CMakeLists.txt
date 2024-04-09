@@ -13,5 +13,4 @@ add_library(basic_radio_gui STATIC
 set_target_properties(basic_radio_gui PROPERTIES CXX_STANDARD 17)
 target_include_directories(basic_radio_gui PRIVATE ${SRC_DIR} ${ROOT_DIR} ${EXAMPLES_DIR})
 target_include_directories(basic_radio_gui PRIVATE ${CMAKE_SOURCE_DIR}/vendor/stb ${SRC_DIR}/../)
-target_compile_definitions(basic_radio_gui PRIVATE ELPP_THREAD_SAFE)
-target_link_libraries(basic_radio_gui PRIVATE basic_radio imgui easyloggingpp fmt)
+target_link_libraries(basic_radio_gui PRIVATE basic_radio imgui fmt)

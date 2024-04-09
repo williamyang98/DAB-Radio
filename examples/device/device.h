@@ -1,13 +1,13 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+#include <functional>
 #include <list>
 #include <memory>
-#include <mutex>
-#include <stdint.h>
 #include <string>
 #include <thread>
 #include <vector>
-#include <functional>
 #include "utility/span.h"
 
 struct DeviceDescriptor {

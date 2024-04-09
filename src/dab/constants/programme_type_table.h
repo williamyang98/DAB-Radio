@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
+#include <stdint.h>
 #include <string>
+#include <vector>
 #include "../database/dab_database_types.h"
 
 struct DAB_Programme_Label {

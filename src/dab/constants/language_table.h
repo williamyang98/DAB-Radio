@@ -1,8 +1,7 @@
 #pragma once
 
-#include <stdint.h>
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
 #include "../database/dab_database_types.h"
 
 // Referring to database/dab_database_types.h

@@ -1,10 +1,9 @@
-#include <cmath>
-#include <complex>
 #include <assert.h>
-#include "utility/span.h"
-
+#include <stddef.h>
+#include <complex>
 #include "detect_architecture.h"
-#include "simd_flags.h"
+#include "simd_flags.h" // NOLINT
+#include "utility/span.h"
 #include "./complex_conj_mul_sum.h"
 
 std::complex<float> complex_conj_mul_sum_scalar(
@@ -26,6 +25,7 @@ std::complex<float> complex_conj_mul_sum_scalar(
 #include "./x86/c32_conj_mul.h"
 
 #if defined(__SSE3__)
+#include <xmmintrin.h>
 std::complex<float> complex_conj_mul_sum_sse3(
     tcb::span<const std::complex<float>> x0,
     tcb::span<const std::complex<float>> x1)
@@ -61,6 +61,7 @@ std::complex<float> complex_conj_mul_sum_sse3(
 #endif
 
 #if defined(__AVX__)
+#include <immintrin.h>
 std::complex<float> complex_conj_mul_sum_avx(
     tcb::span<const std::complex<float>> x0,
     tcb::span<const std::complex<float>> x1)

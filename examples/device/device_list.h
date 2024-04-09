@@ -1,13 +1,11 @@
 #pragma once
 
-#include <stdint.h>
-#include <list>
+#include <stddef.h>
 #include <memory>
 #include <mutex>
 #include <vector>
-
-#include "./device.h"
 #include "utility/span.h"
+#include "./device.h"
 
 class DeviceList 
 {

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "./fic/fig_handler_interface.h"
+#include <stdint.h>
 #include "utility/span.h"
+#include "./fic/fig_handler_interface.h"
 
 class DAB_Database_Updater;
 struct DAB_Misc_Info;
@@ -10,8 +11,8 @@ struct DAB_Misc_Info;
 class Radio_FIG_Handler: public FIG_Handler_Interface
 {
 private:
-    DAB_Database_Updater* m_updater = NULL;
-    DAB_Misc_Info* m_misc_info = NULL;
+    DAB_Database_Updater* m_updater = nullptr;
+    DAB_Misc_Info* m_misc_info = nullptr;
 public:
     ~Radio_FIG_Handler() override = default;
     void SetUpdater(DAB_Database_Updater* updater) { m_updater = updater; }

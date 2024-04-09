@@ -1,6 +1,8 @@
 #include "./pad_dynamic_label_assembler.h"
-#include <fmt/core.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../dab_logging.h"
 #define TAG "pad-dynamic-label"
 static auto _logger = DAB_LOG_REGISTER(TAG);

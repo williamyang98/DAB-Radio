@@ -1,7 +1,7 @@
 #pragma once
 
 #include "detect_architecture.h"
-#include "simd_flags.h"
+#include "simd_flags.h" // NOLINT
 
 // SOURCE: https://gist.github.com/williamyang98/7aca0ca0f1978c7374a66002892e0d8a
 //         Chebyshev polynomial that approximates f(x) = sin(2*pi*x) accurately within [-0.5,+0.5]
@@ -45,6 +45,7 @@ static float chebyshev_sine(float x) {
 #include <immintrin.h>
 
 #if defined(__SSE__)
+#include <xmmintrin.h>
 static inline __m128 _mm_chebyshev_sine(__m128 x) {
     const __m128 A0 = _mm_set1_ps(CHEBYSHEV_POLYNOMIAL_COEFFICIENTS[0]);
     const __m128 A1 = _mm_set1_ps(CHEBYSHEV_POLYNOMIAL_COEFFICIENTS[1]);

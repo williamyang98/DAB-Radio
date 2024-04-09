@@ -1,7 +1,11 @@
 #pragma once
 
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
+#include <vector>
+#include "utility/span.h"
 #include "viterbi_config.h"
 #include "./app_io_buffers.h"
 

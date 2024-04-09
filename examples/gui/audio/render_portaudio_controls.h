@@ -1,13 +1,16 @@
 #pragma once
 
-#include <portaudio.h>
 #include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <thread>
-#include "audio/portaudio_sink.h"
+#include <utility>
+#include <vector>
+#include <portaudio.h>
 #include "audio/audio_pipeline.h"
+#include "audio/portaudio_sink.h"
+#include "utility/span.h"
 
 class ThreadedRunner
 {

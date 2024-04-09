@@ -1,7 +1,11 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <exception>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <vector>
 
 #if _WIN32
 #include <io.h>
@@ -9,8 +13,9 @@
 #endif
 
 #include <argparse/argparse.hpp>
-#include "dab/constants/dab_parameters.h"
+#include "utility/span.h"
 #include "viterbi_config.h"
+#include "./app_helpers/app_io_buffers.h"
 #include "./app_helpers/app_viterbi_convert_block.h"
 
 void init_parser(argparse::ArgumentParser& parser) {

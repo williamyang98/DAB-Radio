@@ -1,8 +1,13 @@
 #include "./basic_radio_view_controller.h"
-#include "basic_radio/basic_radio.h"
-#include "basic_radio/basic_slideshow.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include "dab/database/dab_database_types.h"
+#include "dab/mot/MOT_entities.h"
+#include "utility/span.h"
+#include "./texture.h"
 
 BasicRadioViewController::BasicRadioViewController(const size_t _max_textures) {
     textures.set_max_size(_max_textures);

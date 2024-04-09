@@ -35,7 +35,7 @@ class Basic_Slideshow_Manager
 {
 private:
     std::list<std::shared_ptr<Basic_Slideshow>> m_slideshows;
-    Observable<std::shared_ptr<Basic_Slideshow>&> m_obs_on_new_slideshow;
+    Observable<std::shared_ptr<Basic_Slideshow>> m_obs_on_new_slideshow;
     size_t m_max_size;
     std::mutex m_mutex_slideshows;
 public:

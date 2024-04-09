@@ -1,8 +1,14 @@
 #include "./device_list.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+#include "./device.h"
 
 extern "C" {
 #include <rtl-sdr.h>

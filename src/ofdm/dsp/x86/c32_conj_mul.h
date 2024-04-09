@@ -2,13 +2,13 @@
 
 #include <immintrin.h>
 #include <stdint.h>
-#include "simd_flags.h"
+#include "simd_flags.h" // NOLINT
 
 // Conjugate multiply packed complex float 
 // Y = X0*~X1
 
 #if defined(__AVX__)
-__m256 c32_conj_mul_avx(__m256 x0, __m256 x1) {
+static inline __m256 c32_conj_mul_avx(__m256 x0, __m256 x1) {
     // Vectorise complex conjugate multiplication
     // [3 2 1 0] -> [2 3 0 1]
     constexpr uint8_t SWAP_COMPONENT_MASK = 0b10110001;
@@ -44,7 +44,8 @@ __m256 c32_conj_mul_avx(__m256 x0, __m256 x1) {
 #endif
 
 #if defined(__SSE3__)
-__m128 c32_conj_mul_sse3(__m128 x0, __m128 x1) {
+#include <xmmintrin.h>
+static inline __m128 c32_conj_mul_sse3(__m128 x0, __m128 x1) {
     // Vectorise complex conjugate multiplication
     // [3 2 1 0] -> [2 3 0 1]
     constexpr uint8_t SWAP_COMPONENT_MASK = 0b10110001;

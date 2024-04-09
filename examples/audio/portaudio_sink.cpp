@@ -1,6 +1,13 @@
 #include "./portaudio_sink.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+#include <portaudio.h>
+#include "utility/span.h"
+#include "./frame.h"
 
 #if _WIN32
 constexpr PaHostApiTypeId PORTAUDIO_TARGET_HOST_API_ID = PaHostApiTypeId::paDirectSound;

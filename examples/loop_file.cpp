@@ -1,8 +1,9 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <exception>
+#include <iostream>
+#include <string>
 #include <vector>
-#include <string.h>
-#include "utility/span.h"
 
 #if _WIN32
 #include <io.h>

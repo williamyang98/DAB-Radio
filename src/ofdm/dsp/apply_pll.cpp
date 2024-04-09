@@ -1,9 +1,11 @@
 #include <assert.h>
-#include <stdalign.h>
+#include <stdalign.h> // NOLINT
+#include <stddef.h>
 #include <cmath>
-
+#include <complex>
 #include "detect_architecture.h"
-#include "simd_flags.h"
+#include "simd_flags.h" // NOLINT
+#include "utility/span.h"
 #include "./apply_pll.h"
 #include "./chebyshev_sine.h"
 
@@ -29,10 +31,11 @@ static void apply_pll_scalar(
 
 // x86
 #if defined(__ARCH_X86__)
-#include <immintrin.h>
-#include "./x86/c32_mul.h"
 
 #if defined(__SSE3__)
+#include <smmintrin.h>
+#include <xmmintrin.h>
+#include "./x86/c32_mul.h"
 
 static void apply_pll_sse3(
     tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 
@@ -72,6 +75,9 @@ static void apply_pll_sse3(
 #endif
 
 #if defined(__AVX__)
+#include <immintrin.h>
+#include <smmintrin.h>
+#include "./x86/c32_mul.h"
 
 static void apply_pll_avx(
     tcb::span<const std::complex<float>> x, tcb::span<std::complex<float>> y, 

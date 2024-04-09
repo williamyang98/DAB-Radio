@@ -1,10 +1,14 @@
 #include "./formatters.h"
-#include <fmt/core.h>
-
-#include "dab/constants/subchannel_protection_tables.h"
+#include <stdint.h>
+#include <string>
+#include <fmt/format.h>
+#include "dab/audio/aac_frame_processor.h"
 #include "dab/constants/country_table.h"
 #include "dab/constants/language_table.h"
 #include "dab/constants/programme_type_table.h"
+#include "dab/constants/subchannel_protection_tables.h"
+#include "dab/database/dab_database_entities.h"
+#include "dab/database/dab_database_types.h"
 
 std::string GetSubchannelProtectionLabel(const Subchannel& subchannel) {
     if (subchannel.is_uep) {
@@ -20,7 +24,6 @@ uint32_t GetSubchannelBitrate(const Subchannel& subchannel) {
         const auto descriptor = GetUEPDescriptor(subchannel);
         return descriptor.bitrate;
     }
-
     return CalculateEEPBitrate(subchannel);
 }
 
@@ -98,6 +101,6 @@ const char* GetMPEGSurroundString(MPEG_Surround mpeg) {
         return "MPEG Surround RFA";
     case MPEG_Surround::NOT_USED:
     default:
-        return NULL;
+        return "Unknown";
     }
 }

@@ -1,19 +1,18 @@
 #include "./texture.h"
-
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <iostream>
-
+#include "utility/span.h"
+#if __APPLE__
+#include <OpenGL/gl.h>
+#else
 #if _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif 
-
-#if __APPLE__
-#include <OpenGL/gl.h>
-#else
 #include <GL/gl.h>
 #endif
-#include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG

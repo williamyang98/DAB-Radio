@@ -26,10 +26,10 @@ SOFTWARE.
 */
 
 #include "./mp2_audio_decoder.h"
-
-#include <string.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifndef PLM_MALLOC
     #define PLM_MALLOC(sz) malloc(sz)
@@ -140,10 +140,10 @@ int plm_buffer_read(plm_buffer_t *self, int count) {
     while (count) {
         int current_byte = self->bytes[plm_buffer_get_read_head_bytes(self)];
 
-        int remaining = 8 - (self->bit_index & 7); // Remaining bits in byte
+        int remaining = 8 - (self->bit_index & 7); // NOLINT: Remaining bits in byte
         int read = remaining < count ? remaining : count; // Bits in self run
         int shift = remaining - read;
-        int mask = (0xff >> (8 - read));
+        int mask = (0xff >> (8 - read)); // NOLINT
 
         value = (value << read) | ((current_byte & (mask << shift)) >> shift);
 
@@ -598,9 +598,8 @@ int plm_audio_decode_header(plm_audio_t *self) {
         plm_buffer_skip(self->buffer, 16);
     }
 
-    // Compute frame size, check if we have enough data to decode the whole
-    // frame.
-    int bitrate = PLM_AUDIO_BIT_RATE[self->bitrate_index];
+    // Compute frame size, check if we have enough data to decode the whole frame.
+    int bitrate = PLM_AUDIO_BIT_RATE[self->bitrate_index]; // NOLINT
     int samplerate = PLM_AUDIO_SAMPLE_RATE[self->samplerate_index];
     int frame_size = (144000 * bitrate / samplerate) + padding;
     return frame_size - (hasCRC ? 6 : 4);

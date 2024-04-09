@@ -1,9 +1,7 @@
 #pragma once
 
-#include "./dab_database_entities.h"
-#include "./dab_database_types.h"
-#include "./utility/span.h"
 #include <vector>
+#include "./dab_database_entities.h"
 
 struct DAB_Database 
 {

@@ -1,12 +1,15 @@
-#include "fic_decoder.h"
-
-#include "../algorithms/dab_viterbi_decoder.h"
+#include "./fic_decoder.h"
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <fmt/format.h>
+#include "utility/span.h"
+#include "viterbi_config.h"
 #include "../algorithms/additive_scrambler.h"
 #include "../algorithms/crc.h"
+#include "../algorithms/dab_viterbi_decoder.h"
 #include "../constants/puncture_codes.h"
-#include <fmt/core.h>
-#include <assert.h>
-
 #include "../dab_logging.h"
 #define TAG "fic-decoder"
 static auto _logger = DAB_LOG_REGISTER(TAG);

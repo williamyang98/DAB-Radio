@@ -1,6 +1,9 @@
 #include "./render_portaudio_controls.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
+#include <memory>
+#include <mutex>
+#include "audio/audio_pipeline.h"
 #include "audio/portaudio_sink.h"
 
 void RenderPortAudioControls(PortAudioThreadedActions& actions, std::shared_ptr<AudioPipeline> pipeline) {

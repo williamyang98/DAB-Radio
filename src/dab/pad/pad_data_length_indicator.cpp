@@ -1,6 +1,8 @@
 #include "./pad_data_length_indicator.h"
-#include <fmt/core.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../dab_logging.h"
 #define TAG "pad-data-length"
 static auto _logger = DAB_LOG_REGISTER(TAG);

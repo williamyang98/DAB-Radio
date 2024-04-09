@@ -1,13 +1,16 @@
 #pragma once
 
-#include <stdint.h>
 #include <assert.h>
-#include <vector>
-#include <string>
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
-#include "./dab_database.h"
-#include "dab/database/dab_database_entities.h"
+#include <string>
+#include <string_view>
+#include <vector>
 #include "utility/span.h"
+#include "./dab_database.h"
+#include "./dab_database_entities.h"
+#include "./dab_database_types.h"
 
 struct DatabaseUpdaterGlobalStatistics {
     size_t nb_total = 0;

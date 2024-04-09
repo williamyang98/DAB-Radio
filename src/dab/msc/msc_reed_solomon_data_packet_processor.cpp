@@ -1,10 +1,13 @@
 #include "./msc_reed_solomon_data_packet_processor.h"
-#include "../algorithms/reed_solomon_decoder.h"
 #include <assert.h>
-
-#include <fmt/core.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <optional>
+#include <fmt/format.h>
+#include "utility/span.h"
+#include "../algorithms/reed_solomon_decoder.h"
 #include "../dab_logging.h"
-#include "database/dab_database_entities.h"
 #define TAG "msc-reed-solomon-data-packet-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))

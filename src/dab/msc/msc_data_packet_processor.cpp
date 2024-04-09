@@ -1,13 +1,14 @@
 #include "./msc_data_packet_processor.h"
-#include "./msc_data_group_processor.h"
-#include "../mot/MOT_processor.h"
-#include "../algorithms/crc.h"
-#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
-
-#include <fmt/core.h>
+#include <optional>
+#include <fmt/format.h>
+#include "utility/span.h"
+#include "./msc_data_group_processor.h"
+#include "../algorithms/crc.h"
 #include "../dab_logging.h"
-#include "database/dab_database_entities.h"
+#include "../mot/MOT_processor.h"
 #define TAG "msc-data-packet-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))

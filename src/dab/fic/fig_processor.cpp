@@ -4,9 +4,12 @@
 // All the logic in this file is completely based on the descriptions in these clauses
 
 #include "./fig_processor.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <string_view>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "./fig_handler_interface.h"
-#include <fmt/core.h>
-
 #include "../dab_logging.h"
 #define TAG "fig-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
@@ -59,7 +62,7 @@ struct EnsembleIdentifier {
 // A FIB (fast information block) contains many FIGs (fast information groups)
 void FIG_Processor::ProcessFIB(tcb::span<const uint8_t> buf) {
     // Dont do anything if we don't have an associated handler
-    if (m_handler == NULL) {
+    if (m_handler == nullptr) {
         return;
     }
 
@@ -267,10 +270,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
 }
 
 // Subchannel for stream mode MSC
-void FIG_Processor::ProcessFIG_Type_0_Ext_1(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf) 
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_1(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     int curr_byte = 0;
     int curr_subchannel = 0;
@@ -334,10 +334,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_1(
 }
 
 // Service and service components information in stream mode
-void FIG_Processor::ProcessFIG_Type_0_Ext_2(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -463,10 +460,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(
 }
 
 // Service components information in packet mode
-void FIG_Processor::ProcessFIG_Type_0_Ext_3(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_3(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_header_bytes = 5;
     const int nb_CAOrg_field_bytes = 2;
@@ -557,10 +551,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_4(
 }
 
 // Service component language 
-void FIG_Processor::ProcessFIG_Type_0_Ext_5(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_5(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     int curr_byte = 0;
     while (curr_byte < N) {
@@ -609,10 +600,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_5(
 }
 
 // Service linking information
-void FIG_Processor::ProcessFIG_Type_0_Ext_6(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_header_bytes = 2;
 
@@ -920,10 +908,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(
 }
 
 // Configuration information
-void FIG_Processor::ProcessFIG_Type_0_Ext_7(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_7(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_data_bytes = 2;
     if (N != nb_data_bytes) {
@@ -945,10 +930,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_7(
 }
 
 // Service component global definition 
-void FIG_Processor::ProcessFIG_Type_0_Ext_8(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_8(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -1035,10 +1017,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(
 }
 
 // Country, LTO and International Table
-void FIG_Processor::ProcessFIG_Type_0_Ext_9(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_9(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_header_bytes = 3;
     if (nb_header_bytes > N) {
@@ -1139,10 +1118,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(
 }
 
 // Date and time
-void FIG_Processor::ProcessFIG_Type_0_Ext_10(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_10(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_min_bytes = 4;
     if (nb_min_bytes > N) {
@@ -1195,10 +1171,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_10(
 }
 
 // User application information
-void FIG_Processor::ProcessFIG_Type_0_Ext_13(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_13(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_service_id_bytes = header.pd ? 4 : 2;
     // In addition to the service id field, we have an additional byte of fields
@@ -1263,7 +1236,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
                 curr_block, i, nb_user_apps, 
                 user_app_type, nb_app_data_bytes);
 
-            auto* app_data_buf = (nb_app_data_bytes > 0) ? &app_buf[nb_app_header_bytes] : NULL;
+            auto* app_data_buf = (nb_app_data_bytes > 0) ? &app_buf[nb_app_header_bytes] : nullptr;
             m_handler->OnServiceComponent_5_UserApplication(
                 sid.country_id, sid.service_reference, sid.ecc,
                 SCIdS, 
@@ -1279,10 +1252,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(
 }
 
 // Subchannel for packet mode MSC FEC type
-void FIG_Processor::ProcessFIG_Type_0_Ext_14(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_14(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
 
     for (int i = 0; i < N; i++) {
@@ -1393,10 +1363,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
 }
 
 // Frequency information
-void FIG_Processor::ProcessFIG_Type_0_Ext_21(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_21(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_block_header_bytes = 2;
 
@@ -1601,10 +1568,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(
 }
 
 // OE Services for service following?
-void FIG_Processor::ProcessFIG_Type_0_Ext_24(
-    const FIG_Header_Type_0 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_0_Ext_24(const FIG_Header_Type_0 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_sid_bytes = header.pd ? 4 : 2;
     const int nb_header_bytes = nb_sid_bytes + 1;
@@ -1662,10 +1626,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(
 }
 
 // Ensemble label
-void FIG_Processor::ProcessFIG_Type_1_Ext_0(
-    const FIG_Header_Type_1 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_eid_bytes = 2;
     const int nb_char_bytes = 16;
@@ -1701,10 +1662,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(
 }
 
 // Short form service identifier label
-void FIG_Processor::ProcessFIG_Type_1_Ext_1(
-    const FIG_Header_Type_1 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_1_Ext_1(const FIG_Header_Type_1 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_sid_bytes = 2;
     const int nb_char_bytes = 16;
@@ -1738,10 +1696,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(
 }
 
 // Service component label (non primary)
-void FIG_Processor::ProcessFIG_Type_1_Ext_4(
-    const FIG_Header_Type_1 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_1_Ext_4(const FIG_Header_Type_1 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_header_bytes = 1;
     const int nb_char_bytes = 16;
@@ -1796,10 +1751,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(
 }
 
 // Long form service identifier label
-void FIG_Processor::ProcessFIG_Type_1_Ext_5(
-    const FIG_Header_Type_1 header, 
-    tcb::span<const uint8_t> buf)
-{
+void FIG_Processor::ProcessFIG_Type_1_Ext_5(const FIG_Header_Type_1 header, tcb::span<const uint8_t> buf) {
     const int N = (int)buf.size();
     const int nb_sid_bytes = 4;
     const int nb_char_bytes = 16;

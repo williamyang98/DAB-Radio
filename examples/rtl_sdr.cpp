@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <signal.h>
-#include <string.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <vector>
-#include <limits>
+#include <string.h>
 #include <algorithm>
+#include <exception>
+#include <iostream>
+#include <limits>
 #include <optional>
+#include <string>
+#include <vector>
 
 #if _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -33,6 +34,8 @@
 #include <windows.h>
 #include <io.h>
 #include <fcntl.h>
+#else
+#include <signal.h>
 #endif
 
 #include <argparse/argparse.hpp>

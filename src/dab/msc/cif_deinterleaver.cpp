@@ -1,10 +1,11 @@
 #include "./cif_deinterleaver.h"
-
-constexpr int TOTAL_CIF_DEINTERLEAVE = 16;
+#include "utility/span.h"
+#include "viterbi_config.h"
 
 // DOC: ETSI EN 300 401
 // Clause 12 - Time interleaving
 // Deinterleaving indices copied from table 21
+constexpr int TOTAL_CIF_DEINTERLEAVE = 16;
 const int CIF_INDICES_OFFSETS[TOTAL_CIF_DEINTERLEAVE] = {
     0,8,4,12, 2,10,6,14, 1,9,5,13, 3,11,7,15
 };

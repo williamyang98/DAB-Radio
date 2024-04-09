@@ -1,4 +1,7 @@
 #include "./pad_data_group.h"
+#include <stddef.h>
+#include <stdint.h>
+#include "utility/span.h"
 #include "../algorithms/crc.h"
 
 static auto Generate_CRC_Calc() {

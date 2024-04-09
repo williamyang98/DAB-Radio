@@ -1,10 +1,15 @@
 #pragma once
 
-#include "./basic_audio_channel.h"
-#include <vector>
-#include <memory>
 #include <stdint.h>
+#include <memory>
 #include <optional>
+#include <vector>
+#include "dab/constants/dab_parameters.h"
+#include "dab/database/dab_database_entities.h"
+#include "utility/observable.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
+#include "./basic_audio_channel.h"
 
 class PAD_Processor;
 struct plm_buffer_t;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <unordered_map>
+#include <stddef.h>
 #include <memory>
 #include <mutex>
-
+#include <unordered_map>
 #include "dab/constants/dab_parameters.h"
 #include "dab/database/dab_database_types.h"
 #include "utility/observable.h"

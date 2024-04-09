@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include "utility/span.h"
 
 // reconstruct a block of size M from blocks of size N

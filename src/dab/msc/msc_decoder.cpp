@@ -1,14 +1,18 @@
 #include "./msc_decoder.h"
-
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <fmt/format.h>
+#include "utility/span.h"
+#include "viterbi_config.h"
 #include "./cif_deinterleaver.h"
-#include "../database/dab_database_entities.h"
-#include "../algorithms/dab_viterbi_decoder.h"
 #include "../algorithms/additive_scrambler.h"
+#include "../algorithms/dab_viterbi_decoder.h"
 #include "../constants/puncture_codes.h"
 #include "../constants/subchannel_protection_tables.h"
-#include <fmt/core.h>
-
 #include "../dab_logging.h"
+#include "../database/dab_database_entities.h"
 #define TAG "msc-decoder"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))

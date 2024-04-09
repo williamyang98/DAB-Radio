@@ -1,11 +1,12 @@
 #pragma once
 
-#include <stdint.h>
 #include <stddef.h>
-#include <vector>
-#include <optional>
+#include <stdint.h>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 #include "utility/span.h"
 
 class Reed_Solomon_Decoder;

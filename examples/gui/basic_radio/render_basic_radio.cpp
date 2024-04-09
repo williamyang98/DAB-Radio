@@ -1,28 +1,28 @@
 #include "./render_common.h"
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
-#include <imgui_internal.h>
-
-#include <stdint.h>
 #include <inttypes.h>
-#include <fmt/core.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <algorithm>
-#include "../font_awesome_definitions.h"
-#include "./formatters.h"
-#include "./render_basic_radio.h"
-#include "./basic_radio_view_controller.h"
-
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <vector>
+#include <fmt/format.h>
+#include "basic_radio/basic_audio_channel.h"
+#include "basic_radio/basic_dab_channel.h"
+#include "basic_radio/basic_dab_plus_channel.h"
+#include "basic_radio/basic_data_packet_channel.h"
 #include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
-#include "basic_radio/basic_data_packet_channel.h"
-#include "basic_radio/basic_audio_channel.h"
-#include "basic_radio/basic_dab_plus_channel.h"
-#include "basic_radio/basic_dab_channel.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_entities.h"
 #include "dab/database/dab_database_types.h"
-#include "dab/database/dab_database_updater.h"
+#include "../font_awesome_definitions.h"
+#include "./basic_radio_view_controller.h"
+#include "./formatters.h"
+#include "./render_basic_radio.h"
 
 template <typename T, typename F>
 static T* find_by_callback(std::vector<T>& vec, F&& func) {

@@ -1,14 +1,16 @@
 #include "./dab_viterbi_decoder.h"
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <assert.h>
 #include <limits>
-
+#include <memory>
+#include "detect_architecture.h"
+#include "simd_flags.h" // NOLINT
+#include "utility/span.h"
 #include "viterbi/viterbi_branch_table.h"
 #include "viterbi/viterbi_decoder_config.h"
 #include "viterbi/viterbi_decoder_core.h"
-#include "detect_architecture.h"
-#include "simd_flags.h"
+#include "viterbi_config.h"
 
 // DOC: ETSI EN 300 401
 // Clause 11.1 - Convolutional code

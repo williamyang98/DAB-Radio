@@ -1,15 +1,14 @@
 #pragma once 
 
+#include <stddef.h>
 #include <stdint.h>
-#include <unordered_map>
-#include <vector>
 #include <optional>
-
-#include "./MOT_entities.h"
-#include "./MOT_assembler.h"
-#include "utility/observable.h"
+#include <unordered_map>
 #include "utility/lru_cache.h"
+#include "utility/observable.h"
 #include "utility/span.h"
+#include "./MOT_assembler.h"
+#include "./MOT_entities.h"
 
 // DOC: ETSI EN 301 234 
 // Clause 5.2.2: X-PAD

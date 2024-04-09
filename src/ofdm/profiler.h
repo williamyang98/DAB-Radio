@@ -1,12 +1,14 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
-#include <unordered_map>
-#include <vector>
 #include <chrono>
-#include <thread>
 #include <mutex>
 #include <optional>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 // Crossplatform pretty function
 #ifdef _MSC_VER
@@ -142,7 +144,7 @@ private:
         for (const auto& e: stack_trace) {
             hash = (hash >> 32) ^ (hash << 32) ^ e.stack_index;
             // if (e.stack_index >= 2) continue;
-            if (e.name != NULL) {
+            if (e.name != nullptr) {
                 for (const char* c = e.name; (*c) != 0; c++) {
                     hash = (hash >> 8) ^ (hash << 8) ^ (uint64_t)(*c);
                 }

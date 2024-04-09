@@ -1,13 +1,22 @@
 #include "./basic_dab_plus_channel.h"
-#include "./basic_slideshow.h"
-
-#include "dab/msc/msc_decoder.h"
+#include <stdint.h>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <fmt/format.h>
 #include "dab/audio/aac_audio_decoder.h"
 #include "dab/audio/aac_data_decoder.h"
-#include "dab/mot/MOT_slideshow_processor.h"
-#include <fmt/core.h>
-
+#include "dab/audio/aac_frame_processor.h"
+#include "dab/constants/dab_parameters.h"
+#include "dab/database/dab_database_entities.h"
+#include "dab/mot/MOT_entities.h"
+#include "dab/msc/msc_decoder.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
+#include "./basic_audio_channel.h"
+#include "./basic_audio_params.h"
 #include "./basic_radio_logging.h"
+#include "./basic_slideshow.h"
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
@@ -60,7 +69,7 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
         audio_params.is_stereo = header.is_stereo;
 
         const bool replace_decoder = 
-            (m_aac_audio_decoder == NULL) ||
+            (m_aac_audio_decoder == nullptr) ||
             (m_aac_audio_decoder->GetParams() != audio_params);
  
         if (replace_decoder) {

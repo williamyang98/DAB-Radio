@@ -1,8 +1,7 @@
 #include "./dab_ofdm_params_ref.h"
-
-#include <stdlib.h>
 #include <stdexcept>
-#include <fmt/core.h>
+#include <fmt/format.h>
+#include "./ofdm_params.h"
 
 // DOC: doc/DAB_parameters.pdf
 // Clause A1.1 - System parameters

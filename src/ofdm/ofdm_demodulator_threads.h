@@ -1,7 +1,8 @@
 #pragma once
 
-#include <mutex>
+#include <stddef.h>
 #include <condition_variable>
+#include <mutex>
 
 // Helper classes to manage synchronisation between the OFDM demodulator pipeline threads
 // We have an coordinator thread to synchronise our pipeline threads

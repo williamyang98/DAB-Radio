@@ -1,4 +1,5 @@
 #include "./dab_logging.h"
+#include <vector>
 
 #if DAB_LOGGING_USE_EASYLOGGING
 

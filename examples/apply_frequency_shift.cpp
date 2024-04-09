@@ -1,7 +1,11 @@
-#include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <stdint.h>
+#include <stdio.h>
 #include <complex>
+#include <exception>
+#include <iostream>
+#include <string>
 #include <vector>
 #include "utility/span.h"
 

@@ -1,25 +1,34 @@
 #include "./basic_scraper.h"
-#include "basic_radio/basic_radio.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <cstring>
+#include <ctime>
+#include <filesystem>
+#include <memory>
+#include <optional>
+#include <string>
+#include <fmt/format.h>
 #include "basic_radio/basic_audio_channel.h"
+#include "basic_radio/basic_audio_params.h"
 #include "basic_radio/basic_dab_channel.h"
 #include "basic_radio/basic_dab_plus_channel.h"
 #include "basic_radio/basic_data_packet_channel.h"
 #include "basic_radio/basic_radio.h"
+#include "basic_radio/basic_radio.h"
 #include "basic_radio/basic_slideshow.h"
+#include "dab/database/dab_database.h"
 #include "dab/database/dab_database_entities.h"
 #include "dab/database/dab_database_types.h"
-#include "dab/mot/MOT_processor.h"
-#include "dab/database/dab_database.h"
-#include <string.h>
-#include <functional>
-#include <ctime>
-#include <fmt/core.h>
+#include "utility/span.h"
+
+namespace fs = std::filesystem;
 
 #include "./basic_scraper_logging.h"
 #define LOG_MESSAGE(...) BASIC_SCRAPER_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_SCRAPER_LOG_ERROR(fmt::format(__VA_ARGS__))
 
-#undef GetCurrentTime
+#undef GetCurrentTime // NOLINT
+
 static std::string GetCurrentTime(void) {
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
@@ -80,7 +89,7 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
 
             auto slideshow_scraper = std::make_shared<BasicSlideshowScraper>(abs_path / "slideshow");
             channel.GetSlideshowManager().OnNewSlideshow().Attach(
-                [slideshow_scraper](std::shared_ptr<Basic_Slideshow>& slideshow) {
+                [slideshow_scraper](std::shared_ptr<Basic_Slideshow> slideshow) {
                     slideshow_scraper->OnSlideshow(*slideshow);
                 }
             );
@@ -105,7 +114,7 @@ void Basic_Audio_Channel_Scraper::attach_to_channel(std::shared_ptr<Basic_Audio_
         }
     );
     channel.GetSlideshowManager().OnNewSlideshow().Attach(
-        [scraper](std::shared_ptr<Basic_Slideshow>& slideshow) {
+        [scraper](std::shared_ptr<Basic_Slideshow> slideshow) {
             scraper->m_slideshow_scraper.OnSlideshow(*slideshow);
         }
     );
@@ -240,10 +249,10 @@ FILE* BasicAudioScraper::CreateWavFile(BasicAudioParams params) {
     const int32_t BitsPerSample = params.bytes_per_sample * 8;
     const int32_t SampleRate = static_cast<int32_t>(params.frequency);
 
-    memcpy(header.ChunkID, "RIFF", 4);
-    memcpy(header.Format, "WAVE", 4);
-    memcpy(header.Subchunk1ID, "fmt ", 4);
-    memcpy(header.Subchunk2ID, "data", 4);
+    std::memcpy(header.ChunkID, "RIFF", 4);
+    std::memcpy(header.Format, "WAVE", 4);
+    std::memcpy(header.Subchunk1ID, "fmt ", 4);
+    std::memcpy(header.Subchunk2ID, "data", 4);
 
     header.Subchunk1Size = 16;  // size of PCM format fields 
     header.AudioFormat = 1;     // Linear quantisation

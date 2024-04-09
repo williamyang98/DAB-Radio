@@ -1,14 +1,12 @@
 #pragma once
 
 #include <stdint.h>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
-#include <memory>
-
-#include "./basic_msc_runner.h"
-#include "./basic_audio_params.h"
 #include "./basic_audio_controls.h"
+#include "./basic_audio_params.h"
+#include "./basic_msc_runner.h"
 #include "dab/constants/dab_parameters.h"
 #include "dab/database/dab_database_entities.h"
 #include "utility/observable.h"

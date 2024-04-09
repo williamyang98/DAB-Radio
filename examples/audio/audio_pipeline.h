@@ -1,15 +1,16 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
 #include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <string>
+#include <string_view>
 #include <vector>
-#include <stdint.h>
+#include "utility/span.h"
 #include "./frame.h"
 #include "./ring_buffer.h"
-#include "utility/span.h"
 
 constexpr float DEFAULT_AUDIO_SAMPLE_RATE = 48000.0f;
 constexpr float DEFAULT_AUDIO_SINK_DURATION = 0.1f;

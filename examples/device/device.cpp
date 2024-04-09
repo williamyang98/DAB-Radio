@@ -4,9 +4,16 @@ extern "C" {
 #include <rtl-sdr.h>
 }
 
-#include <fmt/core.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+#include <fmt/format.h>
+#include "utility/span.h"
 
 Device::Device(rtlsdr_dev_t* device, const DeviceDescriptor& descriptor, const int block_size)
 :  m_descriptor(descriptor), m_device(device), m_block_size(block_size)

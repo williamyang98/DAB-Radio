@@ -1,12 +1,15 @@
 #include "./render_ofdm_demod.h"
-#include "./render_profiler.h"
-#include "ofdm/ofdm_demodulator.h"
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <implot.h>
+#include <stddef.h>
+#include <algorithm>
 #include <cmath>
+#include <complex>
 #include <vector>
+#include "ofdm/ofdm_demodulator.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
 
 static void CalculateMagnitude(tcb::span<const std::complex<float>> fft_buf, tcb::span<float> mag_buf, const float scale=20.0f);
 static void RenderControls(OFDM_Demod& demod);
@@ -200,7 +203,7 @@ void RenderDemodulatedSymbols(const OFDM_Demod& demod) {
                 if (ImPlot::BeginPlot("Phase error", ImVec2(-1,0))) {
                     const auto A = (double)SOFT_DECISION_VITERBI_HIGH;
                     ImPlot::SetupAxisLimits(ImAxis_X1, -A, A, ImPlotCond_Once);
-                    ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_AutoFit);
+                    ImPlot::SetupAxis(ImAxis_Y1, nullptr, ImPlotAxisFlags_AutoFit);
 
                     const int x_range = 2*SOFT_DECISION_VITERBI_HIGH+1;
                     const int x_step = 4;

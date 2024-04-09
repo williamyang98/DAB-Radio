@@ -1,7 +1,14 @@
 #pragma once
 
-#include "./basic_audio_channel.h"
+#include <stdint.h>
+#include <memory>
 #include "dab/audio/aac_frame_processor.h"
+#include "dab/constants/dab_parameters.h"
+#include "dab/database/dab_database_entities.h"
+#include "utility/observable.h"
+#include "utility/span.h"
+#include "viterbi_config.h"
+#include "./basic_audio_channel.h"
 
 class AAC_Audio_Decoder;
 class AAC_Data_Decoder;

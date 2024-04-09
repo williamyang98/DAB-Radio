@@ -1,7 +1,9 @@
 #pragma once
 
+#include <stddef.h>
 #include <list>
 #include <unordered_map>
+#include <utility>
 
 template <typename K, typename T>
 class LRU_Cache 

@@ -1,6 +1,8 @@
 #include "./aac_data_decoder.h"
-#include <fmt/core.h>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../dab_logging.h"
 #define TAG "aac-data-decoder"
 static auto _logger = DAB_LOG_REGISTER(TAG);

@@ -1,15 +1,19 @@
 #include "./pad_dynamic_label.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <algorithm>
+#include <memory>
+#include <string_view>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "./pad_dynamic_label_assembler.h"
-#include <cmath>
-#include <fmt/core.h>
-
 #include "../dab_logging.h"
 #define TAG "pad-dynamic-label"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
-#undef min
+#undef min // NOLINT
 
 constexpr size_t TOTAL_CRC16_BYTES = 2;
 constexpr size_t TOTAL_HEADER_BYTES = 2;

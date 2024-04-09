@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdint.h>
 #include <functional>
+#include <stddef.h>
 #include <string_view>
 
 struct CommonGui {

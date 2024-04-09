@@ -1,11 +1,12 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <memory>
 #include <string_view>
-#include "./pad_data_group.h"
 #include "utility/observable.h"
 #include "utility/span.h"
+#include "./pad_data_group.h"
 
 class PAD_Dynamic_Label_Assembler;
 

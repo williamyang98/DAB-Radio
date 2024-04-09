@@ -1,8 +1,11 @@
 #include "./aac_frame_processor.h"
-#include "../algorithms/reed_solomon_decoder.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
+#include <fmt/format.h>
+#include "utility/span.h"
 #include "../algorithms/crc.h"
-#include <fmt/core.h>
-
+#include "../algorithms/reed_solomon_decoder.h"
 #include "../dab_logging.h"
 #define TAG "aac-frame-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);

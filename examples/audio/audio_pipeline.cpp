@@ -1,8 +1,16 @@
 #include "./audio_pipeline.h"
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
+#include "utility/span.h"
+#include "./frame.h"
 
 template <typename T, typename U, typename F>
 static void audio_map_with_callback(tcb::span<const Frame<T>> src, tcb::span<Frame<U>> dest, F&& func) {

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+#include "utility/span.h"
 #include "./pad_data_group.h"
 
 // Create data length indicator from XPAD segments

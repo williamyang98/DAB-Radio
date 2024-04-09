@@ -1,8 +1,10 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
-#include "./pad_data_group.h"
 #include "utility/span.h"
+#include "./pad_data_group.h"
 
 class MOT_Processor;
 

@@ -1,10 +1,13 @@
 #pragma once
 
+#include <complex>
 #include <memory>
-#include "./ofdm_demodulator.h"
+#include <vector>
+#include "./dab_mapper_ref.h"
 #include "./dab_ofdm_params_ref.h"
 #include "./dab_prs_ref.h"
-#include "./dab_mapper_ref.h"
+#include "./ofdm_demodulator.h"
+#include "./ofdm_params.h"
 
 static std::unique_ptr<OFDM_Demod> Create_OFDM_Demodulator(const int transmission_mode, const int total_threads=0) {
     const OFDM_Params ofdm_params = get_DAB_OFDM_params(transmission_mode);

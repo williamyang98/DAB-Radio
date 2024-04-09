@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <unordered_map>
+#include <unordered_map> // NOLINT
 #include "utility/span.h"
 
 // Source: http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html#ch44

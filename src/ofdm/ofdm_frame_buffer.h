@@ -1,9 +1,11 @@
 #pragma once
 
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <cstring>
 #include "utility/span.h"
 #include "./ofdm_params.h"
-#include <algorithm>
-#include <assert.h>
 
 // Purpose of this class if to provide the necessary alignment to each symbol
 // so that FFTW3 can use SIMD to accelerate the FFT/IFFT
@@ -107,7 +109,7 @@ private:
         const size_t nb_read = (src.size() > nb_required) ? nb_required : src.size();
 
         auto wr_buf = sym_buf.subspan(m_curr_symbol_samples, nb_read);
-        std::copy_n(src.begin(), nb_read, wr_buf.begin());
+        std::memcpy(wr_buf.begin(), src.begin(), nb_read*sizeof(T));
 
         m_curr_symbol_samples += nb_read;
         // branchless math to update number of samples in OFDM frame 

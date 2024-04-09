@@ -1,6 +1,12 @@
 #include "./ofdm_modulator.h"
-#include <fftw3.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <algorithm>
+#include <cmath>
+#include <complex>
+#include <fftw3.h>
+#include "utility/span.h"
+#include "./ofdm_params.h"
 
 OFDM_Modulator::OFDM_Modulator(
     const OFDM_Params& params, 
@@ -9,7 +15,7 @@ OFDM_Modulator::OFDM_Modulator(
     m_frame_out_size(params.nb_null_period + params.nb_symbol_period*params.nb_frame_symbols),
     m_data_in_size((params.nb_frame_symbols-1)*params.nb_data_carriers*2/8)
 {
-    m_ifft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, NULL, NULL, FFTW_BACKWARD, FFTW_ESTIMATE);
+    m_ifft_plan = fftwf_plan_dft_1d((int)m_params.nb_fft, nullptr, nullptr, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     // interleave the bits for a OFDM symbol containing N data carriers
     m_prs_fft_ref.resize(m_params.nb_fft);
