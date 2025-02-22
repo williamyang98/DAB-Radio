@@ -40,10 +40,11 @@ For those who are interested only in parts of the implementation refer to the fo
 
 If you can't find any DAB ensembles in your area, then you can download binary files from the Releases page [here](https://github.com/williamyang98/DAB-Radio/releases/tag/raw-iq-data). These contain raw IQ values as well as pre-demodulated OFDM digital frames. You can read in these files with the applications described in ```examples/README.md```
 
-# Building programs
-- Refer to ```toolchains/*/README.md``` to build for your platform.
+# Compiling programs from source
+- Clone the repository: ```git clone https://github.com/williamyang98/DAB-Radio.git --recurse-submodules```.
+- Refer to ```toolchains/{platform}/README.md``` to build for your specific platform.
 - The continuous integration (CI) scripts are in ```.github/workflows``` if you want to replicate the build on your system.
-- SIMD instructions are used for x86 and ARM cpus to speed up math heavy code paths. Modify ```CMakePresets.json``` to use correct compiler flags.
+- **NOTE**: To avoid having to manually setup the GUI when compiling from source you can download it from [imgui_radio.ini](https://github.com/williamyang98/DAB-Radio/releases/download/v1.0/imgui_radio.ini) and paste it into the repository's root directory.
 
 # Similar apps
 - The welle.io open source radio has an excellent implementation of DAB radio. Their repository can be found [here](https://github.com/albrechtl/welle.io). [Youtube Link](https://www.youtube.com/watch?v=IJcgdmud-AI). 
