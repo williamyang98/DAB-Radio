@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include "utility/span.h"
 #include "./pad_dynamic_label_assembler.h"
+#include "../constants/charsets.h"
 #include "../dab_logging.h"
 #define TAG "pad-dynamic-label"
 static auto _logger = DAB_LOG_REGISTER(TAG);
@@ -179,14 +180,13 @@ void PAD_Dynamic_Label::InterpretLabelSegment(void) {
         return;
     }
 
-    const auto label = m_assembler->GetData();
+    auto label_buf = m_assembler->GetData();
     const size_t nb_label_bytes = m_assembler->GetSize();
-    const auto label_str = std::string_view(
-        reinterpret_cast<const char*>(label.data()), 
-        nb_label_bytes);
-
-    LOG_MESSAGE("label[{}]={}", nb_label_bytes, label_str);
-    m_obs_on_label_change.Notify(label_str, m_assembler->GetCharSet());
+    label_buf = label_buf.first(nb_label_bytes); 
+    const auto charset = m_assembler->GetCharSet();
+    std::string label = convert_charset_to_utf8(label_buf, charset);
+    LOG_MESSAGE("label={}, nbytes={}", label, nb_label_bytes);
+    m_obs_on_label_change.Notify(label);
 }
 
 void PAD_Dynamic_Label::InterpretCommand(void) {

@@ -10,6 +10,7 @@
 #include "./MOT_assembler.h"
 #include "./MOT_entities.h"
 #include "../algorithms/modified_julian_date.h"
+#include "../constants/charsets.h"
 #include "../dab_logging.h"
 #define TAG "mot-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
@@ -406,13 +407,9 @@ bool MOT_Processor::ProcessHeaderExtensionParameter_ContentName(MOT_Header_Entit
     const uint8_t charset = (buf[0] & 0b11110000) >> 4;
     const uint8_t rfa0    = (buf[0] & 0b00001111) >> 0;
     auto name_buf = buf.subspan(1);
-    auto name = std::string_view(reinterpret_cast<const char*>(name_buf.data()), name_buf.size());
-
-    entity.content_name.exists = true;
-    entity.content_name.charset = charset;
-    entity.content_name.name = name;
-
-    LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}", charset, rfa0, name.length(), entity.content_name.name);
+    auto name = convert_charset_to_utf8(name_buf, charset);
+    entity.content_name = std::optional<std::string>(name);
+    LOG_MESSAGE("[header-ext] type=content_name charset={} rfa0={} name[{}]={}", charset, rfa0, name.length(), entity.content_name.value());
     return true;
 }
 

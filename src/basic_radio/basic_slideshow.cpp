@@ -65,9 +65,8 @@ std::shared_ptr<Basic_Slideshow> Basic_Slideshow_Manager::Process_MOT_Entity(MOT
 
     // Core MOT header parameters
     auto& content_name = entity.header.content_name;
-    if (content_name.exists) {
-        slideshow->name_charset = content_name.charset;
-        slideshow->name = std::string(content_name.name);
+    if (content_name != std::nullopt) {
+        slideshow->name = content_name.value();
     }
     auto& expire_time = entity.header.expire_time;
     if (expire_time.exists) {

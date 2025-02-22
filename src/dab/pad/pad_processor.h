@@ -38,7 +38,7 @@ public:
     void Process(tcb::span<const uint8_t> fpad, tcb::span<const uint8_t> xpad_reversed);
 
     // label, charset
-    Observable<std::string_view, const uint8_t>& OnLabelUpdate();
+    Observable<const std::string&>& OnLabelUpdate();
     // command id
     Observable<uint8_t>& OnLabelCommand();
     // mot object

@@ -44,7 +44,7 @@ PAD_Processor::PAD_Processor() {
 
 PAD_Processor::~PAD_Processor() = default;
 
-Observable<std::string_view, const uint8_t>& PAD_Processor::OnLabelUpdate() {
+Observable<const std::string&>& PAD_Processor::OnLabelUpdate() {
     return m_dynamic_label->OnLabelChange();
 }
 

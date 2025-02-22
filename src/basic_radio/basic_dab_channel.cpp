@@ -133,10 +133,10 @@ void Basic_DAB_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
 }
 
 void Basic_DAB_Channel::SetupCallbacks(void) {
-    m_pad_processor->OnLabelUpdate().Attach([this](std::string_view label_str, const uint8_t charset) {
-        m_dynamic_label = std::string(label_str);
+    m_pad_processor->OnLabelUpdate().Attach([this](const std::string& label) {
+        m_dynamic_label = label;
         m_obs_dynamic_label.Notify(m_dynamic_label);
-        LOG_MESSAGE("dynamic_label[{}]={} | charset={}", label_str.size(), label_str, charset);
+        LOG_MESSAGE("dynamic_label={}", label);
     });
 
     m_pad_processor->OnMOTUpdate().Attach([this](MOT_Entity entity) {

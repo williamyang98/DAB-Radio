@@ -317,12 +317,11 @@ void BasicSlideshowScraper::OnSlideshow(Basic_Slideshow& slideshow) {
 void BasicMOTScraper::OnMOTEntity(MOT_Entity mot) {
     auto& content_name_str = mot.header.content_name;
     std::string content_name;
-    if (content_name_str.exists) {
-        content_name = std::string(content_name_str.name);
+    if (content_name_str != std::nullopt) {
+        content_name = content_name_str.value();
     } else {
         auto& header = mot.header;
-        content_name = fmt::format("content_type_{}_{}.bin",
-            header.content_type, header.content_sub_type);
+        content_name = fmt::format("content_type_{}_{}.bin", header.content_type, header.content_sub_type);
     }
 
     fs::create_directories(m_dir);

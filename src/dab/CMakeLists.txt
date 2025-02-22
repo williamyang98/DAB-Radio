@@ -11,6 +11,7 @@ add_library(dab_core STATIC
     ${SRC_DIR}/algorithms/reed_solomon_decoder.cpp
     ${SRC_DIR}/fic/fic_decoder.cpp
     ${SRC_DIR}/fic/fig_processor.cpp
+    ${SRC_DIR}/constants/charsets.cpp
     ${SRC_DIR}/database/dab_database_updater.cpp
     ${SRC_DIR}/msc/msc_decoder.cpp
     ${SRC_DIR}/msc/cif_deinterleaver.cpp

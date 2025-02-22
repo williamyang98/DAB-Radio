@@ -32,7 +32,7 @@ private:
     std::unique_ptr<PAD_Dynamic_Label_Assembler> m_assembler;
     uint8_t m_previous_toggle_flag;
     // label_buffer, charset
-    Observable<std::string_view, const uint8_t> m_obs_on_label_change;
+    Observable<const std::string&> m_obs_on_label_change;
     Observable<uint8_t> m_obs_on_command;
 public:
     PAD_Dynamic_Label();

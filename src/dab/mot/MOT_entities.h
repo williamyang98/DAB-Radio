@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <optional>
 #include "utility/span.h"
 
 typedef uint16_t mot_transport_id_t;
@@ -27,16 +28,9 @@ struct MOT_Header_Entity {
     uint16_t header_size = 0;
     uint8_t content_type = 0;
     uint16_t content_sub_type = 0;
-
-    struct {
-        bool exists = false;
-        uint8_t charset = 0;
-        std::string name;
-    } content_name;
-
+    std::optional<std::string> content_name = std::nullopt;
     MOT_UTC_Time trigger_time;
     MOT_UTC_Time expire_time;
-
     std::vector<MOT_Header_Extension_Parameter> user_app_params;
 };
 
