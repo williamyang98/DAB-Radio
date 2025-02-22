@@ -78,16 +78,12 @@ const char* GetCountryString(extended_country_id_t ecc, country_id_t country_id)
     return GetCountryName(ecc, country_id).c_str();
 }
 
-const char* GetAACDescriptionString(bool is_SBR, bool is_PS) {
+const char* GetAACDescriptionString(bool is_spectral_band_replication, bool is_parametric_stereo) {
     // AAC-LC
     // HE-AACv1: AAC-LC + SBR
     // HE-AACv2: AAC-LC + SBR + PS
-    if (!is_SBR) {
-        return "AAC-LC";
-    }
-    if (!is_PS) {
-        return "HE-AACv1";
-    }
+    if (!is_spectral_band_replication) return "AAC-LC";
+    if (!is_parametric_stereo) return "HE-AACv1";
     return "HE-AACv2";
 }
 
@@ -95,11 +91,14 @@ const char* GetMPEGSurroundString(MPEG_Surround mpeg) {
     switch (mpeg) {
     case MPEG_Surround::SURROUND_51:
         return "MPEG Surround 5.1";
+    case MPEG_Surround::SURROUND_71:
+        return "MPEG Surround 7.1";
     case MPEG_Surround::SURROUND_OTHER:
         return "MPEG Surround Other";
     case MPEG_Surround::RFA:
         return "MPEG Surround RFA";
     case MPEG_Surround::NOT_USED:
+        return "";
     default:
         return "Unknown";
     }

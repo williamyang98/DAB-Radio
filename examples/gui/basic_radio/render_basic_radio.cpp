@@ -436,12 +436,12 @@ void RenderSimple_Basic_DAB_Plus_Channel_Status(Basic_DAB_Plus_Channel& channel)
 
     const auto& superframe_header = channel.GetSuperFrameHeader();
     if (superframe_header.sampling_rate != 0) {
-        const char* mpeg_surround = GetMPEGSurroundString(superframe_header.mpeg_surround);
+        const bool is_stereo = superframe_header.is_stereo || superframe_header.is_parametric_stereo;
         ImGui::Text("Codec: %uHz %s %s %s", 
             superframe_header.sampling_rate, 
-            superframe_header.is_stereo ? "Stereo" : "Mono",  
-            GetAACDescriptionString(superframe_header.SBR_flag, superframe_header.PS_flag),
-            mpeg_surround ? mpeg_surround : "");
+            is_stereo ? "Stereo" : "Mono",
+            GetAACDescriptionString(superframe_header.is_spectral_band_replication, superframe_header.is_parametric_stereo),
+            GetMPEGSurroundString(superframe_header.mpeg_surround));
     }
 }
 

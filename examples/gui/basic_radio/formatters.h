@@ -14,5 +14,5 @@ const char* GetDataTypeString(const DataServiceType data_type);
 const char* GetProgrammeTypeString(uint8_t inter_table_id, programme_id_t program_id);
 const char* GetLanguageTypeString(language_id_t language_id);
 const char* GetCountryString(extended_country_id_t ecc, country_id_t country_id);
-const char* GetAACDescriptionString(bool is_SBR, bool is_PS);
+const char* GetAACDescriptionString(bool is_spectral_band_replication, bool is_parametric_stereo);
 const char* GetMPEGSurroundString(MPEG_Surround mpeg);

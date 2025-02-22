@@ -64,8 +64,8 @@ void Basic_DAB_Plus_Channel::SetupCallbacks(void) {
 
         AAC_Audio_Decoder::Params audio_params;
         audio_params.sampling_frequency = header.sampling_rate;
-        audio_params.is_PS = header.PS_flag;
-        audio_params.is_SBR = header.SBR_flag;
+        audio_params.is_parametric_stereo = header.is_parametric_stereo;
+        audio_params.is_spectral_band_replication = header.is_spectral_band_replication;
         audio_params.is_stereo = header.is_stereo;
 
         const bool replace_decoder = 

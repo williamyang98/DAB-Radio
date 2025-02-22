@@ -19,20 +19,17 @@ public:
     };
     struct Params {
         uint32_t sampling_frequency;
-        bool is_SBR;
+        bool is_spectral_band_replication;
         bool is_stereo;
-        bool is_PS;
+        bool is_parametric_stereo;
         bool operator==(const Params& other) const {
             return (sampling_frequency == other.sampling_frequency) &&
-                   (is_SBR == other.is_SBR) &&
+                   (is_spectral_band_replication == other.is_spectral_band_replication) &&
                    (is_stereo == other.is_stereo) &&
-                   (is_PS == other.is_PS);
+                   (is_parametric_stereo == other.is_parametric_stereo);
         }
         bool operator!=(const Params& other) const {
-            return (sampling_frequency != other.sampling_frequency) || 
-                   (is_SBR != other.is_SBR) || 
-                   (is_stereo != other.is_stereo) ||
-                   (is_PS != other.is_PS);
+            return !(*this == other);
         }
     };
 private:

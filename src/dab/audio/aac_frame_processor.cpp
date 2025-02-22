@@ -237,12 +237,13 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
 
     SuperFrameHeader super_frame_header;
     super_frame_header.sampling_rate = sampling_rate;
-    super_frame_header.PS_flag = ps_flag;
-    super_frame_header.SBR_flag = sbr_flag;
+    super_frame_header.is_parametric_stereo = ps_flag;
+    super_frame_header.is_spectral_band_replication = sbr_flag;
     super_frame_header.is_stereo = is_stereo;
 
     // TODO: Somehow handle the mpeg configuration
     // libfaad allows you to set more advanced audio channel configuration
+    // Table 7: Definition of mpeg_surround_config
     switch (mpeg_config) {
     case 0b000:
         super_frame_header.mpeg_surround = MPEG_Surround::NOT_USED;
@@ -250,6 +251,10 @@ void AAC_Frame_Processor::ProcessSuperFrame(const int nb_dab_frame_bytes) {
         break;
     case 0b001:
         super_frame_header.mpeg_surround = MPEG_Surround::SURROUND_51;
+        LOG_MESSAGE("MPEG surround with 5.1 output channels is used");
+        break;
+    case 0b010:
+        super_frame_header.mpeg_surround = MPEG_Surround::SURROUND_71;
         LOG_MESSAGE("MPEG surround with 5.1 output channels is used");
         break;
     case 0b111:

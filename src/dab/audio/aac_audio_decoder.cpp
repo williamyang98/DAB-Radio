@@ -202,7 +202,7 @@ void AAC_Audio_Decoder::GenerateBitfileConfig() {
     // DOC: ETSI TS 102 563 
     // In Table 4 it states that when the SBR flag is used that 
     // the sampling rate of the AAC core is half the sampling rate of the DAC
-    const uint32_t core_sample_rate = m_params.is_SBR ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
+    const uint32_t core_sample_rate = m_params.is_spectral_band_replication ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
     const uint8_t core_sample_rate_index = get_index_from_sample_rate(core_sample_rate);
 
     // Source: https://wiki.multimedia.cx/index.php/MPEG-4_Audio
@@ -241,7 +241,7 @@ void AAC_Audio_Decoder::GenerateBitfileConfig() {
     // Sync extension and SBR
     // To enable sync extension we need to pass in a special identifier code
     const uint16_t SYNC_EXTENSION_TYPE_SBR = 0x2B7;
-    if (m_params.is_SBR) {
+    if (m_params.is_spectral_band_replication) {
         bit_pusher.Push(m_mp4_bitfile_config, SYNC_EXTENSION_TYPE_SBR, 11);
         bit_pusher.Push(m_mp4_bitfile_config, SBR_index, 5);
         bit_pusher.Push(m_mp4_bitfile_config, 1, 1);
@@ -257,7 +257,7 @@ void AAC_Audio_Decoder::GenerateMPEG4Header() {
     // DOC: ETSI TS 102 563 
     // In Table 4 it states that when the SBR flag is used that 
     // the sampling rate of the AAC core is half the sampling rate of the DAC
-    const uint32_t core_sample_rate = m_params.is_SBR ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
+    const uint32_t core_sample_rate = m_params.is_spectral_band_replication ? (m_params.sampling_frequency/2) : m_params.sampling_frequency;
     const uint8_t core_sample_rate_index = get_index_from_sample_rate(core_sample_rate);
  
     // Source: https://wiki.multimedia.cx/index.php/ADTS

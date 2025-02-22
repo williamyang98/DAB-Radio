@@ -8,20 +8,20 @@
 class Reed_Solomon_Decoder;
 
 enum class MPEG_Surround {
-    NOT_USED, SURROUND_51, SURROUND_OTHER, RFA
+    NOT_USED, SURROUND_51, SURROUND_71, SURROUND_OTHER, RFA
 };
 
 struct SuperFrameHeader {
     uint32_t sampling_rate = 0;
-    bool PS_flag = false;
-    bool SBR_flag = false;
+    bool is_parametric_stereo = false;
+    bool is_spectral_band_replication = false;
     bool is_stereo = false;
     MPEG_Surround mpeg_surround = MPEG_Surround::NOT_USED;
     bool operator==(const SuperFrameHeader& other) {
         return 
             (sampling_rate == other.sampling_rate) &&
-            (PS_flag == other.PS_flag) &&
-            (SBR_flag == other.SBR_flag) &&
+            (is_parametric_stereo == other.is_parametric_stereo) &&
+            (is_spectral_band_replication == other.is_spectral_band_replication) &&
             (is_stereo == other.is_stereo) &&
             (mpeg_surround == other.mpeg_surround);
     }
@@ -35,8 +35,6 @@ struct SuperFrameHeader {
 // Outputs superframe header and AAC access units
 class AAC_Frame_Processor 
 {
-public:
-    enum class MPEG_Config { NONE, SURROUND_51, SURROUND_OTHER };
 private:
     enum class State { WAIT_FRAME_START, COLLECT_FRAMES };
 private:
