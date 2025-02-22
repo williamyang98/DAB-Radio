@@ -65,7 +65,7 @@ jobs:
         cp README.md ${{env.PACKAGE_DIR}}/
 
     - name: Upload files 
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dab_radio_windows_x64_${{matrix.architecture}}
         path: ${{github.workspace}}/${{env.PACKAGE_DIR}}
