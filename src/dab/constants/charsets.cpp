@@ -67,7 +67,7 @@ std::string convert_charset_to_utf8(tcb::span<const uint8_t> buf, uint8_t charse
     case 0b1111'0000: return convert_to_utf8(buf);
     default:
         auto string = convert_to_utf8(buf);
-        LOG_ERROR("unknown charset={}, buf={}", charset);
+        LOG_ERROR("unknown charset={}, buf={}", charset, string);
         return string;
     }
 }
