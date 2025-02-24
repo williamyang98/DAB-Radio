@@ -61,10 +61,11 @@ static std::string convert_to_utf8(tcb::span<const uint8_t> buf) {
 
 // Table 1: Charset values
 std::string convert_charset_to_utf8(tcb::span<const uint8_t> buf, uint8_t charset) {
+    // NOTE: This value is bit shifted in FIG_Processor::ProcessFIG_Type_1
     switch (charset) {
-    case 0b0000'0000: return convert_ebu_latin_to_utf8(buf);
-    // case 0b0110'0000: return convert_utf16_to_utf8(buf);
-    case 0b1111'0000: return convert_to_utf8(buf);
+    case 0b0000: return convert_ebu_latin_to_utf8(buf);
+    // case 0b0110: return convert_utf16_to_utf8(buf);
+    case 0b1111: return convert_to_utf8(buf);
     default:
         auto string = convert_to_utf8(buf);
         LOG_ERROR("unknown charset={}, buf={}", charset, string);
