@@ -39,6 +39,16 @@ jobs:
       with:
         submodules: recursive
 
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Check fmt::format arguments
+      shell: bash
+      run: |
+        pip install colorlog
+        python ./scripts/check_format_arguments.py
+
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64

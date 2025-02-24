@@ -39,6 +39,16 @@ jobs:
     - name: Update packages 
       run: sudo apt-get update 
 
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Check fmt::format arguments
+      shell: bash
+      run: |
+        pip install colorlog
+        python ./scripts/check_format_arguments.py
+ 
     - name: Install packages
       run: ./toolchains/ubuntu/install_packages.sh
 
