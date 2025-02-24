@@ -51,9 +51,42 @@ static std::string convert_ebu_latin_to_utf8(tcb::span<const uint8_t> ebu_latin_
     return utf8_string;
 }
 
-// static std::string convert_utf16_to_utf8(tcb::span<const uint8_t> utf16_string) {
-//     // TODO: Convert utf16 big endian to utf8
-// }
+// DAB UTF-16 is limited to the basic multilingual plane (BMP) which is 16bits for each codepoint
+// It is also stored as big endian
+static std::string convert_utf16_to_utf8(tcb::span<const uint8_t> utf16_string) {
+    size_t total_utf16_bytes = utf16_string.size();
+    if (total_utf16_bytes % 2 != 0) total_utf16_bytes--; // round to 16bits
+    // represent utf16 2byte codepoints with utf8 continuation byte
+    size_t total_utf8_bytes = 0;
+    for (size_t i = 0; i < total_utf16_bytes; i+=2) {
+        const uint16_t c = uint16_t(utf16_string[i]) << 8 | uint16_t(utf16_string[i+1]); // big endian
+        if      (c <= 0x007F) total_utf8_bytes += 1;
+        else if (c <= 0x07FF) total_utf8_bytes += 2;
+        else                  total_utf8_bytes += 3;
+    }
+    std::string utf8_string(total_utf8_bytes, '\0');
+    size_t j = 0;
+    for (size_t i = 0; i < total_utf16_bytes; i+=2) {
+        const uint16_t c = uint16_t(utf16_string[i]) << 8 | uint16_t(utf16_string[i+1]); // big endian
+        if (c <= 0x007F) {
+            // 0xxx_xxxx
+            utf8_string[j] = uint8_t(c & 0x007F);
+            j += 1;
+        } else if (c <= 0x07FF) {
+            // 110x_xxxx, 10xx_xxxx
+            utf8_string[j]   = 0b1100'0000 | uint8_t((c & 0b0000'0111'1100'0000) >> 6);
+            utf8_string[j+1] = 0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0);
+            j += 2;
+        } else {
+            // 1110_xxxx, 10xx_xxxx, 10xx_xxxx
+            utf8_string[j]   = 0b1110'0000 | uint8_t((c & 0b1111'0000'0000'0000) >> 12);
+            utf8_string[j+1] = 0b1000'0000 | uint8_t((c & 0b0000'1111'1100'0000) >> 6);
+            utf8_string[j+2] = 0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0);
+            j += 3;
+        }
+    }
+    return utf8_string;
+}
 
 static std::string convert_to_utf8(tcb::span<const uint8_t> buf) {
     return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
@@ -64,7 +97,7 @@ std::string convert_charset_to_utf8(tcb::span<const uint8_t> buf, uint8_t charse
     // NOTE: This value is bit shifted in FIG_Processor::ProcessFIG_Type_1
     switch (charset) {
     case 0b0000: return convert_ebu_latin_to_utf8(buf);
-    // case 0b0110: return convert_utf16_to_utf8(buf);
+    case 0b0110: return convert_utf16_to_utf8(buf);
     case 0b1111: return convert_to_utf8(buf);
     default:
         auto string = convert_to_utf8(buf);
