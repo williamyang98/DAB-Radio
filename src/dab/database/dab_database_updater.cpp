@@ -3,7 +3,6 @@
 #include <memory>
 #include <string_view>
 #include <vector>
-#include "utility/span.h"
 #include "./dab_database.h"
 #include "./dab_database_entities.h"
 #include "./dab_database_types.h"
@@ -45,9 +44,8 @@ UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t
     return UpdateField(GetData().extended_country_code, extended_country_code, ENSEMBLE_FLAG_ECC);
 }
 
-UpdateResult EnsembleUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
-    return UpdateField(GetData().label, new_label, ENSEMBLE_FLAG_LABEL);
+UpdateResult EnsembleUpdater::SetLabel(std::string_view label) {
+    return UpdateField(GetData().label, label, ENSEMBLE_FLAG_LABEL);
 }
 
 UpdateResult EnsembleUpdater::SetNumberServices(const uint8_t nb_services) {
@@ -90,9 +88,8 @@ UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t 
     return UpdateField(GetData().extended_country_code, extended_country_code, SERVICE_FLAG_ECC);
 }
 
-UpdateResult ServiceUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
-    return UpdateField(GetData().label, new_label, SERVICE_FLAG_LABEL);
+UpdateResult ServiceUpdater::SetLabel(std::string_view label) {
+    return UpdateField(GetData().label, label, SERVICE_FLAG_LABEL);
 }
 
 UpdateResult ServiceUpdater::SetProgrammeType(const programme_id_t programme_type) {
@@ -122,9 +119,8 @@ const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID      = 0b00000100;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01001000;
 
-UpdateResult ServiceComponentUpdater::SetLabel(tcb::span<const uint8_t> buf) {
-    auto new_label = std::string_view(reinterpret_cast<const char*>(buf.data()), buf.size());
-    return UpdateField(GetData().label, new_label, SERVICE_COMPONENT_FLAG_LABEL);
+UpdateResult ServiceComponentUpdater::SetLabel(std::string_view label) {
+    return UpdateField(GetData().label, label, SERVICE_COMPONENT_FLAG_LABEL);
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {

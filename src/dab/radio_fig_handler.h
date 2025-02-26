@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "utility/span.h"
+#include <string_view>
 #include "./fic/fig_handler_interface.h"
 
 class DAB_Database_Updater;
@@ -148,18 +148,14 @@ public:
     // fig 1/0 - Ensemble label
     void OnEnsemble_3_Label(
         const uint8_t country_id, const uint16_t ensemble_reference,
-        const uint16_t abbreviation_field,
-        tcb::span<const uint8_t> buf) override;
+        const uint16_t abbreviation_field, std::string_view label) override;
     // fig 1/1 - Short form service identifier label
     // fig 1/5 - Long form service identifier label
     void OnService_2_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-        const uint16_t abbreviation_field,
-        tcb::span<const uint8_t> buf) override;
+        const uint16_t abbreviation_field, std::string_view label) override;
     // fig 1/4 - Non-primary service component label
     void OnServiceComponent_6_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-        const uint8_t service_component_id,
-        const uint16_t abbreviation_field,
-        tcb::span<const uint8_t> buf) override;
+        const uint8_t service_component_id, const uint16_t abbreviation_field, std::string_view label) override;
 };

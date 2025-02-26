@@ -1,13 +1,12 @@
 #include "./radio_fig_handler.h"
 #include <stdint.h>
 #include <fmt/format.h>
-#include "utility/span.h"
 #include "./algorithms/modified_julian_date.h"
 #include "./constants/subchannel_protection_tables.h"
 #include "./dab_logging.h"
 #include "./dab_misc_info.h"
 #include "./database/dab_database_updater.h"
-#include "database/dab_database_entities.h"
+#include "./database/dab_database_entities.h"
 #define TAG "radio-fig-handler"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
@@ -580,14 +579,13 @@ void Radio_FIG_Handler::OnOtherEnsemble_1_Service(
 // fig 1/0 - Ensemble label
 void Radio_FIG_Handler::OnEnsemble_3_Label(
     const uint8_t country_id, const uint16_t ensemble_reference,
-    const uint16_t abbreviation_field,
-    tcb::span<const uint8_t> buf)
+    const uint16_t abbreviation_field, std::string_view label)
 {
     if (!m_updater) return;
 
     auto& e_u = m_updater->GetEnsembleUpdater(); 
     e_u.SetCountryID(country_id);
-    e_u.SetLabel(buf);
+    e_u.SetLabel(label);
 
     // TODO: for label handler store the abbreviation field somewhere
 }
@@ -596,23 +594,20 @@ void Radio_FIG_Handler::OnEnsemble_3_Label(
 // fig 1/5 - Long form service identifier label
 void Radio_FIG_Handler::OnService_2_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-    const uint16_t abbreviation_field,
-    tcb::span<const uint8_t> buf)
+    const uint16_t abbreviation_field, std::string_view label)
 {
     if (!m_updater) return;
 
     auto& s_u = m_updater->GetServiceUpdater(service_reference);
     s_u.SetCountryID(country_id);
     s_u.SetExtendedCountryCode(extended_country_code);
-    s_u.SetLabel(buf);
+    s_u.SetLabel(label);
 }
 
 // fig 1/4 - Non-primary service component label
 void Radio_FIG_Handler::OnServiceComponent_6_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-    const uint8_t service_component_id,
-    const uint16_t abbreviation_field,
-    tcb::span<const uint8_t> buf)
+    const uint8_t service_component_id, const uint16_t abbreviation_field, std::string_view label)
 {
     if (!m_updater) return;
 
@@ -621,5 +616,5 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
     s_u.SetExtendedCountryCode(extended_country_code);
 
     auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
-    sc_u.SetLabel(buf);
+    sc_u.SetLabel(label);
 }

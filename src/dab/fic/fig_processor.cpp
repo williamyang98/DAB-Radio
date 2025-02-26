@@ -6,10 +6,10 @@
 #include "./fig_processor.h"
 #include <stddef.h>
 #include <stdint.h>
-#include <string_view>
 #include <fmt/format.h>
 #include "utility/span.h"
 #include "./fig_handler_interface.h"
+#include "../constants/charsets.h"
 #include "../dab_logging.h"
 #define TAG "fig-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
@@ -1649,16 +1649,18 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb:
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
+
+    const auto label_buf = tcb::span<const uint8_t>{ char_buf, nb_char_bytes };
+    const auto label = convert_charset_to_utf8(label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} chars={}",
+    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} label={}",
         header.charset,
         eid.country_id, eid.ensemble_reference,
-        flag_field,
-        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
+        flag_field, label);
     
     m_handler->OnEnsemble_3_Label(
         eid.country_id, eid.ensemble_reference,
-        flag_field, {char_buf, (size_t)nb_char_bytes});
+        flag_field, label);
 }
 
 // Short form service identifier label
@@ -1683,16 +1685,18 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(const FIG_Header_Type_1 header, tcb:
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
+
+    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label = convert_charset_to_utf8(label_buf, header.charset);
     
     LOG_MESSAGE("fig 1/1 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
         header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field,
-        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
+        flag_field, label);
 
     m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, {char_buf, (size_t)nb_char_bytes});
+        flag_field, label);
 }
 
 // Service component label (non primary)
@@ -1736,18 +1740,19 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(const FIG_Header_Type_1 header, tcb:
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
+
+    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label = convert_charset_to_utf8(label_buf, header.charset);
     
     LOG_MESSAGE("fig 1/5 charset={} SCIdS={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
         header.charset,
         SCIdS,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field,
-        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
+        flag_field, label);
 
     m_handler->OnServiceComponent_6_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        SCIdS, 
-        flag_field, {char_buf, (size_t)nb_char_bytes});
+        SCIdS, flag_field, label);
 }
 
 // Long form service identifier label
@@ -1772,14 +1777,16 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(const FIG_Header_Type_1 header, tcb:
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
+
+    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label = convert_charset_to_utf8(label_buf, header.charset);
     
     LOG_MESSAGE("fig 1/5 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
         header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field,
-        std::string_view{reinterpret_cast<const char*>(char_buf), nb_char_bytes});
+        flag_field, label);
     
     m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, {char_buf, (size_t)nb_char_bytes});
+        flag_field, label);
 }
