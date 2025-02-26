@@ -138,14 +138,14 @@ public:
     // fig 1/0 - Ensemble label
     virtual void OnEnsemble_3_Label(
         const uint8_t country_id, const uint16_t ensemble_reference,
-        const uint16_t abbreviation_field, std::string_view label) = 0;
+        std::string_view label, std::string_view short_label) = 0;
     // fig 1/1 - Short form service identifier label
     // fig 1/5 - Long form service identifier label
     virtual void OnService_2_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-        const uint16_t abbreviation_field, std::string_view label) = 0;
+        std::string_view label, std::string_view short_label) = 0;
     // fig 1/4 - Non-primary service component label
     virtual void OnServiceComponent_6_Label(
         const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-        const uint8_t service_component_id, const uint16_t abbreviation_field, std::string_view label) = 0;
+        const uint8_t service_component_id, std::string_view label, std::string_view short_label) = 0;
 };

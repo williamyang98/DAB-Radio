@@ -579,22 +579,21 @@ void Radio_FIG_Handler::OnOtherEnsemble_1_Service(
 // fig 1/0 - Ensemble label
 void Radio_FIG_Handler::OnEnsemble_3_Label(
     const uint8_t country_id, const uint16_t ensemble_reference,
-    const uint16_t abbreviation_field, std::string_view label)
+    std::string_view label, std::string_view short_label)
 {
     if (!m_updater) return;
 
     auto& e_u = m_updater->GetEnsembleUpdater(); 
     e_u.SetCountryID(country_id);
     e_u.SetLabel(label);
-
-    // TODO: for label handler store the abbreviation field somewhere
+    e_u.SetShortLabel(short_label);
 }
 
 // fig 1/1 - Short form service identifier label
 // fig 1/5 - Long form service identifier label
 void Radio_FIG_Handler::OnService_2_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-    const uint16_t abbreviation_field, std::string_view label)
+    std::string_view label, std::string_view short_label)
 {
     if (!m_updater) return;
 
@@ -602,12 +601,13 @@ void Radio_FIG_Handler::OnService_2_Label(
     s_u.SetCountryID(country_id);
     s_u.SetExtendedCountryCode(extended_country_code);
     s_u.SetLabel(label);
+    s_u.SetShortLabel(short_label);
 }
 
 // fig 1/4 - Non-primary service component label
 void Radio_FIG_Handler::OnServiceComponent_6_Label(
     const uint8_t country_id, const uint32_t service_reference, const uint8_t extended_country_code,
-    const uint8_t service_component_id, const uint16_t abbreviation_field, std::string_view label)
+    const uint8_t service_component_id, std::string_view label, std::string_view short_label)
 {
     if (!m_updater) return;
 
@@ -617,4 +617,5 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
 
     auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_reference, service_component_id);
     sc_u.SetLabel(label);
+    sc_u.SetShortLabel(short_label);
 }

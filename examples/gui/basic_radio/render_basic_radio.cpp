@@ -151,6 +151,7 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
             const auto& db = radio.GetDatabase();
             const auto& ensemble = db.ensemble;
             FIELD_MACRO("Name", "%.*s", int(service->label.length()), service->label.c_str());
+            FIELD_MACRO("Short Name", "%.*s", int(service->short_label.length()), service->short_label.c_str());
             // handle short/long form service references
             if ((service->reference & service_id_t(0x0FFF)) == service->reference) {
                 FIELD_MACRO("ID", "%u (0x%03X)", service->reference, service->reference);
@@ -241,6 +242,7 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
                 GetDataTypeString(component.data_service_type);
             
             FIELD_MACRO("Label", "%.*s", int(component.label.length()), component.label.c_str());
+            FIELD_MACRO("Short Label", "%.*s", int(component.short_label.length()), component.short_label.c_str());
             FIELD_MACRO("Component ID", "%u (0x%01X)", component.component_id, component.component_id);
             FIELD_MACRO("Global ID", "%u (0x%03X)", component.global_id, component.global_id);
             FIELD_MACRO("Subchannel ID", "%u (0x%02X)", component.subchannel_id, component.subchannel_id);

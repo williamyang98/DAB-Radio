@@ -104,17 +104,18 @@ public:
     }
 };
 
-class EnsembleUpdater: private DatabaseEntityUpdater<uint8_t>
+class EnsembleUpdater: private DatabaseEntityUpdater<uint16_t>
 {
 private:
     DAB_Database& m_db;
 public:
     explicit EnsembleUpdater(DAB_Database& db, DatabaseUpdaterGlobalStatistics& stats)
-        : DatabaseEntityUpdater<uint8_t>(stats), m_db(db) { OnCreate(); } 
+        : DatabaseEntityUpdater<uint16_t>(stats), m_db(db) { OnCreate(); } 
     UpdateResult SetReference(const ensemble_id_t reference);
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(std::string_view label);
+    UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetNumberServices(const uint8_t nb_services);
     UpdateResult SetReconfigurationCount(const uint16_t reconfiguration_count);
     UpdateResult SetLocalTimeOffset(const int8_t local_time_offset);
@@ -135,6 +136,7 @@ public:
     UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(std::string_view label);
+    UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetProgrammeType(const programme_id_t programme_type);
     UpdateResult SetLanguage(const language_id_t language);
     UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
@@ -152,6 +154,7 @@ public:
     explicit ServiceComponentUpdater(DAB_Database& db, size_t index, DatabaseUpdaterGlobalStatistics& stats)
         : DatabaseEntityUpdater<uint8_t>(stats), m_db(db), m_index(index) { OnCreate(); }
     UpdateResult SetLabel(std::string_view label);
+    UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetTransportMode(const TransportMode transport_mode);
     UpdateResult SetAudioServiceType(const AudioServiceType audio_service_type);
     UpdateResult SetDataServiceType(const DataServiceType data_service_type);

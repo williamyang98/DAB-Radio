@@ -17,15 +17,16 @@ bool insert_if_unique(std::vector<T>& vec, T value) {
 }
 
 // Ensemble form
-const uint8_t ENSEMBLE_FLAG_REFERENCE   = 0b10000000;
-const uint8_t ENSEMBLE_FLAG_COUNTRY_ID  = 0b01000000;
-const uint8_t ENSEMBLE_FLAG_ECC         = 0b00100000;
-const uint8_t ENSEMBLE_FLAG_LABEL       = 0b00010000;
-const uint8_t ENSEMBLE_FLAG_NB_SERVICES = 0b00001000;
-const uint8_t ENSEMBLE_FLAG_RCOUNT      = 0b00000100;
-const uint8_t ENSEMBLE_FLAG_LTO         = 0b00000010;
-const uint8_t ENSEMBLE_FLAG_INTER_TABLE = 0b00000001;
-const uint8_t ENSEMBLE_FLAG_REQUIRED    = 0b11100001;
+const uint16_t ENSEMBLE_FLAG_REFERENCE   = 0b100000000;
+const uint16_t ENSEMBLE_FLAG_COUNTRY_ID  = 0b010000000;
+const uint16_t ENSEMBLE_FLAG_ECC         = 0b001000000;
+const uint16_t ENSEMBLE_FLAG_LABEL       = 0b000100000;
+const uint16_t ENSEMBLE_FLAG_SHORT_LABEL = 0b000010000;
+const uint16_t ENSEMBLE_FLAG_NB_SERVICES = 0b000001000;
+const uint16_t ENSEMBLE_FLAG_RCOUNT      = 0b000000100;
+const uint16_t ENSEMBLE_FLAG_LTO         = 0b000000010;
+const uint16_t ENSEMBLE_FLAG_INTER_TABLE = 0b000000001;
+const uint16_t ENSEMBLE_FLAG_REQUIRED    = 0b111000001;
 
 UpdateResult EnsembleUpdater::SetReference(const ensemble_id_t reference) {
     return UpdateField(GetData().reference, reference, ENSEMBLE_FLAG_REFERENCE);
@@ -46,6 +47,10 @@ UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t
 
 UpdateResult EnsembleUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, ENSEMBLE_FLAG_LABEL);
+}
+
+UpdateResult EnsembleUpdater::SetShortLabel(std::string_view short_label) {
+    return UpdateField(GetData().short_label, short_label, ENSEMBLE_FLAG_SHORT_LABEL);
 }
 
 UpdateResult EnsembleUpdater::SetNumberServices(const uint8_t nb_services) {
@@ -75,6 +80,7 @@ const uint8_t SERVICE_FLAG_LABEL        = 0b00100000;
 const uint8_t SERVICE_FLAG_PROGRAM_TYPE = 0b00010000;
 const uint8_t SERVICE_FLAG_LANGUAGE     = 0b00001000;
 const uint8_t SERVICE_FLAG_CLOSED_CAP   = 0b00000100;
+const uint8_t SERVICE_FLAG_SHORT_LABEL  = 0b00000010;
 const uint8_t SERVICE_FLAG_REQUIRED     = 0b10000000;
 
 UpdateResult ServiceUpdater::SetCountryID(const country_id_t country_id) {
@@ -90,6 +96,10 @@ UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t 
 
 UpdateResult ServiceUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, SERVICE_FLAG_LABEL);
+}
+
+UpdateResult ServiceUpdater::SetShortLabel(std::string_view short_label) {
+    return UpdateField(GetData().short_label, short_label, SERVICE_FLAG_SHORT_LABEL);
 }
 
 UpdateResult ServiceUpdater::SetProgrammeType(const programme_id_t programme_type) {
@@ -115,12 +125,17 @@ const uint8_t SERVICE_COMPONENT_FLAG_AUDIO_TYPE     = 0b00100000;
 const uint8_t SERVICE_COMPONENT_FLAG_DATA_TYPE      = 0b00010000;
 const uint8_t SERVICE_COMPONENT_FLAG_SUBCHANNEL     = 0b00001000;
 const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID      = 0b00000100;
+const uint8_t SERVICE_COMPONENT_FLAG_SHORT_LABEL    = 0b00000010;
 // two different set of fields required between audio and data
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
 const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01001000;
 
 UpdateResult ServiceComponentUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, SERVICE_COMPONENT_FLAG_LABEL);
+}
+
+UpdateResult ServiceComponentUpdater::SetShortLabel(std::string_view short_label) {
+    return UpdateField(GetData().short_label, short_label, SERVICE_COMPONENT_FLAG_SHORT_LABEL);
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {

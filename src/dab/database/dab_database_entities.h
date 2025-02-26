@@ -55,6 +55,7 @@ struct Ensemble {
     country_id_t country_id = 0;                        // required
     extended_country_id_t extended_country_code = 0;    // required
     std::string label;
+    std::string short_label;
     uint8_t nb_services = 0;                            // optional: fig 0/7 provides this
     uint16_t reconfiguration_count = 0;                 // optional: fig 0/7 provides this
     int8_t local_time_offset = 0;                       // Value of this shall be +- 155 (LTO is +-15.5 hours)
@@ -67,6 +68,7 @@ struct Service {
     country_id_t country_id = 0;                        // required 
     extended_country_id_t extended_country_code = 0;  
     std::string label;
+    std::string short_label;
     programme_id_t programme_type = 0;    
     language_id_t language = 0;          
     closed_caption_id_t closed_caption = 0;       
@@ -83,6 +85,7 @@ struct ServiceComponent {
     service_component_global_id_t global_id = 0;          
     subchannel_id_t subchannel_id = 0;                                  // required 
     std::string label;
+    std::string short_label;
     TransportMode transport_mode = TransportMode::UNDEFINED;            // required
     AudioServiceType audio_service_type = AudioServiceType::UNDEFINED;  // required for transport stream audio
     DataServiceType data_service_type = DataServiceType::UNDEFINED;     // (optional) for transport stream/packet data - we expect this to be provided but real world data doesn't

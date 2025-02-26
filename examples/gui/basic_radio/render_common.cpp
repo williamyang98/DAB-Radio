@@ -120,6 +120,7 @@ void RenderEnsemble(BasicRadio& radio) {
             auto& ensemble = db.ensemble;
             const float LTO = float(ensemble.local_time_offset) / 10.0f;
             FIELD_MACRO("Name", "%.*s", int(ensemble.label.length()), ensemble.label.c_str());
+            FIELD_MACRO("Short Name", "%.*s", int(ensemble.short_label.length()), ensemble.short_label.c_str());
             FIELD_MACRO("ID", "%u (0x%03X)", ensemble.reference, ensemble.reference);
             FIELD_MACRO("Country Code", "%s (0x%02X.%01X)", 
                 GetCountryString(ensemble.extended_country_code, ensemble.country_id),

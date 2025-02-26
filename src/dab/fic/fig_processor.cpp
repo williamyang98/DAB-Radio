@@ -4,6 +4,7 @@
 // All the logic in this file is completely based on the descriptions in these clauses
 
 #include "./fig_processor.h"
+#include <array>
 #include <stddef.h>
 #include <stdint.h>
 #include <fmt/format.h>
@@ -55,6 +56,22 @@ struct EnsembleIdentifier {
         ensemble_reference = (data & 0x0FFF) >> 0;
     }
 };
+
+// DOC: ETSI EN 300 401
+// Clause 5.2.2.2 Labels: FIG type 1 data field
+// Create abbreviated string from bit flags called the "character flag field"
+static size_t create_abbreviated_string(tcb::span<const uint8_t> in_buf, std::array<uint8_t,16>& out_buf, uint16_t flags) {
+    size_t j = 0;
+    const size_t total_bits = 16;
+    for (size_t i = 0; i < total_bits; i++) {
+        if (j >= in_buf.size()) break;
+        if ((flags & (uint16_t(1) << (total_bits-i-1))) != 0) {
+            out_buf[j] = in_buf[i];
+            j++;
+        }
+    }
+    return j;
+}
 
 // DOC: ETSI EN 300 401
 // Clause 5.2: Fast Information Channel (FIC) 
@@ -1651,16 +1668,21 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb:
                                buf[flag_index+1];
 
     const auto label_buf = tcb::span<const uint8_t>{ char_buf, nb_char_bytes };
+    std::array<uint8_t, 16> _short_label_buf {};
+    const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
+    const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
+
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
+    const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} label={}",
+    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} label={} short_label={}",
         header.charset,
         eid.country_id, eid.ensemble_reference,
-        flag_field, label);
+        flag_field, label, short_label);
     
     m_handler->OnEnsemble_3_Label(
         eid.country_id, eid.ensemble_reference,
-        flag_field, label);
+        label, short_label);
 }
 
 // Short form service identifier label
@@ -1687,16 +1709,21 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(const FIG_Header_Type_1 header, tcb:
                                buf[flag_index+1];
 
     const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    std::array<uint8_t, 16> _short_label_buf {};
+    const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
+    const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
+
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
+    const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/1 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+    LOG_MESSAGE("fig 1/1 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
         header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, label);
+        flag_field, label, short_label);
 
     m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, label);
+        label, short_label);
 }
 
 // Service component label (non primary)
@@ -1742,17 +1769,22 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(const FIG_Header_Type_1 header, tcb:
                                buf[flag_index+1];
 
     const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    std::array<uint8_t, 16> _short_label_buf {};
+    const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
+    const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
+
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
+    const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/5 charset={} SCIdS={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+    LOG_MESSAGE("fig 1/5 charset={} SCIdS={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
         header.charset,
         SCIdS,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, label);
+        flag_field, label, short_label);
 
     m_handler->OnServiceComponent_6_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        SCIdS, flag_field, label);
+        SCIdS, label, short_label);
 }
 
 // Long form service identifier label
@@ -1779,14 +1811,19 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(const FIG_Header_Type_1 header, tcb:
                                buf[flag_index+1];
 
     const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    std::array<uint8_t, 16> _short_label_buf {};
+    const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
+    const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
+
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
+    const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/5 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} chars={}",
+    LOG_MESSAGE("fig 1/5 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
         header.charset,
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, label);
+        flag_field, label, short_label);
     
     m_handler->OnService_2_Label(
         sid.country_id, sid.service_reference, sid.ecc,
-        flag_field, label);
+        label, short_label);
 }
