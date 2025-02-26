@@ -151,7 +151,12 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
             const auto& db = radio.GetDatabase();
             const auto& ensemble = db.ensemble;
             FIELD_MACRO("Name", "%.*s", int(service->label.length()), service->label.c_str());
-            FIELD_MACRO("ID", "%u", service->reference);
+            // handle short/long form service references
+            if ((service->reference & service_id_t(0x0FFF)) == service->reference) {
+                FIELD_MACRO("ID", "%u (0x%03X)", service->reference, service->reference);
+            } else {
+                FIELD_MACRO("ID", "%u (0x%05X)", service->reference, service->reference);
+            }
             {
                 extended_country_id_t extended_country_code = (service->extended_country_code != 0) ? service->extended_country_code : ensemble.extended_country_code;
                 extended_country_id_t country_id = (service->country_id != 0) ? service->country_id : ensemble.country_id;
@@ -236,11 +241,11 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
                 GetDataTypeString(component.data_service_type);
             
             FIELD_MACRO("Label", "%.*s", int(component.label.length()), component.label.c_str());
-            FIELD_MACRO("Component ID", "%u", component.component_id);
-            FIELD_MACRO("Global ID", "%u", component.global_id);
+            FIELD_MACRO("Component ID", "%u (0x%01X)", component.component_id, component.component_id);
+            FIELD_MACRO("Global ID", "%u (0x%03X)", component.global_id, component.global_id);
+            FIELD_MACRO("Subchannel ID", "%u (0x%02X)", component.subchannel_id, component.subchannel_id);
             FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
             FIELD_MACRO("Type", "%s", type_str);
-            // FIELD_MACRO("Subchannel ID", "%u", component.subchannel_id);
 
             ImGui::EndTable();
         }
@@ -256,8 +261,8 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
             int row_id  = 0;
             const auto prot_label = GetSubchannelProtectionLabel(*subchannel);
             const uint32_t bitrate_kbps = GetSubchannelBitrate(*subchannel);
-            FIELD_MACRO("Subchannel ID", "%u", subchannel->id);
-            FIELD_MACRO("Start Address", "%u", subchannel->start_address);
+            FIELD_MACRO("Subchannel ID", "%u (0x%02X)", subchannel->id, subchannel->id);
+            FIELD_MACRO("Start Address", "%u (0x%03X)", subchannel->start_address, subchannel->start_address);
             FIELD_MACRO("Capacity Units", "%u", subchannel->length);
             FIELD_MACRO("Protection", "%.*s", int(prot_label.length()), prot_label.c_str());
             FIELD_MACRO("Bitrate", "%u kb/s", bitrate_kbps);
@@ -576,7 +581,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableHeadersRow();
             int row_id = 0;
-            FIELD_MACRO("LSN", "%u", link_service.id);
+            FIELD_MACRO("LSN", "%u (0x%03X)", link_service.id, link_service.id);
             FIELD_MACRO("Active", "%s", link_service.is_active_link ? "Yes" : "No");
             FIELD_MACRO("Hard Link", "%s", link_service.is_hard_link ? "Yes": "No");
             FIELD_MACRO("International", "%s", link_service.is_international ? "Yes" : "No");
@@ -639,7 +644,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                         ImGui::PushID(row_id++);
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
-                        ImGui::TextWrapped("%u", drm_service->drm_code);
+                        ImGui::TextWrapped("%u (0x%X)", drm_service->drm_code, drm_service->drm_code);
                         ImGui::TableSetColumnIndex(1);
                         ImGui::TextWrapped("%s", drm_service->is_time_compensated ? "Yes" : "No");
                         ImGui::TableSetColumnIndex(2);
@@ -668,7 +673,7 @@ void RenderSimple_LinkService(BasicRadio& radio, BasicRadioViewController& contr
                         ImGui::PushID(row_id++);
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
-                        ImGui::TextWrapped("%u", amss_service.amss_code);
+                        ImGui::TextWrapped("%u (0x%X)", amss_service.amss_code, amss_service.amss_code);
                         ImGui::TableSetColumnIndex(1);
                         ImGui::TextWrapped("%s", amss_service.is_time_compensated ? "Yes" : "No");
                         ImGui::TableSetColumnIndex(2);

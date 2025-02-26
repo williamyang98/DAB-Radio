@@ -65,7 +65,7 @@ void RenderSubchannels(BasicRadio& radio) {
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextWrapped("%s", service_label);
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextWrapped("%u", subchannel.id);
+                ImGui::TextWrapped("%u (0x%02X)", subchannel.id, subchannel.id);
                 ImGui::TableSetColumnIndex(2);
                 ImGui::TextWrapped("%u", subchannel.start_address);
                 ImGui::TableSetColumnIndex(3);
@@ -120,7 +120,7 @@ void RenderEnsemble(BasicRadio& radio) {
             auto& ensemble = db.ensemble;
             const float LTO = float(ensemble.local_time_offset) / 10.0f;
             FIELD_MACRO("Name", "%.*s", int(ensemble.label.length()), ensemble.label.c_str());
-            FIELD_MACRO("ID", "%u", ensemble.reference);
+            FIELD_MACRO("ID", "%u (0x%03X)", ensemble.reference, ensemble.reference);
             FIELD_MACRO("Country Code", "%s (0x%02X.%01X)", 
                 GetCountryString(ensemble.extended_country_code, ensemble.country_id),
                 ensemble.extended_country_code, ensemble.country_id);
@@ -232,9 +232,9 @@ void RenderOtherEnsembles(BasicRadio& radio) {
 
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
-                ImGui::TextWrapped("%u", ensemble.reference);
+                ImGui::TextWrapped("%u (0x%03X)", ensemble.reference, ensemble.reference);
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextWrapped("%u", ensemble.country_id);
+                ImGui::TextWrapped("%u (0x%01X)", ensemble.country_id, ensemble.country_id);
                 ImGui::TableSetColumnIndex(2);
                 ImGui::TextWrapped("%s", ensemble.is_continuous_output ? "Yes" : "No");
                 ImGui::TableSetColumnIndex(3);
