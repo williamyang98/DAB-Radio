@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <uchar.h>
+#include <optional>
 #include "utility/span.h"
 #include <fmt/format.h>
 #include "../dab_logging.h"
@@ -64,45 +65,70 @@ static std::string convert_utf16_to_utf8(tcb::span<const uint8_t> utf16_string) 
     //      High surrogates     U+D800 - U+DB7F
     //      High private use    U+DB80 - U+DBFF
     //      Low surrogates      U+DC00 - U+DFFF
-    // https://en.wikipedia.org/wiki/Universal_Character_Set_characters#Surrogates
-    // A pair of high and low surrogates addresses U+010000-U+100000 according to the equation
-    // C = 0x10000 + (H-0xD800)*0x0400 + (L-0xDC00)
 
     size_t total_utf16_bytes = utf16_string.size();
     if (total_utf16_bytes % 2 != 0) total_utf16_bytes--; // round to 16bits
+
     // represent utf16 2byte codepoints with utf8 continuation bytes
-    size_t total_utf8_bytes = 0;
+    std::string utf8_string;
+    utf8_string.reserve(total_utf16_bytes);
+
+    std::optional<uint16_t> high_surrogate = std::nullopt;
     for (size_t i = 0; i < total_utf16_bytes; i+=2) {
         const uint16_t c = uint16_t(utf16_string[i]) << 8 | uint16_t(utf16_string[i+1]); // big endian
-        if      (c <= 0x007F) total_utf8_bytes += 1;
-        else if (c <= 0x07FF) total_utf8_bytes += 2;
-        else if (c >= 0x2FE0 && c <= 0x2FEF) continue; // ignore gap in BMP
-        else if (c >= 0xD800 && c <= 0xDFFF) continue; // TODO: handle surrogates
-        else                  total_utf8_bytes += 3;
-    }
-    std::string utf8_string(total_utf8_bytes, '\0');
-    size_t j = 0;
-    for (size_t i = 0; i < total_utf16_bytes; i+=2) {
-        const uint16_t c = uint16_t(utf16_string[i]) << 8 | uint16_t(utf16_string[i+1]); // big endian
+
+        // https://en.wikipedia.org/wiki/Universal_Character_Set_characters#Surrogates
+        // A pair of high and low surrogates addresses U+010000-U+100000 according to the equation
+        // C = 0x10000 + (H-0xD800)*0x0400 + (L-0xDC00)
+        if (high_surrogate != std::nullopt) {
+            if (c >= 0xDC00 && c <= 0xDFFF) {
+                const uint32_t H = uint32_t(high_surrogate.value());
+                const uint32_t L = uint32_t(c);
+                const uint32_t C = 0x10000 + (H-0xD800)*0x0400 + (L-0xDC00);
+                // 1111_0xxx, 10xx_xxxx, 10xx_xxxx, 10xx_xxxx
+                utf8_string.push_back(0b1111'0000 | uint8_t((C & 0b0001'1100'0000'0000'0000'0000) >> 18));
+                utf8_string.push_back(0b1000'0000 | uint8_t((C & 0b0000'0011'1111'0000'0000'0000) >> 12));
+                utf8_string.push_back(0b1000'0000 | uint8_t((C & 0b0000'0000'0000'1111'1100'0000) >> 6));
+                utf8_string.push_back(0b1000'0000 | uint8_t((C & 0b0000'0000'0000'0000'0011'1111) >> 0));
+                high_surrogate = std::nullopt;
+                continue;
+            } else if (c >= 0xD800 && c <= 0xDBFF) {
+                LOG_ERROR(
+                    "high surrogate received twice in a row, first={:02x}, second={:02x}",
+                    high_surrogate.value(), c
+                );
+                // override original first high surrogate assuming the previous one was a fluke
+                high_surrogate = c;
+                continue;
+            } else {
+                LOG_ERROR(
+                    "surrogate pair missing low surrogate, high_surrogate={:02x}, bad_low_surrogate={:02x}",
+                    high_surrogate.value(), c
+                );
+                // isolated surrogates should be ignored and codepoint processed as normal
+                high_surrogate = std::nullopt;
+                // @fallthrough
+            }
+        }
+
         if (c <= 0x007F) {
             // 0xxx_xxxx
-            utf8_string[j] = uint8_t(c & 0x007F);
-            j += 1;
+            utf8_string.push_back(uint8_t(c & 0x007F));
         } else if (c <= 0x07FF) {
             // 110x_xxxx, 10xx_xxxx
-            utf8_string[j]   = 0b1100'0000 | uint8_t((c & 0b0000'0111'1100'0000) >> 6);
-            utf8_string[j+1] = 0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0);
-            j += 2;
+            utf8_string.push_back(0b1100'0000 | uint8_t((c & 0b0000'0111'1100'0000) >> 6));
+            utf8_string.push_back(0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0));
         } else if (c >= 0x2FE0 && c <= 0x2FEF) {
             // ignore gap in BMP
-        } else if (c >= 0xD800 && c <= 0xDFFF) {
-            // TODO: handle surrogates
+        } else if (c >= 0xD800 && c <= 0xDBFF) {
+            high_surrogate = c;
+        } else if (c >= 0xDC00 && c <= 0xDFFF) {
+            LOG_ERROR("got low surrogate first instead of high surrogate {:02x}", c);
         } else {
             // 1110_xxxx, 10xx_xxxx, 10xx_xxxx
-            utf8_string[j]   = 0b1110'0000 | uint8_t((c & 0b1111'0000'0000'0000) >> 12);
-            utf8_string[j+1] = 0b1000'0000 | uint8_t((c & 0b0000'1111'1100'0000) >> 6);
-            utf8_string[j+2] = 0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0);
-            j += 3;
+            utf8_string.push_back(0b1110'0000 | uint8_t((c & 0b1111'0000'0000'0000) >> 12));
+            utf8_string.push_back(0b1000'0000 | uint8_t((c & 0b0000'1111'1100'0000) >> 6));
+            utf8_string.push_back(0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0));
         }
     }
     return utf8_string;
