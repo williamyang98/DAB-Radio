@@ -54,14 +54,30 @@ static std::string convert_ebu_latin_to_utf8(tcb::span<const uint8_t> ebu_latin_
 // DAB UTF-16 is limited to the basic multilingual plane (BMP) which is 16bits for each codepoint
 // It is also stored as big endian
 static std::string convert_utf16_to_utf8(tcb::span<const uint8_t> utf16_string) {
+    // https://en.wikipedia.org/wiki/Plane_(Unicode)#Basic_Multilingual_Plane
+    // UTF16 requires the entire basic multilingual plane (BMP)
+    //      Full range:         U+0000 - U+FFFF
+    // There is an unallocated range located at
+    //                          U+2FE0 - U+2FEF
+    // The surrogate range isn't actually rendered, they are there to represent language planes above the BMP
+    // Surrogate range is:
+    //      High surrogates     U+D800 - U+DB7F
+    //      High private use    U+DB80 - U+DBFF
+    //      Low surrogates      U+DC00 - U+DFFF
+    // https://en.wikipedia.org/wiki/Universal_Character_Set_characters#Surrogates
+    // A pair of high and low surrogates addresses U+010000-U+100000 according to the equation
+    // C = 0x10000 + (H-0xD800)*0x0400 + (L-0xDC00)
+
     size_t total_utf16_bytes = utf16_string.size();
     if (total_utf16_bytes % 2 != 0) total_utf16_bytes--; // round to 16bits
-    // represent utf16 2byte codepoints with utf8 continuation byte
+    // represent utf16 2byte codepoints with utf8 continuation bytes
     size_t total_utf8_bytes = 0;
     for (size_t i = 0; i < total_utf16_bytes; i+=2) {
         const uint16_t c = uint16_t(utf16_string[i]) << 8 | uint16_t(utf16_string[i+1]); // big endian
         if      (c <= 0x007F) total_utf8_bytes += 1;
         else if (c <= 0x07FF) total_utf8_bytes += 2;
+        else if (c >= 0x2FE0 && c <= 0x2FEF) continue; // ignore gap in BMP
+        else if (c >= 0xD800 && c <= 0xDFFF) continue; // TODO: handle surrogates
         else                  total_utf8_bytes += 3;
     }
     std::string utf8_string(total_utf8_bytes, '\0');
@@ -77,6 +93,10 @@ static std::string convert_utf16_to_utf8(tcb::span<const uint8_t> utf16_string) 
             utf8_string[j]   = 0b1100'0000 | uint8_t((c & 0b0000'0111'1100'0000) >> 6);
             utf8_string[j+1] = 0b1000'0000 | uint8_t((c & 0b0000'0000'0011'1111) >> 0);
             j += 2;
+        } else if (c >= 0x2FE0 && c <= 0x2FEF) {
+            // ignore gap in BMP
+        } else if (c >= 0xD800 && c <= 0xDFFF) {
+            // TODO: handle surrogates
         } else {
             // 1110_xxxx, 10xx_xxxx, 10xx_xxxx
             utf8_string[j]   = 0b1110'0000 | uint8_t((c & 0b1111'0000'0000'0000) >> 12);

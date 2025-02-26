@@ -141,17 +141,64 @@ void imgui_setup_config_flags() {
 
 void imgui_setup_fonts(const CommonGui& gui) {
     auto& io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF(gui.filepath_regular_font_ttf.data(), gui.regular_font_size);
-    ImFontConfig icons_config;
-    icons_config.MergeMode = true;
-    icons_config.PixelSnapH = true;
-    // NOTE: glphy_range requires 0,0 to be appended at the end since imgui uses
-    //       this to check the end of buffer
-    static const ImWchar glyph_range[4] = { ICON_MIN_FA, ICON_MAX_FA, 0, 0 };
-    io.Fonts->AddFontFromFileTTF(
-        gui.filepath_font_awesome_icon_ttf.data(), gui.font_awesome_icon_size, 
-        &icons_config, glyph_range
-    );
+
+    // load DAB glyphs
+    {
+        // DOC: ETSI EN 101 756
+        // Table 1: Charset values
+        // EBU Latin requires:
+        //      Basic latin         U+0000 - U+007F
+        //      Latin-1 supplement  U+0080 - U+00FF
+        //      Latin Extended-A    U+0100 - U+017F
+        //      Latin Extended-B    U+0180 - U+024F
+        //      Currency symbols    U+20A0 - U+20CF
+        //
+        // https://en.wikipedia.org/wiki/Plane_(Unicode)#Basic_Multilingual_Plane
+        // UTF16 requires the entire basic multilingual plane (BMP)
+        //      Full range:         U+0000 - U+FFFF
+        // There is an unallocated range located at
+        //                          U+2FE0 - U+2FEF
+        // The surrogate range isn't actually rendered, they are there to represent language planes above the BMP
+        // Surrogate range is:
+        //      High surrogates     U+D800 - U+DB7F
+        //      High private use    U+DB80 - U+DBFF
+        //      Low surrogates      U+DC00 - U+DFFF
+        // https://en.wikipedia.org/wiki/Universal_Character_Set_characters#Surrogates
+        // A pair of high and low surrogates addresses U+010000-U+100000 according to the equation
+        // C = 0x10000 + (H-0xD800)*0x0400 + (L-0xDC00)
+        //
+        // NOTE: Imgui uses 0x0000 as a sentinel value to terminate the range list
+        //       Refer to imgui internal private function ImFontAtlasBuildWithStbTruetype
+        // TODO: Determine if it's possible for imgui to render codepoints above U+FFFF
+        //       ImWchar is only 16bits meaning the maximum range is U+FFFF
+        //       Perhaps this means that the other language planes are unnecessary???
+        static const ImWchar glyph_range[] = {
+            0x0001, 0x2FDF,
+            // 0x2FE0, 0x2FEF, // ignore the gap in BMP
+            0x2FF0, 0xD7FF,
+            // 0xD800, 0xDFFF, // ignore surrogates
+            0xE000, 0xFFFF,
+            0, 0,
+        };
+        io.Fonts->AddFontFromFileTTF(
+            gui.filepath_regular_font_ttf.data(), gui.regular_font_size, 
+            nullptr, glyph_range
+        );
+    }
+
+    // load icons
+    {
+        ImFontConfig icons_config;
+        icons_config.MergeMode = true;
+        icons_config.PixelSnapH = true;
+        static const ImWchar glyph_range[] = { ICON_MIN_FA, ICON_MAX_FA, 0, 0 };
+        io.Fonts->AddFontFromFileTTF(
+            gui.filepath_font_awesome_icon_ttf.data(), gui.font_awesome_icon_size, 
+            &icons_config, glyph_range
+        );
+    }
+
+    io.Fonts->Build();
 }
 
 void imgui_setup_styling(const CommonGui& gui) {
