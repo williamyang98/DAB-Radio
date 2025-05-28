@@ -120,11 +120,12 @@ void AudioPipeline::set_sink(std::unique_ptr<AudioPipelineSink>&& sink) {
     m_sink = std::move(sink);
     if (m_sink == nullptr) return;
     m_sink->set_callback([this](tcb::span<Frame<float>> dest, float dest_sampling_rate) {
-        mix_sources_to_sink(dest, dest_sampling_rate); 
+        const size_t total_sources_mixed = mix_sources_to_sink(dest, dest_sampling_rate); 
+        return (total_sources_mixed > 0) ? dest.size() : 0;
     });
 }
 
-void AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate) {
+size_t AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate) {
     const size_t N_dest = dest.size();
     for (auto& v: dest) {
         for (size_t i = 0; i < Frame<float>::TOTAL_AUDIO_CHANNELS; i++) {
@@ -155,10 +156,13 @@ void AudioPipeline::mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest
         total_sources_mixed++;
     }
 
-    const float gain = m_global_gain / std::log10(float(total_sources_mixed * 10.0f));
-    for (auto& v: dest) {
-        v = v * gain;
+    if (total_sources_mixed > 0) {
+        const float gain = m_global_gain / std::log10(float(total_sources_mixed * 10.0f));
+        for (auto& v: dest) {
+            v = v * gain;
+        }
     }
 
     audio_clamp_inplace(dest, -1.0f, 1.0f);
+    return total_sources_mixed;
 }

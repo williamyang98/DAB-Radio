@@ -21,7 +21,7 @@ constexpr size_t DEFAULT_AUDIO_SOURCE_SAMPLES = size_t(DEFAULT_AUDIO_SAMPLE_RATE
 class AudioPipelineSink
 {
 public:
-    using Callback = std::function<void(tcb::span<Frame<float>>, float)>;
+    using Callback = std::function<size_t(tcb::span<Frame<float>>, float)>;
     virtual ~AudioPipelineSink() {}
     virtual void set_callback(Callback callback) = 0;
     virtual std::string_view get_name() const = 0;
@@ -68,5 +68,5 @@ public:
     }
     float& get_global_gain() { return m_global_gain; }
 private:
-    void mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate);
+    size_t mix_sources_to_sink(tcb::span<Frame<float>> dest, float dest_sampling_rate);
 };
