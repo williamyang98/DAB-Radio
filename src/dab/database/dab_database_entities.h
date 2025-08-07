@@ -82,8 +82,9 @@ struct ServiceComponent {
     service_id_t service_reference;   
     service_component_id_t component_id;         
     // Method 2: SCId global identifier used for packet mode
-    service_component_global_id_t global_id = 0;          
+    service_component_global_id_t global_id = 0xFFFF;                   // required for transport packet data
     subchannel_id_t subchannel_id = 0;                                  // required 
+    packet_addr_t packet_address = 0;                                   // required for transport packet data
     std::string label;
     std::string short_label;
     TransportMode transport_mode = TransportMode::UNDEFINED;            // required

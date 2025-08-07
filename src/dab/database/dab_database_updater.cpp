@@ -119,16 +119,18 @@ bool ServiceUpdater::IsComplete() {
 }
 
 // Service component form
-const uint8_t SERVICE_COMPONENT_FLAG_LABEL          = 0b10000000;
-const uint8_t SERVICE_COMPONENT_FLAG_TRANSPORT_MODE = 0b01000000;
-const uint8_t SERVICE_COMPONENT_FLAG_AUDIO_TYPE     = 0b00100000;
-const uint8_t SERVICE_COMPONENT_FLAG_DATA_TYPE      = 0b00010000;
-const uint8_t SERVICE_COMPONENT_FLAG_SUBCHANNEL     = 0b00001000;
-const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID      = 0b00000100;
-const uint8_t SERVICE_COMPONENT_FLAG_SHORT_LABEL    = 0b00000010;
-// two different set of fields required between audio and data
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO = 0b01101000;
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_DATA  = 0b01001000;
+const uint8_t SERVICE_COMPONENT_FLAG_LABEL                 = 0b10000000;
+const uint8_t SERVICE_COMPONENT_FLAG_TRANSPORT_MODE        = 0b01000000;
+const uint8_t SERVICE_COMPONENT_FLAG_AUDIO_TYPE            = 0b00100000;
+const uint8_t SERVICE_COMPONENT_FLAG_DATA_TYPE             = 0b00010000;
+const uint8_t SERVICE_COMPONENT_FLAG_SUBCHANNEL            = 0b00001000;
+const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID             = 0b00000100;
+const uint8_t SERVICE_COMPONENT_FLAG_SHORT_LABEL           = 0b00000010;
+const uint8_t SERVICE_COMPONENT_FLAG_PACKET_ADDRESS        = 0b00000001;
+// A different set of required fields applies to stream audio, stream data, and packet data components.
+const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO = 0b01101000;
+const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA  = 0b01011000;
+const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_PACKET_DATA  = 0b01011001;
 
 UpdateResult ServiceComponentUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, SERVICE_COMPONENT_FLAG_LABEL);
@@ -139,20 +141,10 @@ UpdateResult ServiceComponentUpdater::SetShortLabel(std::string_view short_label
 }
 
 UpdateResult ServiceComponentUpdater::SetTransportMode(const TransportMode transport_mode) {
-    if ((m_dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) && (transport_mode == TransportMode::STREAM_MODE_AUDIO)) {
-        OnConflict();
-        return UpdateResult::CONFLICT;
-    }
-
     return UpdateField(GetData().transport_mode, transport_mode, SERVICE_COMPONENT_FLAG_TRANSPORT_MODE);
 }
 
 UpdateResult ServiceComponentUpdater::SetAudioServiceType(const AudioServiceType audio_service_type) {
-    const auto res = SetTransportMode(TransportMode::STREAM_MODE_AUDIO);
-    if (res == UpdateResult::CONFLICT) {
-        OnConflict();
-        return UpdateResult::CONFLICT;
-    }
     if (m_dirty_field & SERVICE_COMPONENT_FLAG_DATA_TYPE) {
         OnConflict();
         return UpdateResult::CONFLICT;
@@ -172,9 +164,12 @@ UpdateResult ServiceComponentUpdater::SetSubchannel(const subchannel_id_t subcha
     return UpdateField(GetData().subchannel_id, subchannel_id, SERVICE_COMPONENT_FLAG_SUBCHANNEL);
 }
 
+UpdateResult ServiceComponentUpdater::SetPacketAddr(const packet_addr_t packet_addr) {
+    return UpdateField(GetData().packet_address, packet_addr, SERVICE_COMPONENT_FLAG_PACKET_ADDRESS);
+}
+
 UpdateResult ServiceComponentUpdater::SetGlobalID(const service_component_global_id_t global_id) {
-    // In some transmitters they keep changing this for some reason?
-    return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID, true);
+    return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID);
 }
 
 uint32_t ServiceComponentUpdater::GetServiceReference() {
@@ -182,9 +177,11 @@ uint32_t ServiceComponentUpdater::GetServiceReference() {
 }
 
 bool ServiceComponentUpdater::IsComplete() {
-    const bool audio_complete = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_AUDIO;
-    const bool data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_DATA;
-    const bool is_complete = (GetData().transport_mode == TransportMode::STREAM_MODE_AUDIO) ? audio_complete : data_complete;
+    const bool stream_audio_complete = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO;
+    const bool stream_data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA;
+    const bool packet_data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_PACKET_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_PACKET_DATA;
+    const bool is_complete = (GetData().transport_mode == TransportMode::STREAM_MODE_AUDIO) ? stream_audio_complete : 
+                            ((GetData().transport_mode == TransportMode::STREAM_MODE_DATA) ? stream_data_complete : packet_data_complete);
     GetData().is_complete = is_complete;
     return is_complete;
 }
@@ -491,6 +488,17 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subcha
         m_db->service_components, m_service_component_updaters,
         [subchannel_id](const auto& e) {
             return e.subchannel_id == subchannel_id;
+        }
+    );
+}
+
+ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subchannel(
+    const service_id_t service_ref, const subchannel_id_t subchannel_id) 
+{
+    return find_updater(
+        m_db->service_components, m_service_component_updaters,
+        [service_ref, subchannel_id](const auto& e) {
+            return (e.service_reference == service_ref) && (e.subchannel_id == subchannel_id);
         }
     );
 }

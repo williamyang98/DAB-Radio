@@ -17,8 +17,8 @@
 #define LOG_MESSAGE(...) BASIC_RADIO_LOG_MESSAGE(fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) BASIC_RADIO_LOG_ERROR(fmt::format(__VA_ARGS__))
 
-Basic_Data_Packet_Channel::Basic_Data_Packet_Channel(const DAB_Parameters& params, Subchannel subchannel, DataServiceType type)
-: m_params(params), m_subchannel(subchannel), m_type(type)
+Basic_Data_Packet_Channel::Basic_Data_Packet_Channel(const DAB_Parameters& params, Subchannel subchannel, packet_addr_t packet_addr, DataServiceType type)
+: m_params(params), m_subchannel(subchannel), m_packet_addr(packet_addr), m_type(type)
 {
     assert(subchannel.is_complete);
     assert(subchannel.fec_scheme != FEC_Scheme::UNDEFINED);
@@ -81,7 +81,7 @@ void Basic_Data_Packet_Channel::ProcessFECPackets(tcb::span<const uint8_t> buf) 
 
 void Basic_Data_Packet_Channel::ProcessNonFECPackets(tcb::span<const uint8_t> buf) {
     while (!buf.empty()) {
-        const size_t total_read = m_msc_data_packet_processor->ReadPacket(buf);
+        const size_t total_read = m_msc_data_packet_processor->ReadPacket(buf, m_packet_addr);
         assert(total_read <= buf.size());
         buf = buf.subspan(total_read);
     }

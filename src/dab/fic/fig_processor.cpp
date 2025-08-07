@@ -408,20 +408,20 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
             // MSC stream audio
             case 0b00:
                 {
-                    const uint8_t ASTCy         = (b0 & 0b00111111) >> 0;
+                    const uint8_t ASCTy         = (b0 & 0b00111111) >> 0;
                     const uint8_t subchannel_id = (b1 & 0b11111100) >> 2;
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} ASTCy={} subchannel_id={:>2} ps={} ca={}",
+                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} ASCTy={} subchannel_id={:>2} ps={} ca={}",
                         header.pd,
                         sid.country_id, sid.service_reference, sid.ecc,
                         curr_service, i, nb_service_components,
                         tmid, 
-                        ASTCy, subchannel_id, is_primary, ca_flag);
+                        ASCTy, subchannel_id, is_primary, ca_flag);
                     
                     m_handler->OnServiceComponent_1_StreamAudioType(
                         sid.country_id, sid.service_reference, sid.ecc,
-                        subchannel_id, ASTCy, is_primary);
+                        subchannel_id, ASCTy, is_primary);
                 }
                 break;
             // MSC stream data

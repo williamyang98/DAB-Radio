@@ -159,6 +159,7 @@ public:
     UpdateResult SetAudioServiceType(const AudioServiceType audio_service_type);
     UpdateResult SetDataServiceType(const DataServiceType data_service_type);
     UpdateResult SetSubchannel(const subchannel_id_t subchannel_id);
+    UpdateResult SetPacketAddr(const packet_addr_t packet_addr);
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
     uint32_t GetServiceReference();
     auto& GetData() { return m_db.service_components[m_index]; }
@@ -296,6 +297,7 @@ public:
     OtherEnsembleUpdater& GetOtherEnsemble(const ensemble_id_t ensemble_reference);
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
+    ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const service_id_t service_ref, const subchannel_id_t subchannel_id);
     const auto& GetDatabase() const { return *(m_db.get()); }
     const auto& GetStatistics() const { return *(m_stats.get()); }
 private:

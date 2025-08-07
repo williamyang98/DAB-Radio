@@ -119,6 +119,7 @@ void BasicRadio::UpdateAfterProcessing() {
         const auto mode = service_component->transport_mode;
         const auto audio_type = service_component->audio_service_type;
         const auto data_type = service_component->data_service_type;
+        const auto packet_addr = service_component->packet_address;
 
         if (audio_type == AudioServiceType::DAB_PLUS && mode == TransportMode::STREAM_MODE_AUDIO) {
             LOG_MESSAGE("Added DAB+ subchannel {}", subchannel.id);
@@ -143,7 +144,7 @@ void BasicRadio::UpdateAfterProcessing() {
         // Data packet channels require the FEC scheme to be defined for outer encoding
         if (mode == TransportMode::PACKET_MODE_DATA && (subchannel.fec_scheme != FEC_Scheme::UNDEFINED)) {
             LOG_MESSAGE("Added data packet subchannel {}", subchannel.id);
-            auto channel = std::make_shared<Basic_Data_Packet_Channel>(m_params, subchannel, data_type);
+            auto channel = std::make_shared<Basic_Data_Packet_Channel>(m_params, subchannel, packet_addr, data_type);
             m_msc_runners.insert({ subchannel.id, channel });
             m_data_packet_channels.insert({ subchannel.id, channel });
             m_obs_data_packet_channel.Notify(subchannel.id, *channel);

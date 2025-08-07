@@ -49,7 +49,7 @@ MSC_Data_Packet_Processor::MSC_Data_Packet_Processor() {
 
 MSC_Data_Packet_Processor::~MSC_Data_Packet_Processor() = default;
 
-size_t MSC_Data_Packet_Processor::ReadPacket(tcb::span<const uint8_t> buf) {
+size_t MSC_Data_Packet_Processor::ReadPacket(tcb::span<const uint8_t> buf, uint16_t packet_addr) {
     constexpr size_t PACKET_HEADER_SIZE = 3;
     if (buf.size() < PACKET_HEADER_SIZE) {
         LOG_ERROR("Packet is too small to fit minimum non FEC header ({} < {})", buf.size(), PACKET_HEADER_SIZE);
@@ -70,6 +70,12 @@ size_t MSC_Data_Packet_Processor::ReadPacket(tcb::span<const uint8_t> buf) {
         LOG_ERROR("Packet length smaller than minimum specified in headers ({} < {})", buf.size(), packet_length);
         return buf.size();
     }
+
+    if( address != packet_addr) {
+        LOG_ERROR("Packet address mismatch: expected {}, got {}", packet_addr, address);
+        return packet_length;
+    }
+
     auto packet = buf.first(packet_length);
 
     constexpr size_t PACKET_CRC_SIZE = 2;
@@ -103,18 +109,17 @@ size_t MSC_Data_Packet_Processor::ReadPacket(tcb::span<const uint8_t> buf) {
         break;
     case PacketLocation::FIRST:
         ResetAssembler(); 
-        m_last_address = std::optional(address);
         PushPiece(data_field);
         break;
     case PacketLocation::INTERMEDIATE:
-        if (m_last_address != std::optional(address) || !is_continuity_assured) {
+        if (!is_continuity_assured) {
             ResetAssembler();
         } else {
             PushPiece(data_field);
         }
         break;
     case PacketLocation::LAST:
-        if (m_last_address != std::optional(address) || !is_continuity_assured) {
+        if (!is_continuity_assured) {
             ResetAssembler();
         } else {
             PushPiece(data_field);
@@ -139,7 +144,6 @@ void MSC_Data_Packet_Processor::PushPiece(tcb::span<const uint8_t> piece) {
 }
 
 void MSC_Data_Packet_Processor::ResetAssembler() {
-    m_last_address = std::nullopt;
     m_total_packets = 0;
     m_assembly_buffer.resize(0);
 }

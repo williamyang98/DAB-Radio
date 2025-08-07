@@ -119,7 +119,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
                     is_decode_data  ? ICON_FA_DOWNLOAD  : ""
                 );
 
-                const float offset = ImGui::GetWindowWidth() - ImGui::CalcTextSize(status_str.c_str()).x;
+                const float offset = ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(status_str.c_str()).x;
                 ImGui::SameLine(offset);
                 ImGui::Text("%.*s", int(status_str.length()), status_str.c_str());
             }
@@ -244,7 +244,8 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
             FIELD_MACRO("Label", "%.*s", int(component.label.length()), component.label.c_str());
             FIELD_MACRO("Short Label", "%.*s", int(component.short_label.length()), component.short_label.c_str());
             FIELD_MACRO("Component ID", "%u (0x%01X)", component.component_id, component.component_id);
-            FIELD_MACRO("Global ID", "%u (0x%03X)", component.global_id, component.global_id);
+            if(component.global_id != 0xFFFF)
+                FIELD_MACRO("Global ID", "%u (0x%03X)", component.global_id, component.global_id);
             FIELD_MACRO("Subchannel ID", "%u (0x%02X)", component.subchannel_id, component.subchannel_id);
             FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
             FIELD_MACRO("Type", "%s", type_str);
