@@ -16,6 +16,7 @@ typedef uint8_t  extended_country_id_t;     // 8bits
 typedef uint8_t  language_id_t;             // 8bits
 typedef uint8_t  programme_id_t;            // 5bits
 typedef uint8_t  closed_caption_id_t;       // 8bits
+typedef uint16_t packet_addr_t;             // 10bits
 
 typedef uint16_t subchannel_addr_t;         // 10bits
 typedef uint16_t subchannel_size_t;         // 10bits (in capacity units)

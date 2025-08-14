@@ -91,7 +91,7 @@ void Radio_FIG_Handler::OnServiceComponent_1_StreamAudioType(
     if (is_primary) {
         sc_u = &m_updater->GetServiceComponentUpdater_Service(service_reference, 0);
     } else {
-        sc_u = m_updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
+        sc_u = m_updater->GetServiceComponentUpdater_Subchannel(service_reference, subchannel_id);
     } 
     if (!sc_u) {
         return;
@@ -129,7 +129,7 @@ void Radio_FIG_Handler::OnServiceComponent_1_StreamDataType(
     if (is_primary) {
         sc_u = &m_updater->GetServiceComponentUpdater_Service(service_reference, 0);
     } else {
-        sc_u = m_updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
+        sc_u = m_updater->GetServiceComponentUpdater_Subchannel(service_reference, subchannel_id);
     }
     if (!sc_u) {
         return;
@@ -188,19 +188,34 @@ void Radio_FIG_Handler::OnServiceComponent_2_PacketDataType(
     const uint16_t packet_address)
 {
     if (!m_updater) return;
-    ServiceComponentUpdater* u = nullptr;
-    u = m_updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
-    if (!u) {
-        u = m_updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
-    }
-    if (!u) {
+    ServiceComponentUpdater* sc_u = nullptr;
+    sc_u = m_updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
+    if (!sc_u) {
         return;
     }
 
-    u->SetSubchannel(subchannel_id);
-    u->SetTransportMode(TransportMode::PACKET_MODE_DATA);
-    u->SetGlobalID(service_component_global_id);
-    // TODO: packet address
+    sc_u->SetSubchannel(subchannel_id);
+    sc_u->SetTransportMode(TransportMode::PACKET_MODE_DATA);
+    sc_u->SetGlobalID(service_component_global_id);
+    sc_u->SetPacketAddr(packet_address);
+
+    switch (data_service_type) {
+    case 5:
+        sc_u->SetDataServiceType(DataServiceType::TRANSPARENT_CHANNEL);
+        break;
+    case 24:
+        sc_u->SetDataServiceType(DataServiceType::MPEG2);
+        break;
+    case 60:
+        sc_u->SetDataServiceType(DataServiceType::MOT);
+        break;
+    case 63:
+        sc_u->SetDataServiceType(DataServiceType::PROPRIETARY);
+        break;
+    default:
+        LOG_ERROR("Unsupported data service type {}", data_service_type);
+        break;
+    }
 }
 
 // fig 0/4 - service component stream mode with conditional access
@@ -345,7 +360,7 @@ void Radio_FIG_Handler::OnServiceComponent_4_Long_Definition(
     s_u.SetExtendedCountryCode(extended_country_code);
 
     auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_ref, service_component_id);
-    sc_u.SetGlobalID(service_component_id);
+    sc_u.SetGlobalID(service_component_global_id);
 }
 
 // fig 0/9 - Ensemble country, LTO (local time offset), international table
@@ -602,6 +617,11 @@ void Radio_FIG_Handler::OnService_2_Label(
     s_u.SetExtendedCountryCode(extended_country_code);
     s_u.SetLabel(label);
     s_u.SetShortLabel(short_label);
+
+    // according fig 1/4, the primary service component label is the same as the service label
+    auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_reference, 0);
+    sc_u.SetLabel(label);
+    sc_u.SetShortLabel(short_label);
 }
 
 // fig 1/4 - Non-primary service component label

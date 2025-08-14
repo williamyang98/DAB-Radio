@@ -20,6 +20,7 @@ class Basic_Data_Packet_Channel: public Basic_MSC_Runner
 private:
     const DAB_Parameters m_params;
     const Subchannel m_subchannel;
+    const packet_addr_t m_packet_addr;
     const DataServiceType m_type;
     std::unique_ptr<MSC_Decoder> m_msc_decoder;
     std::unique_ptr<MSC_Data_Packet_Processor> m_msc_data_packet_processor;
@@ -27,7 +28,7 @@ private:
     std::unique_ptr<Basic_Slideshow_Manager> m_slideshow_manager;
     Observable<MOT_Entity> m_obs_MOT_entity;
 public:
-    explicit Basic_Data_Packet_Channel(const DAB_Parameters& params, Subchannel subchannel, DataServiceType type);
+    explicit Basic_Data_Packet_Channel(const DAB_Parameters& params, Subchannel subchannel, packet_addr_t packet_addr, DataServiceType type);
     ~Basic_Data_Packet_Channel() override;
     void Process(tcb::span<const viterbi_bit_t> msc_bits_buf) override;
     auto& GetSlideshowManager() { return *m_slideshow_manager; }
