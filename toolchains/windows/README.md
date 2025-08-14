@@ -25,3 +25,15 @@ Compile with a different level of SIMD support by changing the preset when confi
 - ```"features": ["avx"]```
 - ```"features": ["sse2"]``` 
 - ```"features": ["sse"]```
+
+## Updating vcpkg
+Update vcpkg if URLs or mirrors become outdated (not sure if there is a better way of automating this)
+- [Getting started guide for vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started?pivots=shell-powershell#1---set-up-vcpkg)
+
+Go into your vcpkg install:
+1. Pull latest commit: ```git pull```
+2. Bootstrap install: ```./bootstrap-vcpkg.sh```
+
+Bump the vcpkg baseline commitish in:
+- ```vcpkg.json```
+- ```.github/workflows/x86-windows.yml``` for CI builds
