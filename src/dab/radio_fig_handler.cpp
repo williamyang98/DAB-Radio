@@ -560,7 +560,9 @@ void Radio_FIG_Handler::OnOtherEnsemble_1_Service(
 {
     if (!m_updater) return;
 
-    auto& s_u = m_updater->GetServiceUpdater(service_id); 
+    // NOTE: avoid tracking services from other ensembles since they aren't really that useful
+    //       this means missing labels and no data/audio subchannels
+    // auto& s_u = m_updater->GetServiceUpdater(service_id); 
     auto& e_u = m_updater->GetOtherEnsemble(ensemble_id);
 }
 
