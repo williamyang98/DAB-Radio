@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <memory>
 #include <optional>
-#include "dab/database/dab_database_types.h"
+#include "dab/database/dab_database_entities.h"
 #include "dab/mot/MOT_entities.h"
 #include "utility/lru_cache.h"
 #include "utility/span.h"
@@ -25,7 +25,7 @@ private:
     LRU_Cache<uint32_t, std::unique_ptr<Texture>> textures;
 public:
     std::optional<SlideshowView> selected_slideshow = std::nullopt;
-    service_id_t selected_service = 0;
+    std::optional<ServiceId> selected_service = std::nullopt;
     std::unique_ptr<ImGuiTextFilter> services_filter;
 public:
     explicit BasicRadioViewController(const size_t _max_textures=100);

@@ -49,11 +49,28 @@ enum class FEC_Scheme: uint8_t {        // Value passed in 4bit field
 // The required fields constraint is also followed in the dab_database_updater.cpp
 // when we are regenerating the database from the FIC (fast information channel)
 
+// DOC: ETSI EN 300 401
+// Clause: 6.4.1 Ensemble information
+struct EnsembleId {
+    uint16_t value = 0;
+    uint16_t get_unique_identifier() const {
+        return value;
+    }
+    country_id_t get_country_code() const {
+        return (value & 0xF000) >> 12;
+    }
+    ensemble_reference_t get_reference() const {
+        return value & 0x0FFF;
+    }
+    bool operator==(const EnsembleId& other) const {
+        return value == other.value;
+    }
+};
+
 // Data fields
 struct Ensemble {
-    ensemble_id_t reference = 0;                        // required
-    country_id_t country_id = 0;                        // required
-    extended_country_id_t extended_country_code = 0;    // required
+    EnsembleId id;                                      // required
+    extended_country_id_t extended_country_code = 0;
     std::string label;
     std::string short_label;
     uint8_t nb_services = 0;                            // optional: fig 0/7 provides this
@@ -63,23 +80,74 @@ struct Ensemble {
     bool is_complete = false;
 };
 
+// DOC: ETSI EN 300 401
+// Clause: 6.3.1 Basic service and service component definition
+enum class ServiceIdType: uint8_t {
+    BITS16 = 0b00,
+    BITS32 = 0b01,
+    // NOTE: wierd special case where extended country code is provided separately but unique identifier is still 16bits
+    // Clause: 8.1.15 Service linking information (fig 0/6)
+    // Clause: 8.1.3.2 Country, LTO and International table (fig 0/9)
+    BITS24 = 0b10,
+    INVALID = 0xFF,
+};
+
+struct ServiceId {
+    uint32_t value = 0;
+    ServiceIdType type = ServiceIdType::INVALID;
+    // Clause 6.3.1: The unique identifier is either 16bits or 32bits
+    uint32_t get_unique_identifier() const {
+        switch (type) {
+            case ServiceIdType::BITS16: return value & 0xF'FFF;
+            case ServiceIdType::BITS24: return value & 0x00'F'FFF; // exclude the extended country code
+            case ServiceIdType::BITS32: return value & 0xFF'F'FFFFF;
+            default: return 0;
+        }
+    }
+    extended_country_id_t get_extended_country_code() const {
+        switch (type) {
+            case ServiceIdType::BITS16: return 0x00;
+            case ServiceIdType::BITS24: return (value & 0xFF'0'000) >> 16;
+            case ServiceIdType::BITS32: return (value & 0xFF'0'00000) >> 24;
+            default: return 0;
+        }
+    }
+    country_id_t get_country_code() const {
+        switch (type) {
+            case ServiceIdType::BITS16: return (value & 0xF'000) >> 12;
+            case ServiceIdType::BITS24: return (value & 0x00'F'000) >> 12;
+            case ServiceIdType::BITS32: return (value & 0x00'F'00000) >> 20;
+            default: return 0;
+        }
+    }
+    service_reference_t get_reference() const {
+        switch (type) {
+            case ServiceIdType::BITS16: return value & 0x0'FFF;
+            case ServiceIdType::BITS24: return value & 0x00'0'FFF;
+            case ServiceIdType::BITS32: return value & 0x00'0'FFFFF;
+            default: return 0;
+        }
+    }
+    bool operator==(const ServiceId& other) const {
+        return (value == other.value) && (type == other.type);
+    }
+};
+
 struct Service {
-    service_id_t reference = 0;                    
-    country_id_t country_id = 0;                        // required 
-    extended_country_id_t extended_country_code = 0;  
+    ServiceId id; // required
     std::string label;
     std::string short_label;
     programme_id_t programme_type = 0;    
     language_id_t language = 0;          
     closed_caption_id_t closed_caption = 0;       
     bool is_complete = false;
-    explicit Service(const service_id_t _ref) : reference(_ref) {}
+    explicit Service(const ServiceId _id) : id(_id) {}
 };
 
 struct ServiceComponent {
     // NOTE: Two methods to identify a service component
     // Method 1: service_id/SCIdS used together for stream mode
-    service_id_t service_reference;   
+    ServiceId service_id;
     service_component_id_t component_id;         
     // Method 2: SCId global identifier used for packet mode
     service_component_global_id_t global_id = 0xFFFF;                   // required for transport packet data
@@ -92,9 +160,9 @@ struct ServiceComponent {
     DataServiceType data_service_type = DataServiceType::UNDEFINED;     // (optional) for transport stream/packet data - we expect this to be provided but real world data doesn't
     bool is_complete = false;
     explicit ServiceComponent(
-        const service_id_t _service_ref, 
+        const ServiceId _service_id, 
         const service_component_id_t _component_id
-    ): service_reference(_service_ref), component_id(_component_id) {}
+    ): service_id(_service_id), component_id(_component_id) {}
 };
 
 struct Subchannel {
@@ -117,7 +185,7 @@ struct LinkService {
     bool is_active_link = false;                        
     bool is_hard_link =  false;
     bool is_international = false;
-    service_id_t service_reference = 0;                 // required
+    ServiceId service_id;                       // required
     bool is_complete = false;
     explicit LinkService(const lsn_t _id): id(_id) {}
 };
@@ -150,12 +218,11 @@ struct AMSS_Service {
 
 // other ensemble information
 struct OtherEnsemble {
-    ensemble_id_t reference;      
-    country_id_t country_id = 0;           
+    EnsembleId id;      
     bool is_continuous_output = false;
     bool is_geographically_adjacent = false;
     bool is_transmission_mode_I = false;
     freq_t frequency = 0;                               // required
     bool is_complete = false;
-    explicit OtherEnsemble(const ensemble_id_t _ref): reference(_ref) {}
+    explicit OtherEnsemble(const EnsembleId _id): id(_id) {}
 };

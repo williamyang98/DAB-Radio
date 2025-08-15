@@ -9,6 +9,7 @@
 #include "dab/dab_misc_info.h"
 #include "dab/database/dab_database.h"
 #include "dab/database/dab_database_entities.h"
+#include "dab/database/dab_database_types.h"
 #include "dab/database/dab_database_updater.h"
 #include "./formatters.h"
 #include "./render_common.h"
@@ -50,7 +51,7 @@ void RenderSubchannels(BasicRadio& radio) {
                     service = find_by_callback(
                         db.services,
                         [&service_component](const auto& e) {
-                            return e.reference == service_component->service_reference;
+                            return e.id.get_unique_identifier() == service_component->service_id.get_unique_identifier();
                         }
                     );
                 }
@@ -65,7 +66,7 @@ void RenderSubchannels(BasicRadio& radio) {
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextWrapped("%s", service_label);
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextWrapped("%u (0x%02X)", subchannel.id, subchannel.id);
+                ImGui::TextWrapped("0x%02X", subchannel.id);
                 ImGui::TableSetColumnIndex(2);
                 ImGui::TextWrapped("%u", subchannel.start_address);
                 ImGui::TableSetColumnIndex(3);
@@ -121,10 +122,10 @@ void RenderEnsemble(BasicRadio& radio) {
             const float LTO = float(ensemble.local_time_offset) / 10.0f;
             FIELD_MACRO("Name", "%.*s", int(ensemble.label.length()), ensemble.label.c_str());
             FIELD_MACRO("Short Name", "%.*s", int(ensemble.short_label.length()), ensemble.short_label.c_str());
-            FIELD_MACRO("ID", "%u (0x%03X)", ensemble.reference, ensemble.reference);
-            FIELD_MACRO("Country Code", "%s (0x%02X.%01X)", 
-                GetCountryString(ensemble.extended_country_code, ensemble.country_id),
-                ensemble.extended_country_code, ensemble.country_id);
+            FIELD_MACRO("ID", "0x%04X", ensemble.id.get_unique_identifier());
+            FIELD_MACRO("Country", "%s (0x%02X.%01X)", 
+                GetCountryString(ensemble.extended_country_code, ensemble.id.get_country_code()),
+                ensemble.extended_country_code, ensemble.id.get_country_code());
             FIELD_MACRO("Local Time Offset", "%.1f hours", LTO);
             FIELD_MACRO("Inter Table ID", "%u", ensemble.international_table_id);
             FIELD_MACRO("Total Services", "%u", ensemble.nb_services);
@@ -213,12 +214,14 @@ void RenderOtherEnsembles(BasicRadio& radio) {
     auto& db = radio.GetDatabase();
     auto label = fmt::format("Other Ensembles ({})###Other Ensembles", db.other_ensembles.size());
 
+    const auto ensemble = db.ensemble;
+
     if (ImGui::Begin(label.c_str())) {
         ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Components table", 6, flags)) 
         {
-            ImGui::TableSetupColumn("Reference",                ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Country ID",               ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("ID",                       ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Country",                  ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Continuous Output",        ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Geographically Adjacent",  ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Mode I",                   ImGuiTableColumnFlags_WidthStretch);
@@ -226,22 +229,32 @@ void RenderOtherEnsembles(BasicRadio& radio) {
             ImGui::TableHeadersRow();
 
             int row_id  = 0;
-            for (const auto& ensemble: db.other_ensembles) {
+            for (const auto& other_ensemble: db.other_ensembles) {
                 ImGui::PushID(row_id++);
 
-                const float frequency =  static_cast<float>(ensemble.frequency) * 1e-6f;
+                const float frequency =  static_cast<float>(other_ensemble.frequency) * 1e-6f;
 
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
-                ImGui::TextWrapped("%u (0x%03X)", ensemble.reference, ensemble.reference);
+                ImGui::TextWrapped("0x%04X", other_ensemble.id.get_unique_identifier());
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextWrapped("%u (0x%01X)", ensemble.country_id, ensemble.country_id);
+
+                // assume that the other ensemble is in the same region as the current ensemble
+                const extended_country_id_t extended_country_code = ensemble.extended_country_code;
+                country_id_t country_code = other_ensemble.id.get_country_code();
+                if (country_code == 0) {
+                    country_code = ensemble.id.get_country_code();
+                }
+                ImGui::TextWrapped("%s (0x%02X.%01X)",
+                    GetCountryString(extended_country_code, country_code),
+                    extended_country_code, country_code
+                );
                 ImGui::TableSetColumnIndex(2);
-                ImGui::TextWrapped("%s", ensemble.is_continuous_output ? "Yes" : "No");
+                ImGui::TextWrapped("%s", other_ensemble.is_continuous_output ? "Yes" : "No");
                 ImGui::TableSetColumnIndex(3);
-                ImGui::TextWrapped("%s", ensemble.is_geographically_adjacent ? "Yes" : "No");
+                ImGui::TextWrapped("%s", other_ensemble.is_geographically_adjacent ? "Yes" : "No");
                 ImGui::TableSetColumnIndex(4);
-                ImGui::TextWrapped("%s", ensemble.is_transmission_mode_I ? "Yes" : "No");
+                ImGui::TextWrapped("%s", other_ensemble.is_transmission_mode_I ? "Yes" : "No");
                 ImGui::TableSetColumnIndex(5);
                 ImGui::TextWrapped("%3.3f MHz", frequency);
 

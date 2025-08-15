@@ -57,10 +57,10 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             auto& db = radio.GetDatabase();
             auto* component = find_service_component(db, id);
             if (component == nullptr) return;
-            const auto service_id = component->service_reference;
+            const auto service_id = component->service_id;
             const auto component_id = component->component_id;
             const auto root_folder = fmt::format("{:s}", root_directory);
-            const auto child_folder = fmt::format("service_{}_component_{}", service_id, component_id);
+            const auto child_folder = fmt::format("service_{:X}_component_{:X}", service_id.get_unique_identifier(), component_id);
             auto base_path = fs::path(root_folder) / fs::path(child_folder);
             auto abs_path = fs::absolute(base_path);
 
@@ -75,10 +75,10 @@ void BasicScraper::attach_to_radio(std::shared_ptr<BasicScraper> scraper, BasicR
             auto& db = radio.GetDatabase();
             auto* component = find_service_component(db, id);
             if (component == nullptr) return;
-            const auto service_id = component->service_reference;
+            const auto service_id = component->service_id;
             const auto component_id = component->component_id;
             const auto root_folder = fmt::format("{:s}", root_directory);
-            const auto child_folder = fmt::format("service_{}_component_{}", service_id, component_id);
+            const auto child_folder = fmt::format("service_{:X}_component_{:X}", service_id.get_unique_identifier(), component_id);
             auto base_path = fs::path(root_folder) / fs::path(child_folder);
             auto abs_path = fs::absolute(base_path);
 

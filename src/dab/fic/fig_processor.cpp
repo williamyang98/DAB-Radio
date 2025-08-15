@@ -12,50 +12,64 @@
 #include "./fig_handler_interface.h"
 #include "../constants/charsets.h"
 #include "../dab_logging.h"
+#include "../database/dab_database_entities.h"
 #define TAG "fig-processor"
 static auto _logger = DAB_LOG_REGISTER(TAG);
 #define LOG_MESSAGE(...) DAB_LOG_MESSAGE(TAG, fmt::format(__VA_ARGS__))
 #define LOG_ERROR(...) DAB_LOG_ERROR(TAG, fmt::format(__VA_ARGS__))
 
-struct ServiceIdentifier {
-    uint8_t country_id = 0;
-    uint32_t service_reference = 0;
-    uint8_t ecc = 0;
-    // 2 byte form
-    void ProcessShortForm(tcb::span<const uint8_t> b) {
-        country_id        =       (b[0] & 0b11110000) >> 4;
-        service_reference =
-            (static_cast<uint16_t>(b[0] & 0b00001111) << 8) |
-                                 ((b[1] & 0b11111111) >> 0);
-        ecc = 0;
+ServiceId get_service_id(tcb::span<const uint8_t> b) {
+    ServiceId id;
+    const auto total_bytes = b.size();
+    if (total_bytes == 4) {
+        id.type = ServiceIdType::BITS32;
+        id.value = 0;
+        id.value |= uint32_t(b[0] & 0xFF) << 24; // extended country code
+        id.value |= uint32_t(b[1] & 0xF0) << (20-4); // country code
+        id.value |= uint32_t(b[1] & 0x0F) << 16 | // reference
+                    uint32_t(b[2] & 0xFF) << 8 |
+                    uint32_t(b[3] & 0xFF) << 0;
+    } else if (total_bytes == 2) {
+        id.type = ServiceIdType::BITS16;
+        id.value = 0;
+        id.value |= uint32_t(b[0] & 0xF0) << (12-4); // country code
+        id.value |= uint32_t(b[0] & 0x0F) << 8 | // reference
+                    uint32_t(b[1] & 0xFF) << 0;
+    } else {
+        LOG_ERROR("Got a malformed service id buffer with length: {0}", total_bytes);
+        return id;
     }
-    // 4 byte form
-    void ProcessLongForm(tcb::span<const uint8_t> b) {
-        ecc =                     (b[0] & 0b11111111) >> 0;
-        country_id =              (b[1] & 0b11110000) >> 4;
-        service_reference =
-            (static_cast<uint32_t>(b[1] & 0b00001111) << 16) |
-            (static_cast<uint32_t>(b[2] & 0b11111111) << 8 ) |
-            (static_cast<uint32_t>(b[3] & 0b11111111) << 0 );
-    }
-};
+    return id;
+}
 
-struct EnsembleIdentifier {
-    uint8_t country_id = 0;
-    uint16_t ensemble_reference = 0;
-
-    void ProcessBuffer(tcb::span<const uint8_t> buf) {
-        country_id =              (buf[0] & 0b11110000) >> 4;
-        ensemble_reference = 
-            (static_cast<uint16_t>(buf[0] & 0b00001111) << 8) |
-                                 ((buf[1] & 0b11111111) >> 0);
+ServiceId get_service_id_with_ecc_separately(tcb::span<const uint8_t> b, uint8_t extended_country_code) {
+    ServiceId id;
+    if (b.size() != 2) {
+        LOG_ERROR("Expected a 16bit service id buffer but got {} bits", b.size()*8);
+        return id;
     }
+    id.value = 0;
+    id.type = ServiceIdType::BITS24;
+    id.value |= uint32_t(extended_country_code) << 16;
+    id.value |= uint32_t(b[0] & 0xF0) << (12-4); // country code
+    id.value |= uint32_t(b[0] & 0x0F) << 8 | // reference
+                uint32_t(b[1] & 0xFF) << 0;
+    return id;
+}
 
-    void ProcessU16(const uint16_t data) {
-        country_id =         (data & 0xF000) >> 12;
-        ensemble_reference = (data & 0x0FFF) >> 0;
+EnsembleId get_ensemble_id(tcb::span<const uint8_t> b) {
+    EnsembleId id;
+    const auto total_bytes = b.size();
+    if (total_bytes != 2) {
+        LOG_ERROR("Got a malformed ensemble id buffer with length: {0}", total_bytes);
+        return id;
     }
-};
+    id.value = 0;
+    id.value |= uint16_t(b[0] & 0xF0) << (12-4); // country code
+    id.value |= uint16_t(b[0] & 0x0F) << 8 | // reference
+                uint16_t(b[1] & 0xFF) << 0;
+    return id;
+}
 
 // DOC: ETSI EN 300 401
 // Clause 5.2.2.2 Labels: FIG type 1 data field
@@ -258,9 +272,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     }
 
     const int nb_eid_bytes = 2;
-    EnsembleIdentifier eid;
-    eid.ProcessBuffer({buf.data(), (size_t)nb_eid_bytes});
-    
+    const auto eid = get_ensemble_id(buf.first(nb_eid_bytes));
     const uint8_t change_flags = (buf[2] & 0b11000000) >> 6;
     const uint8_t alarm_flag =   (buf[2] & 0b00100000) >> 5;
 
@@ -275,13 +287,13 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_0(
     // const uint8_t occurance_change = 
     //                              (buf[4] & 0b11111111) >> 0;
 
-    LOG_MESSAGE("fig 0/0 country_id={} ensemble_ref={} change={} alarm={} cif={}|{}",
-        eid.country_id, eid.ensemble_reference,
+    LOG_MESSAGE("fig 0/0 ensemble_id={:X} change={} alarm={} cif={}|{}",
+        eid.value,
         change_flags, alarm_flag,
         cif_upper, cif_lower);
     
     m_handler->OnEnsemble_1_ID(
-        eid.country_id, eid.ensemble_reference,
+        eid,
         change_flags, alarm_flag, 
         cif_upper, cif_lower);
 }
@@ -361,7 +373,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
     int curr_service = 0;
     while (curr_index < N) {
         // Get the service data
-        auto* service_buf = &buf[curr_index];
+        const auto service_buf = buf.subspan(curr_index);
         const int nb_remain_bytes = N-curr_index;
 
         if (nb_header_bytes > nb_remain_bytes) {
@@ -369,12 +381,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
             return;
         }
 
-        ServiceIdentifier sid;
-        if (!header.pd) {
-            sid.ProcessShortForm({service_buf, (size_t)nb_service_id_bytes});
-        } else {
-            sid.ProcessLongForm({service_buf, (size_t)nb_service_id_bytes});
-        }
+        const auto sid = get_service_id(service_buf.first(nb_service_id_bytes));
 
         const uint8_t descriptor = service_buf[nb_service_id_bytes];
         // const uint8_t rfa                   = (descriptor & 0b10000000) >> 7;
@@ -412,15 +419,15 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
                     const uint8_t subchannel_id = (b1 & 0b11111100) >> 2;
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} ASCTy={} subchannel_id={:>2} ps={} ca={}",
+                    LOG_MESSAGE("fig 0/2 pd={} service_id={:X} i={}-{}/{} tmid={} ASCTy={} subchannel_id={:>2} ps={} ca={}",
                         header.pd,
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid.value,
                         curr_service, i, nb_service_components,
                         tmid, 
                         ASCTy, subchannel_id, is_primary, ca_flag);
                     
                     m_handler->OnServiceComponent_1_StreamAudioType(
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid,
                         subchannel_id, ASCTy, is_primary);
                 }
                 break;
@@ -431,15 +438,15 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
                     const uint8_t subchannel_id = (b1 & 0b11111100) >> 2;
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} DSTCy={} subchannel_id={:>2} ps={} ca={}",
+                    LOG_MESSAGE("fig 0/2 pd={} service_id={:X} i={}-{}/{} tmid={} DSTCy={} subchannel_id={:>2} ps={} ca={}",
                         header.pd,
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid.value,
                         curr_service, i, nb_service_components,
                         tmid, 
                         DSCTy, subchannel_id, is_primary, ca_flag);
                     
                     m_handler->OnServiceComponent_1_StreamDataType(
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid,
                         subchannel_id, DSCTy, is_primary);
                 }
                 break;
@@ -452,15 +459,15 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_2(const FIG_Header_Type_0 header, tcb:
                                                 ((b1 & 0b11111100) >> 2);
                     const uint8_t is_primary    = (b1 & 0b00000010) >> 1;
                     const uint8_t ca_flag       = (b1 & 0b00000001) >> 0;
-                    LOG_MESSAGE("fig 0/2 pd={} country_id={:>2} service_ref={:>4} ecc={} i={}-{}/{} tmid={} SCId={} ps={} ca={}",
+                    LOG_MESSAGE("fig 0/2 pd={} service_id={:X} i={}-{}/{} tmid={} SCId={} ps={} ca={}",
                         header.pd,
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid.value,
                         curr_service, i, nb_service_components,
                         tmid, 
                         SCId, is_primary, ca_flag);
 
                     m_handler->OnServiceComponent_1_PacketDataType(
-                        sid.country_id, sid.service_reference, sid.ecc,
+                        sid,
                         SCId, is_primary);
                 }
                 break;
@@ -632,7 +639,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb:
             return;
         }
 
-        auto* b = &buf[curr_byte];
+        const auto b = buf.subspan(curr_byte);
 
         const uint8_t id_list_flag =     (b[0] & 0b10000000) >> 7;
         const uint8_t is_active_link =   (b[0] & 0b01000000) >> 6;
@@ -679,7 +686,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb:
         }
 
         // 3 possible arrangements for id list
-        auto* list_buf = &b[3];
+        const auto list_buf = b.subspan(3);
 
         // Arrangement 1: List of 16bit IDs
         if (!header.pd && !is_international) {
@@ -692,25 +699,24 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb:
             }
 
             for (int i = 0; i < nb_ids; i++)  {
-                auto* entry_buf = &list_buf[i*nb_id_bytes];
+                const auto entry_buf = list_buf.subspan(i*nb_id_bytes);
 
                 // Interpret id according to value of IdLQ (id list qualifier) 
                 switch (IdLQ) {
                 case 0b00: // DAB service id - 16bit
                     {
-                        ServiceIdentifier sid;
-                        sid.ProcessShortForm({entry_buf, (size_t)2});
-                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} country_id={} service_ref={} ecc={}",
+                        const auto sid = get_service_id(entry_buf.first(2));
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=1 i={}/{} serivce_id={:X}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
                             i, nb_ids,
-                            sid.country_id, sid.service_reference, sid.ecc);
+                            sid.value);
 
                         m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
-                            sid.country_id, sid.service_reference, sid.ecc);
+                            sid);
                     }
                     break;
                 case 0b01: // RDS-PI code 
@@ -769,27 +775,24 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb:
             }
 
             for (int i = 0; i < nb_ids; i++)  {
-                auto* entry_buf = &list_buf[i*nb_entry_bytes];
+                const auto entry_buf = list_buf.subspan(i*nb_entry_bytes);
                 const uint8_t ecc = entry_buf[0];
 
                 // Interpret id according to value of IdLQ (id list qualifier) 
                 switch (IdLQ) {
                 case 0b00: // DAB service id - 16bit with ecc provided separately
                     {
-                        ServiceIdentifier sid;
-                        sid.ProcessShortForm({&entry_buf[1], (size_t)2});
-                        sid.ecc = ecc;
-                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} country_id={} service_ref={} ecc={}",
+                        const auto sid = get_service_id_with_ecc_separately(entry_buf.first(2), ecc);
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=2 i={}/{} service_id={:X}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
                             i, nb_ids,
-                            sid.country_id, sid.service_reference, sid.ecc);
-                        
+                            sid.value);
                         m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number,
-                            sid.country_id, sid.service_reference, sid.ecc);
+                            sid);
                     }
                     break;
                 case 0b01: // RDS-PI code with ecc
@@ -848,25 +851,24 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_6(const FIG_Header_Type_0 header, tcb:
                 return;
             }
             for (int i = 0; i < nb_ids; i++)  {
-                auto* entry_buf = &list_buf[i*nb_entry_bytes];
+                const auto entry_buf = list_buf.subspan(i*nb_entry_bytes);
 
                 // Interpret id according to value of IdLQ (id list qualifier) 
                 switch (IdLQ) {
                 case 0b00: // DAB service id - 32bit 
                     {
-                        ServiceIdentifier sid;
-                        sid.ProcessLongForm({entry_buf, (size_t)4});
-                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} country_id={} service_ref={} ecc={}",
+                        const auto sid = get_service_id(entry_buf.first(4));
+                        LOG_MESSAGE("fig 0/6 pd={} ld={} LA={} S/H={} ILS={} LSN={} rfu0={} IdLQ={} Rfa0={} type=3 i={}/{} service_id={:X}",
                             header.pd,
                             id_list_flag, is_active_link, is_hard_link, is_international, linkage_set_number,
                             rfu0, IdLQ, Rfa0, 
                             i, nb_ids,
-                            sid.country_id, sid.service_reference, sid.ecc);
+                            sid.value);
                         
                         m_handler->OnServiceLinkage_1_ServiceID(
                             is_active_link, is_hard_link, is_international,
                             linkage_set_number, 
-                            sid.country_id, sid.service_reference, sid.ecc);
+                            sid);
                     }
                     break;
                 case 0b01: // RDS-PI code 
@@ -957,7 +959,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(const FIG_Header_Type_0 header, tcb:
     int curr_service = 0;
     while (curr_index < N) {
         // Get the service data
-        auto* service_buf = &buf[curr_index];
+        const auto service_buf = buf.subspan(curr_index);
         const int nb_remain_bytes = N-curr_index;
 
         if ((nb_header_bytes+1) > nb_remain_bytes) {
@@ -966,12 +968,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(const FIG_Header_Type_0 header, tcb:
             return;
         }
 
-        ServiceIdentifier sid;
-        if (!header.pd) {
-            sid.ProcessShortForm({service_buf, (size_t)nb_service_id_bytes});
-        } else {
-            sid.ProcessLongForm({service_buf, (size_t)nb_service_id_bytes});
-        }
+        const auto sid = get_service_id(service_buf.first(nb_service_id_bytes));
 
         const uint8_t descriptor = service_buf[nb_service_id_bytes];
         const uint8_t ext_flag = (descriptor & 0b10000000) >> 7;
@@ -1000,28 +997,28 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_8(const FIG_Header_Type_0 header, tcb:
         if (!ls_flag) {
             const uint8_t rfu0          = (data_buf[0] & 0b01000000) >> 6;
             const uint8_t subchannel_id = (data_buf[0] & 0b00111111) >> 0;
-            LOG_MESSAGE("fig 0/8 pd={} country_id={:>2} service_ref={:>4} ecc={} ext={} rfa0={} SCIdS={} is_long={} rfu0={} subchannel_id={:>2} rfa2={}",
+            LOG_MESSAGE("fig 0/8 pd={} service_id={:X} ext={} rfa0={} SCIdS={} is_long={} rfu0={} subchannel_id={:>2} rfa2={}",
                 header.pd, 
-                sid.country_id, sid.service_reference, sid.ecc, 
+                sid.value,
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfu0, subchannel_id, rfa2);
             
             m_handler->OnServiceComponent_4_Short_Definition(
-                sid.country_id, sid.service_reference, sid.ecc,
+                sid,
                 SCIdS, subchannel_id);
         } else {
             const uint8_t rfa1 =          (data_buf[0] & 0b01110000) >> 4;
             const uint16_t SCId = 
                     (static_cast<uint16_t>(data_buf[0] & 0b00001111) << 8) |
                                          ((data_buf[1] & 0b11111111) >> 0);
-            LOG_MESSAGE("fig 0/8 pd={} country_id={:>2} service_ref={:>4} ecc={} ext={} rfa0={} SCIdS={} is_long={} rfa1={} SCId={:>2} rfa2={}",
+            LOG_MESSAGE("fig 0/8 pd={} service_id={:X} ext={} rfa0={} SCIdS={} is_long={} rfa1={} SCId={:>2} rfa2={}",
                 header.pd, 
-                sid.country_id, sid.service_reference, sid.ecc, 
+                sid.value,
                 ext_flag, rfa0, SCIdS,
                 ls_flag, rfa1, SCId, rfa2);
             
             m_handler->OnServiceComponent_4_Long_Definition(
-                sid.country_id, sid.service_reference, sid.ecc,
+                sid,
                 SCIdS, SCId);
         }
 
@@ -1086,7 +1083,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(const FIG_Header_Type_0 header, tcb:
     const int nb_subfield_header_bytes = 2;
     const int nb_service_id_bytes = 2;
 
-    auto* extended_buf = &buf[nb_header_bytes];
+    const auto extended_buf = buf.subspan(nb_header_bytes);
     int curr_byte = 0;
     int curr_subfield = 0;
 
@@ -1098,7 +1095,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(const FIG_Header_Type_0 header, tcb:
             return;
         }
 
-        auto* subfield_buf = &extended_buf[curr_byte];
+        const auto subfield_buf = extended_buf.subspan(curr_byte);
         const uint8_t nb_services = (subfield_buf[0] & 0b11000000) >> 6;
         const uint8_t Rfa2 =        (subfield_buf[0] & 0b00111111) >> 0;
         const uint8_t service_ecc = (subfield_buf[1] & 0b11111111) >> 0;
@@ -1112,21 +1109,19 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_9(const FIG_Header_Type_0 header, tcb:
             return;
         }
 
-        auto* service_ids_buf = &subfield_buf[nb_subfield_header_bytes];
+        const auto service_ids_buf = subfield_buf.subspan(nb_subfield_header_bytes);
         for (int i = 0; i < nb_services; i++) {
-            auto* b = &service_ids_buf[i*nb_service_id_bytes];
-            ServiceIdentifier sid;
-            sid.ProcessShortForm({b, (size_t)2});
-            sid.ecc = service_ecc;
-            LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={} inter_table_id={} Rfa2={} ECC={} i={}-{}/{} service_country_id={} service_ref={} service_ecc={}",
+            const auto b = service_ids_buf.subspan(i*nb_service_id_bytes);
+            const auto sid = get_service_id_with_ecc_separately(b.first(2), service_ecc);
+            LOG_MESSAGE("fig 0/9 ext={} Rfa1={} ensemble_lto={} ensemble_ecc={} inter_table_id={} Rfa2={} ECC={} i={}-{}/{} service_id={:X}",
                 ext_flag, Rfa1, ensemble_lto, ensemble_ecc, inter_table_id,
                 Rfa2, service_ecc, 
                 curr_subfield, i, nb_services,
-                sid.country_id, sid.service_reference, sid.ecc);
+                sid.value);
             
             m_handler->OnEnsemble_2_Service_Country(
                 ensemble_lto, ensemble_ecc, inter_table_id,
-                sid.country_id, sid.service_reference, sid.ecc);
+                sid);
         }
 
         curr_subfield++;
@@ -1204,27 +1199,20 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(const FIG_Header_Type_0 header, tcb
             return;
         }
 
-        auto* entity_buf = &buf[curr_byte];
-
-        ServiceIdentifier sid;
-        if (!header.pd) {
-            sid.ProcessShortForm({entity_buf, (size_t)nb_service_id_bytes});
-        } else {
-            sid.ProcessLongForm({entity_buf, (size_t)nb_service_id_bytes});
-        }
-
+        const auto entity_buf = buf.subspan(curr_byte);
+        const auto sid = get_service_id(entity_buf.first(nb_service_id_bytes));
         const uint8_t descriptor = entity_buf[nb_service_id_bytes];
         const uint8_t SCIdS        = (descriptor & 0b11110000) >> 4;
         const uint8_t nb_user_apps = (descriptor & 0b00001111) >> 0;
 
-        auto* apps_buf = &entity_buf[nb_header_bytes];
+        const auto apps_buf = entity_buf.subspan(nb_header_bytes);
         int curr_apps_buf_index = 0;
         const int nb_app_header_bytes = 2;
 
         // Go through all user apps in user app information block
         for (int i = 0; i < nb_user_apps; i++) {
             const int nb_app_remain_bytes = nb_remain_bytes-curr_apps_buf_index;
-            auto* app_buf = &apps_buf[curr_apps_buf_index];
+            const auto app_buf = apps_buf.subspan(curr_apps_buf_index);
 
             if (nb_app_header_bytes > nb_app_remain_bytes) {
                 LOG_ERROR("fig 0/13 Length not long enough for app header data ({}/{})",
@@ -1246,16 +1234,16 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_13(const FIG_Header_Type_0 header, tcb
                 return;
             }
 
-            LOG_MESSAGE("fig 0/13 pd={} country_id={:>2} service_ref={:>4} ecc={} SCIdS={} i={}-{}/{} app_type={} L={}",
+            LOG_MESSAGE("fig 0/13 pd={} service_id={:X} SCIdS={} i={}-{}/{} app_type={} L={}",
                 header.pd,
-                sid.country_id, sid.service_reference, sid.ecc,
+                sid.value,
                 SCIdS, 
                 curr_block, i, nb_user_apps, 
                 user_app_type, nb_app_data_bytes);
 
             auto* app_data_buf = (nb_app_data_bytes > 0) ? &app_buf[nb_app_header_bytes] : nullptr;
             m_handler->OnServiceComponent_5_UserApplication(
-                sid.country_id, sid.service_reference, sid.ecc,
+                sid,
                 SCIdS, 
                 user_app_type, app_data_buf, nb_app_data_bytes);
 
@@ -1303,7 +1291,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
     int curr_byte = 0;
     int curr_programme = 0;
     while (curr_byte < N) {
-        auto* b = &buf[curr_byte];
+        const auto b = buf.subspan(curr_byte);
         const int nb_remain_bytes = N-curr_byte;
         if (nb_remain_bytes < nb_min_bytes) {
             LOG_ERROR("fig 0/17 Remaining buffer doesn't have minimum bytes ({}/{})",
@@ -1311,8 +1299,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
             return;
         }
 
-        ServiceIdentifier sid;
-        sid.ProcessShortForm({b, (size_t)2});
+        const auto sid = get_service_id(b.first(2));
 
         // NOTE: Fields according to ETSI EN 300 401
         // const uint8_t SD =    (b[2] & 0b10000000) >> 7;
@@ -1361,16 +1348,16 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         //     SD, Rfa1, Rfu1, Rfa2, Rfu2, 
         //     international_code);
 
-        LOG_MESSAGE("fig 0/17 pd={} country_id={} service_ref={:>4} ecc={} i={} SD={} L_flag={} cc_flag={} inter_code={:>2} language={} CC={}",
+        LOG_MESSAGE("fig 0/17 pd={} service_id={:X} i={} SD={} L_flag={} cc_flag={} inter_code={:>2} language={} CC={}",
             header.pd,
-            sid.country_id, sid.service_reference, sid.ecc,
+            sid.value,
             curr_programme,
             SD, language_flag, cc_flag, 
             international_code,
             language_type, cc_type);
         
         m_handler->OnService_1_ProgrammeType(
-            sid.country_id, sid.service_reference, sid.ecc, 
+            sid,
             international_code, language_type, cc_type,
             language_flag, cc_flag);
 
@@ -1437,8 +1424,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(const FIG_Header_Type_0 header, tcb
             case 0b0000:
                 {
                     // ID: Clause 6.4
-                    EnsembleIdentifier eid;
-                    eid.ProcessU16(id);
+                    const uint8_t eid_buf[2] = { uint8_t(id & 0x00FF), uint8_t((id & 0xFF00) >> 8) };
+                    const auto eid = get_ensemble_id(eid_buf);
 
                     const bool is_continuous_output = continuity_flag;
 
@@ -1464,15 +1451,15 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_21(const FIG_Header_Type_0 header, tcb
                         const bool is_geographically_adjacent = !(control_field & 0b1);
                         const bool is_transmission_mode_I = (control_field & 0b10);
 
-                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} is_continuous={} country_id={} ensemble_ref={} is_adjacent={} is_mode_I={} freq={}",
+                        LOG_MESSAGE("fig 0/21 i={}-{}-{}/{} Rfa0={} RM={} is_continuous={} ensemble_id={:X} is_adjacent={} is_mode_I={} freq={}",
                             curr_block, curr_fi_list, i, nb_entries, 
                             Rfa0, RM, 
                             is_continuous_output, 
-                            eid.country_id, eid.ensemble_reference,
+                            eid.value,
                             is_geographically_adjacent, is_transmission_mode_I,
                             (float)(alt_freq)*1e-6f);
                         m_handler->OnFrequencyInformation_1_Ensemble(
-                            eid.country_id, eid.ensemble_reference, 
+                            eid,
                             alt_freq, 
                             is_continuous_output,
                             is_geographically_adjacent,
@@ -1599,14 +1586,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(const FIG_Header_Type_0 header, tcb
             return;
         }
 
-        auto* b = &buf[curr_byte];
-
-        ServiceIdentifier sid;
-        if (!header.pd) {
-            sid.ProcessShortForm({b, (size_t)nb_sid_bytes});
-        } else {
-            sid.ProcessLongForm({b, (size_t)nb_sid_bytes});
-        }
+        const auto b = buf.subspan(curr_byte);
+        const auto sid = get_service_id(b.first(nb_sid_bytes));
 
         const uint8_t descriptor = b[nb_sid_bytes];
         const uint8_t Rfa =     (descriptor & 0b10000000) >> 7;
@@ -1623,20 +1604,16 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_24(const FIG_Header_Type_0 header, tcb
             return;
         }
 
-        auto* eids_buf = &b[nb_header_bytes];
+        const auto eids_buf = b.subspan(nb_header_bytes);
         for (int i = 0; i < nb_EIds; i++) {
-            auto* eid_buf = &eids_buf[i*nb_EId_bytes];
-            EnsembleIdentifier eid;
-            eid.ProcessBuffer({eid_buf, (size_t)nb_EId_bytes});
+            const auto eid_buf = eids_buf.subspan(i*nb_EId_bytes);
+            const auto eid = get_ensemble_id(eid_buf.first(nb_EId_bytes));
 
-            LOG_MESSAGE("fig 0/24 country_id={} service_ref={} ecc={} Rfa={} CAId={} i={}/{} ensemble_country_id={} ensemble_reference={}",
-                sid.country_id, sid.service_reference, sid.ecc,
+            LOG_MESSAGE("fig 0/24 service_id={:X} Rfa={} CAId={} i={}/{} ensemble_id={:X}",
+                sid.value,
                 Rfa, CAId, i, nb_EIds,
-                eid.country_id, eid.ensemble_reference);
-            
-            m_handler->OnOtherEnsemble_1_Service(
-                sid.country_id, sid.service_reference, sid.ecc,
-                eid.country_id, eid.ensemble_reference);
+                eid.value);
+            m_handler->OnOtherEnsemble_1_Service(sid, eid);
         }
         curr_byte += (nb_header_bytes + nb_EId_list_bytes);
     }
@@ -1656,10 +1633,8 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb:
         return;
     }
 
-    EnsembleIdentifier eid;
-    eid.ProcessBuffer({buf.data(), (size_t)nb_eid_bytes});
-
-    auto* char_buf = &buf[nb_eid_bytes];
+    const auto eid = get_ensemble_id(buf.first(nb_eid_bytes));
+    const auto char_buf = buf.subspan(nb_eid_bytes);
     // flag field is used for determining which characters can be removed
     // when we are abbreviating the label
     const int flag_index = nb_eid_bytes + nb_char_bytes;
@@ -1667,7 +1642,7 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb:
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
 
-    const auto label_buf = tcb::span<const uint8_t>{ char_buf, nb_char_bytes };
+    const auto label_buf = char_buf.first(nb_char_bytes);
     std::array<uint8_t, 16> _short_label_buf {};
     const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
     const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
@@ -1675,13 +1650,13 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_0(const FIG_Header_Type_1 header, tcb:
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
     const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/0 charset={} country_id={} ensemble_ref={:>4} flag={:04X} label={} short_label={}",
+    LOG_MESSAGE("fig 1/0 charset={} ensemble_id={:X} flag={:04X} label={} short_label={}",
         header.charset,
-        eid.country_id, eid.ensemble_reference,
+        eid.value,
         flag_field, label, short_label);
     
     m_handler->OnEnsemble_3_Label(
-        eid.country_id, eid.ensemble_reference,
+        eid,
         label, short_label);
 }
 
@@ -1699,16 +1674,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(const FIG_Header_Type_1 header, tcb:
         return;
     }
 
-    ServiceIdentifier sid;
-    sid.ProcessShortForm(buf);
+    const auto sid = get_service_id(buf.first(2));
 
-    auto* char_buf = &buf[nb_sid_bytes];
+    const auto char_buf = buf.subspan(nb_sid_bytes);
     const int flag_index = nb_sid_bytes + nb_char_bytes;
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
 
-    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label_buf = char_buf.first(nb_char_bytes);
     std::array<uint8_t, 16> _short_label_buf {};
     const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
     const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
@@ -1716,13 +1690,13 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_1(const FIG_Header_Type_1 header, tcb:
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
     const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/1 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
+    LOG_MESSAGE("fig 1/1 service_id={:X} ecc={} flag={:04X} label={} short_label={}",
         header.charset,
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid.value,
         flag_field, label, short_label);
 
     m_handler->OnService_2_Label(
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid,
         label, short_label);
 }
 
@@ -1753,22 +1727,17 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(const FIG_Header_Type_1 header, tcb:
         return;
     }
 
-    ServiceIdentifier sid;
-    if (!pd) {
-        sid.ProcessShortForm({&buf[nb_header_bytes], (size_t)nb_sid_bytes});
-    } else {
-        sid.ProcessLongForm({&buf[nb_header_bytes], (size_t)nb_sid_bytes});
-    }
+    const auto sid = get_service_id(buf.subspan(nb_header_bytes, nb_sid_bytes));
 
     // iterated backwards
-    auto* char_buf = &buf[nb_header_bytes+nb_sid_bytes];
+    const auto char_buf = buf.subspan(nb_header_bytes+nb_sid_bytes);
 
     const int flag_index = nb_header_bytes + nb_sid_bytes + nb_char_bytes;
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
 
-    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label_buf = char_buf.first(nb_char_bytes);
     std::array<uint8_t, 16> _short_label_buf {};
     const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
     const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
@@ -1776,14 +1745,14 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_4(const FIG_Header_Type_1 header, tcb:
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
     const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/5 charset={} SCIdS={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
+    LOG_MESSAGE("fig 1/5 charset={} SCIdS={} service_id={:X} flag={:04X} label={} short_label={}",
         header.charset,
         SCIdS,
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid.value,
         flag_field, label, short_label);
 
     m_handler->OnServiceComponent_6_Label(
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid,
         SCIdS, label, short_label);
 }
 
@@ -1801,16 +1770,15 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(const FIG_Header_Type_1 header, tcb:
         return;
     }
 
-    ServiceIdentifier sid;
-    sid.ProcessLongForm(buf);
+    const auto sid = get_service_id(buf.first(nb_sid_bytes));
 
-    auto* char_buf = &buf[nb_sid_bytes];
+    const auto char_buf = buf.subspan(nb_sid_bytes);
     const int flag_index = nb_sid_bytes + nb_char_bytes;
     const uint16_t flag_field = 
         (static_cast<uint16_t>(buf[flag_index+0]) << 8) | 
                                buf[flag_index+1];
 
-    const auto label_buf = tcb::span<const uint8_t>(char_buf, nb_char_bytes);
+    const auto label_buf = char_buf.first(nb_char_bytes);
     std::array<uint8_t, 16> _short_label_buf {};
     const size_t nb_short_label_bytes = create_abbreviated_string(label_buf, _short_label_buf, flag_field);
     const auto short_label_buf = tcb::span(_short_label_buf).first(nb_short_label_bytes);
@@ -1818,12 +1786,12 @@ void FIG_Processor::ProcessFIG_Type_1_Ext_5(const FIG_Header_Type_1 header, tcb:
     const auto label = convert_charset_to_utf8(label_buf, header.charset);
     const auto short_label = convert_charset_to_utf8(short_label_buf, header.charset);
     
-    LOG_MESSAGE("fig 1/5 charset={} country_id={} service_ref={:>4} ecc={} flag={:04X} label={} short_label={}",
+    LOG_MESSAGE("fig 1/5 charset={} service_id={:X} flag={:04X} label={} short_label={}",
         header.charset,
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid.value,
         flag_field, label, short_label);
     
     m_handler->OnService_2_Label(
-        sid.country_id, sid.service_reference, sid.ecc,
+        sid,
         label, short_label);
 }

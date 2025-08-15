@@ -111,8 +111,7 @@ private:
 public:
     explicit EnsembleUpdater(DAB_Database& db, DatabaseUpdaterGlobalStatistics& stats)
         : DatabaseEntityUpdater<uint16_t>(stats), m_db(db) { OnCreate(); } 
-    UpdateResult SetReference(const ensemble_id_t reference);
-    UpdateResult SetCountryID(const country_id_t country_id);
+    UpdateResult SetID(const EnsembleId id);
     UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(std::string_view label);
     UpdateResult SetShortLabel(std::string_view short_label);
@@ -133,8 +132,6 @@ private:
 public:
     explicit ServiceUpdater(DAB_Database& db, size_t index, DatabaseUpdaterGlobalStatistics& stats)
         : DatabaseEntityUpdater<uint8_t>(stats), m_db(db), m_index(index) { OnCreate(); }
-    UpdateResult SetCountryID(const country_id_t country_id);
-    UpdateResult SetExtendedCountryCode(const extended_country_id_t extended_country_code);
     UpdateResult SetLabel(std::string_view label);
     UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetProgrammeType(const programme_id_t programme_type);
@@ -161,7 +158,6 @@ public:
     UpdateResult SetSubchannel(const subchannel_id_t subchannel_id);
     UpdateResult SetPacketAddr(const packet_addr_t packet_addr);
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
-    uint32_t GetServiceReference();
     auto& GetData() { return m_db.service_components[m_index]; }
 private:
     bool IsComplete() override;
@@ -198,8 +194,7 @@ public:
     UpdateResult SetIsActiveLink(const bool is_active_link);
     UpdateResult SetIsHardLink(const bool is_hard_link);
     UpdateResult SetIsInternational(const bool is_international);
-    UpdateResult SetServiceReference(const service_id_t service_reference);
-    service_id_t GetServiceReference();
+    UpdateResult SetServiceId(const ServiceId service_id);
     auto& GetData() { return m_db.link_services[m_index]; }
 private:
     bool IsComplete() override;
@@ -260,7 +255,6 @@ private:
 public:
     explicit OtherEnsembleUpdater(DAB_Database& db, size_t index, DatabaseUpdaterGlobalStatistics& stats)
         : DatabaseEntityUpdater<uint8_t>(stats), m_db(db), m_index(index) { OnCreate(); }
-    UpdateResult SetCountryID(const country_id_t country_id);
     UpdateResult SetIsContinuousOutput(const bool is_continuous_output);
     UpdateResult SetIsGeographicallyAdjacent(const bool is_geographically_adjacent);
     UpdateResult SetIsTransmissionModeI(const bool is_transmission_mode_I);
@@ -287,17 +281,17 @@ private:
 public:
     explicit DAB_Database_Updater();
     EnsembleUpdater& GetEnsembleUpdater() { return *(m_ensemble_updater.get()); }
-    ServiceUpdater& GetServiceUpdater(const service_id_t service_ref);
-    ServiceComponentUpdater& GetServiceComponentUpdater_Service(const service_id_t service_ref, const service_component_id_t component_id);
+    ServiceUpdater& GetServiceUpdater(const ServiceId service_id);
+    ServiceComponentUpdater& GetServiceComponentUpdater_Service(const ServiceId service_id, const service_component_id_t component_id);
     SubchannelUpdater& GetSubchannelUpdater(const subchannel_id_t subchannel_id);
     LinkServiceUpdater& GetLinkServiceUpdater(const lsn_t link_service_number);
     FM_ServiceUpdater& GetFMServiceUpdater(const fm_id_t RDS_PI_code);
     DRM_ServiceUpdater& GetDRMServiceUpdater(const drm_id_t drm_code);
     AMSS_ServiceUpdater& GetAMSS_ServiceUpdater(const amss_id_t amss_code);
-    OtherEnsembleUpdater& GetOtherEnsemble(const ensemble_id_t ensemble_reference);
+    OtherEnsembleUpdater& GetOtherEnsemble(const EnsembleId ensemble_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
-    ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const service_id_t service_ref, const subchannel_id_t subchannel_id);
+    ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const ServiceId service_id, const subchannel_id_t subchannel_id);
     const auto& GetDatabase() const { return *(m_db.get()); }
     const auto& GetStatistics() const { return *(m_stats.get()); }
 private:

@@ -52,7 +52,8 @@ void RenderBasicRadio(BasicRadio& radio, BasicRadioViewController& controller) {
     auto* selected_service = find_by_callback(
         db.services,
         [&controller](const auto& service) {
-            return service.reference == controller.selected_service;
+            if (!controller.selected_service.has_value()) return false;
+            return service.id.get_unique_identifier() == controller.selected_service->get_unique_identifier();
         }
     );
 
@@ -92,11 +93,12 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
 
             for (auto* service_ptr: service_list) {
                 auto& service = *service_ptr;
-                const service_id_t service_id = service.reference;
-                const bool is_selected = (service_id == controller.selected_service);
-                auto label = fmt::format("{}###{}", service.label.empty() ? "[Unknown]" : service.label, service.reference);
+                const bool is_selected = (
+                    controller.selected_service.has_value() &&
+                    controller.selected_service.value().get_unique_identifier() == service.id.get_unique_identifier());
+                auto label = fmt::format("{}###{}", service.label.empty() ? "[Unknown]" : service.label, service.id.get_unique_identifier());
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    controller.selected_service = is_selected ? -1 : service_id;
+                    controller.selected_service = is_selected ? std::nullopt : std::optional(service.id);
                 }
 
                 // Get status information
@@ -104,7 +106,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
                 bool is_decode_audio = false;
                 bool is_decode_data  = false;
                 for (auto& component: db.service_components) {
-                    if (component.service_reference != service.reference) continue;
+                    if (component.service_id.get_unique_identifier() != service.id.get_unique_identifier()) continue;
                     auto* channel = radio.Get_Audio_Channel(component.subchannel_id);
                     if (channel) {
                         auto& controls = channel->GetControls();
@@ -130,7 +132,7 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
 }
 
 void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controller, const Service* service) {
-    if (ImGui::Begin("Service Description") && service) {
+    if (ImGui::Begin("Service Description") && service != nullptr) {
         const ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Borders;
         if (ImGui::BeginTable("Service Description", 2, flags)) {
             ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch);
@@ -153,14 +155,21 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
             FIELD_MACRO("Name", "%.*s", int(service->label.length()), service->label.c_str());
             FIELD_MACRO("Short Name", "%.*s", int(service->short_label.length()), service->short_label.c_str());
             // handle short/long form service references
-            if ((service->reference & service_id_t(0x0FFF)) == service->reference) {
-                FIELD_MACRO("ID", "%u (0x%03X)", service->reference, service->reference);
+            const auto service_id = service->id;
+            if (service_id.type == ServiceIdType::BITS32) {
+                FIELD_MACRO("ID", "0x%08X", service_id.get_unique_identifier());
             } else {
-                FIELD_MACRO("ID", "%u (0x%05X)", service->reference, service->reference);
+                FIELD_MACRO("ID", "0x%04X", service_id.get_unique_identifier());
             }
             {
-                extended_country_id_t extended_country_code = (service->extended_country_code != 0) ? service->extended_country_code : ensemble.extended_country_code;
-                extended_country_id_t country_id = (service->country_id != 0) ? service->country_id : ensemble.country_id;
+                extended_country_id_t extended_country_code = service_id.get_extended_country_code(); 
+                if (extended_country_code == 0) {
+                    extended_country_code = ensemble.extended_country_code;
+                }
+                extended_country_id_t country_id = service_id.get_country_code();
+                if (country_id == 0) {
+                    country_id = ensemble.id.get_country_code();
+                }
                 FIELD_MACRO("Country", "%s (0x%02X.%01X)", GetCountryString(extended_country_code, country_id), extended_country_code, country_id);
             }
             FIELD_MACRO("Programme Type", "%s (%u)", 
@@ -181,9 +190,9 @@ void RenderSimple_ServiceComponentList(BasicRadio& radio, BasicRadioViewControll
     auto& db = radio.GetDatabase();
     static std::vector<ServiceComponent*> service_components;
     service_components.clear();
-    if (service) {
+    if (service != nullptr) {
         for (auto& service_component: db.service_components) {
-            if (service_component.service_reference != service->reference) continue;
+            if (service_component.service_id.get_unique_identifier() != service->id.get_unique_identifier()) continue;
             service_components.push_back(&service_component);
         }
     }
@@ -543,9 +552,9 @@ void RenderSimple_LinkServices(BasicRadio& radio, BasicRadioViewController& cont
     const auto& db = radio.GetDatabase();
     static std::vector<const LinkService*> link_services;
     link_services.clear();
-    if (service) {
+    if (service != nullptr) {
         for (const auto& link_service: db.link_services) {
-            if (link_service.service_reference != service->reference) continue;
+            if (link_service.service_id.get_unique_identifier() != service->id.get_unique_identifier()) continue;
             link_services.push_back(&link_service);
         }
     }

@@ -17,23 +17,18 @@ bool insert_if_unique(std::vector<T>& vec, T value) {
 }
 
 // Ensemble form
-const uint16_t ENSEMBLE_FLAG_REFERENCE   = 0b100000000;
-const uint16_t ENSEMBLE_FLAG_COUNTRY_ID  = 0b010000000;
-const uint16_t ENSEMBLE_FLAG_ECC         = 0b001000000;
+const uint16_t ENSEMBLE_FLAG_ID          = 0b100000000;
+const uint16_t ENSEMBLE_FLAG_ECC         = 0b010000000;
 const uint16_t ENSEMBLE_FLAG_LABEL       = 0b000100000;
 const uint16_t ENSEMBLE_FLAG_SHORT_LABEL = 0b000010000;
 const uint16_t ENSEMBLE_FLAG_NB_SERVICES = 0b000001000;
 const uint16_t ENSEMBLE_FLAG_RCOUNT      = 0b000000100;
 const uint16_t ENSEMBLE_FLAG_LTO         = 0b000000010;
 const uint16_t ENSEMBLE_FLAG_INTER_TABLE = 0b000000001;
-const uint16_t ENSEMBLE_FLAG_REQUIRED    = 0b111000001;
+const uint16_t ENSEMBLE_FLAG_REQUIRED    = 0b100000001;
 
-UpdateResult EnsembleUpdater::SetReference(const ensemble_id_t reference) {
-    return UpdateField(GetData().reference, reference, ENSEMBLE_FLAG_REFERENCE);
-}
-
-UpdateResult EnsembleUpdater::SetCountryID(const country_id_t country_id) {
-    return UpdateField(GetData().country_id, country_id, ENSEMBLE_FLAG_COUNTRY_ID);
+UpdateResult EnsembleUpdater::SetID(const EnsembleId ensemble_id) {
+    return UpdateField(GetData().id, ensemble_id, ENSEMBLE_FLAG_ID);
 }
 
 UpdateResult EnsembleUpdater::SetExtendedCountryCode(const extended_country_id_t extended_country_code) {
@@ -74,25 +69,12 @@ bool EnsembleUpdater::IsComplete() {
 }
 
 // Service form
-const uint8_t SERVICE_FLAG_COUNTRY_ID   = 0b10000000;
-const uint8_t SERVICE_FLAG_ECC          = 0b01000000;
 const uint8_t SERVICE_FLAG_LABEL        = 0b00100000;
 const uint8_t SERVICE_FLAG_PROGRAM_TYPE = 0b00010000;
 const uint8_t SERVICE_FLAG_LANGUAGE     = 0b00001000;
 const uint8_t SERVICE_FLAG_CLOSED_CAP   = 0b00000100;
 const uint8_t SERVICE_FLAG_SHORT_LABEL  = 0b00000010;
-const uint8_t SERVICE_FLAG_REQUIRED     = 0b10000000;
-
-UpdateResult ServiceUpdater::SetCountryID(const country_id_t country_id) {
-    return UpdateField(GetData().country_id, country_id, SERVICE_FLAG_COUNTRY_ID);
-}
-
-UpdateResult ServiceUpdater::SetExtendedCountryCode(const extended_country_id_t extended_country_code) {
-    if (extended_country_code == 0x00) {
-        return UpdateResult::NO_CHANGE;
-    }
-    return UpdateField(GetData().extended_country_code, extended_country_code, SERVICE_FLAG_ECC);
-}
+const uint8_t SERVICE_FLAG_REQUIRED     = 0b00000000;
 
 UpdateResult ServiceUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, SERVICE_FLAG_LABEL);
@@ -172,10 +154,6 @@ UpdateResult ServiceComponentUpdater::SetGlobalID(const service_component_global
     return UpdateField(GetData().global_id, global_id, SERVICE_COMPONENT_FLAG_GLOBAL_ID);
 }
 
-uint32_t ServiceComponentUpdater::GetServiceReference() {
-    return GetData().service_reference;
-}
-
 bool ServiceComponentUpdater::IsComplete() {
     const bool stream_audio_complete = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO) == SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO;
     const bool stream_data_complete  = (m_dirty_field & SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA) == SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA;
@@ -249,7 +227,7 @@ bool SubchannelUpdater::IsComplete() {
 const uint8_t LINK_FLAG_ACTIVE          = 0b10000000;
 const uint8_t LINK_FLAG_HARD            = 0b01000000;
 const uint8_t LINK_FLAG_INTERNATIONAL   = 0b00100000;
-const uint8_t LINK_FLAG_SERVICE_REF     = 0b00010000;
+const uint8_t LINK_FLAG_SERVICE_ID      = 0b00010000;
 const uint8_t LINK_FLAG_REQUIRED        = 0b00010000;
 
 UpdateResult LinkServiceUpdater::SetIsActiveLink(const bool is_active_link) {
@@ -264,12 +242,8 @@ UpdateResult LinkServiceUpdater::SetIsInternational(const bool is_international)
     return UpdateField(GetData().is_international, is_international, LINK_FLAG_INTERNATIONAL);
 }
 
-UpdateResult LinkServiceUpdater::SetServiceReference(const service_id_t service_reference) {
-    return UpdateField(GetData().service_reference, service_reference, LINK_FLAG_SERVICE_REF);
-}
-
-service_id_t LinkServiceUpdater::GetServiceReference() {
-    return GetData().service_reference;
+UpdateResult LinkServiceUpdater::SetServiceId(const ServiceId service_id) {
+    return UpdateField(GetData().service_id, service_id, LINK_FLAG_SERVICE_ID);
 }
 
 bool LinkServiceUpdater::IsComplete() {
@@ -350,16 +324,11 @@ bool AMSS_ServiceUpdater::IsComplete() {
 }
 
 // other ensemble form
-const uint8_t OE_FLAG_COUNTRY_ID = 0b10000000;
 const uint8_t OE_FLAG_CONT_OUT   = 0b01000000;
 const uint8_t OE_FLAG_GEO_ADJ    = 0b00100000;
 const uint8_t OE_FLAG_MODE_I     = 0b00010000;
 const uint8_t OE_FLAG_FREQ       = 0b00001000;
 const uint8_t OE_FLAG_REQUIRED   = 0b00001000;
-
-UpdateResult OtherEnsembleUpdater::SetCountryID(const country_id_t country_id) {
-    return UpdateField(GetData().country_id, country_id, OE_FLAG_COUNTRY_ID);
-}
 
 UpdateResult OtherEnsembleUpdater::SetIsContinuousOutput(const bool is_continuous_output) {
     return UpdateField(GetData().is_continuous_output, is_continuous_output, OE_FLAG_CONT_OUT);
@@ -388,25 +357,33 @@ DAB_Database_Updater::DAB_Database_Updater() {
     m_ensemble_updater = std::make_unique<EnsembleUpdater>(*(m_db.get()), *(m_stats.get()));
 }
 
-ServiceUpdater& DAB_Database_Updater::GetServiceUpdater(const service_id_t service_ref) {
-    return find_or_insert_updater(
+ServiceUpdater& DAB_Database_Updater::GetServiceUpdater(const ServiceId service_id) {
+    const auto uuid = service_id.get_unique_identifier();
+    auto& updater = find_or_insert_updater(
         m_db->services, m_service_updaters,
-        [service_ref](const auto& e) { 
-            return e.reference == service_ref; 
+        [uuid](const auto& e) {
+            return e.id.get_unique_identifier() == uuid;
         },
-        service_ref
+        service_id
     );
+    // Upgrade 16bit ids to 24bit id 
+    // 24bit id still uses 16bits for unique identifier but has 8bit extended country code
+    if (service_id.type == ServiceIdType::BITS24) {
+        updater.GetData().id = service_id;
+    }
+    return updater;
 }
 
 ServiceComponentUpdater& DAB_Database_Updater::GetServiceComponentUpdater_Service(
-    const service_id_t service_ref, const service_component_id_t component_id) 
+    const ServiceId service_id, const service_component_id_t component_id) 
 {
+    const auto service_uuid = service_id.get_unique_identifier();
     return find_or_insert_updater(
         m_db->service_components, m_service_component_updaters,
-        [service_ref, component_id](const auto& e) { 
-            return (e.service_reference == service_ref) && (e.component_id == component_id); 
+        [service_uuid, component_id](const auto& e) { 
+            return (e.service_id.get_unique_identifier() == service_uuid) && (e.component_id == component_id); 
         },
-        service_ref, component_id
+        service_id, component_id
     );
 }
 
@@ -460,13 +437,14 @@ AMSS_ServiceUpdater& DAB_Database_Updater::GetAMSS_ServiceUpdater(const amss_id_
     );
 }
 
-OtherEnsembleUpdater& DAB_Database_Updater::GetOtherEnsemble(const ensemble_id_t ensemble_reference) {
+OtherEnsembleUpdater& DAB_Database_Updater::GetOtherEnsemble(const EnsembleId ensemble_id) {
+    const auto ensemble_uuid = ensemble_id.get_unique_identifier();
     return find_or_insert_updater(
         m_db->other_ensembles, m_other_ensemble_updaters,
-        [ensemble_reference](const auto& e) {
-            return e.reference == ensemble_reference;
+        [ensemble_uuid](const auto& e) {
+            return e.id.get_unique_identifier() == ensemble_uuid;
         },
-        ensemble_reference
+        ensemble_id
     );
 }
 
@@ -493,12 +471,13 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subcha
 }
 
 ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subchannel(
-    const service_id_t service_ref, const subchannel_id_t subchannel_id) 
+    const ServiceId service_id, const subchannel_id_t subchannel_id) 
 {
+    const auto service_uuid = service_id.get_unique_identifier();
     return find_updater(
         m_db->service_components, m_service_component_updaters,
-        [service_ref, subchannel_id](const auto& e) {
-            return (e.service_reference == service_ref) && (e.subchannel_id == subchannel_id);
+        [service_uuid, subchannel_id](const auto& e) {
+            return (e.service_id.get_unique_identifier() == service_uuid) && (e.subchannel_id == subchannel_id);
         }
     );
 }
