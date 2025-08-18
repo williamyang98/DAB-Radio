@@ -16,6 +16,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <argparse/argparse.hpp>
+#define NOMINMAX
 #include <easylogging++.h>
 #include <fmt/format.h>
 #include <portaudio.h>
@@ -29,6 +30,7 @@
 #include "./app_helpers/app_audio.h"
 #include "./app_helpers/app_common_gui.h"
 #include "./app_helpers/app_io_buffers.h"
+#include "./app_helpers/app_readers.h"
 #include "./app_helpers/app_logging.h"
 #include "./app_helpers/app_ofdm_blocks.h"
 #include "./audio/audio_pipeline.h"
@@ -348,10 +350,12 @@ int main(int argc, char** argv) {
         }
     );
     // ofdm input
-    auto device_output_buffer = std::make_shared<ThreadedRingBuffer<RawIQ>>(args.ofdm_block_size*sizeof(RawIQ));
-    auto ofdm_convert_raw_iq = std::make_shared<OFDM_Convert_RawIQ>();
-    ofdm_convert_raw_iq->set_input_stream(device_output_buffer);
-    ofdm_block->set_input_stream(ofdm_convert_raw_iq);
+    auto device_output_buffer = std::make_shared<ThreadedRingBuffer<RawIQ<uint8_t>>>(args.ofdm_block_size*sizeof(RawIQ<uint8_t>));
+    // handle component level transformations (endianess, scaling)
+    auto device_component_stream = std::make_shared<ConvertInputBuffer<uint8_t, RawIQ<uint8_t>>>();
+    device_component_stream->set_input_stream(device_output_buffer);
+    auto raw_iq_to_float = get_raw_iq_file_reader<uint8_t>(device_component_stream, true);
+    ofdm_block->set_input_stream(raw_iq_to_float);
     // connect ofdm to radio_switcher
     auto ofdm_to_radio_buffer = std::make_shared<ThreadedRingBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits*2);
     ofdm_block->set_output_stream(ofdm_to_radio_buffer);
@@ -369,11 +373,11 @@ int main(int argc, char** argv) {
                 device->SetNearestGain(args.tuner_manual_gain);
             }
             device->SetDataCallback([device_output_buffer](tcb::span<const uint8_t> bytes) {
-                constexpr size_t BYTES_PER_SAMPLE = sizeof(RawIQ);
+                constexpr size_t BYTES_PER_SAMPLE = sizeof(RawIQ<uint8_t>);
                 const size_t total_bytes = bytes.size() - (bytes.size() % BYTES_PER_SAMPLE);
                 const size_t total_samples = total_bytes / BYTES_PER_SAMPLE;
                 auto raw_iq = tcb::span(
-                    reinterpret_cast<const RawIQ*>(bytes.data()),
+                    reinterpret_cast<const RawIQ<uint8_t>*>(bytes.data()),
                     total_samples
                 );
                 const size_t total_read_samples = device_output_buffer->write(raw_iq);

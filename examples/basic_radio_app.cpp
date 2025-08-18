@@ -8,6 +8,7 @@
 #include <thread>
 
 #if _WIN32
+#define NOMINMAX
 #include <io.h>
 #include <fcntl.h>
 #endif
@@ -21,6 +22,7 @@
 #include "dab/database/dab_database_types.h"
 #include "viterbi_config.h"
 #include "./app_helpers/app_io_buffers.h"
+#include "./app_helpers/app_readers.h"
 #include "./app_helpers/app_logging.h"
 #include "./app_helpers/app_ofdm_blocks.h"
 #include "./app_helpers/app_radio_blocks.h"
@@ -261,10 +263,9 @@ int main(int argc, char** argv) {
     // setup input
     std::shared_ptr<FileWrapper> file_in = nullptr;
     if (args.is_ofdm_used) {
-        auto raw_iq_in = std::make_shared<InputFile<RawIQ>>(fp_in);
-        auto ofdm_convert_raw_iq = std::make_shared<OFDM_Convert_RawIQ>();
-        ofdm_convert_raw_iq->set_input_stream(raw_iq_in);
-        ofdm_block->set_input_stream(ofdm_convert_raw_iq);
+        auto raw_iq_in = std::make_shared<InputFile<uint8_t>>(fp_in);
+        auto ofdm_reader = get_raw_iq_file_reader<uint8_t>(raw_iq_in, true);
+        ofdm_block->set_input_stream(ofdm_reader);
         file_in = raw_iq_in;
     } else {
         if (args.radio_input_hard_bytes) {

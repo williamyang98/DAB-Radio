@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -19,6 +20,66 @@ template <typename T>
 struct OutputBuffer {
     virtual ~OutputBuffer() {}
     virtual size_t write(tcb::span<const T> src) = 0;
+};
+
+template <typename T, typename U>
+class ConvertInputBuffer: public InputBuffer<T>
+{
+private:
+    std::shared_ptr<InputBuffer<U>> m_input = nullptr;
+public:
+    ConvertInputBuffer() {
+        static_assert(sizeof(T) % sizeof(U) == 0 || sizeof(U) % sizeof(T) == 0, "Converted type must be a multiple/divisor of original type");
+    }
+    ~ConvertInputBuffer() override = default;
+    void set_input_stream(std::shared_ptr<InputBuffer<U>> input) { 
+        m_input = input;
+    }
+    size_t read(tcb::span<T> dest) override {
+        if (m_input == nullptr) return 0;
+        if constexpr (sizeof(T) >= sizeof(U)) {
+            constexpr size_t stride = sizeof(T)/sizeof(U);
+            const auto converted_dest = tcb::span<U>(
+                reinterpret_cast<U*>(dest.data()),
+                dest.size()*stride
+            );
+            const size_t length = m_input->read(converted_dest);
+            return length/stride;
+        } else {
+            constexpr size_t stride = sizeof(U)/sizeof(T);
+            const auto converted_dest = tcb::span<U>(
+                reinterpret_cast<U*>(dest.data()),
+                dest.size()/stride
+            );
+            const size_t length = m_input->read(converted_dest);
+            return length*stride;
+        }
+    }
+};
+
+template <typename T, typename U>
+class ConvertOutputBuffer: public OutputBuffer<T>
+{
+private:
+    std::shared_ptr<OutputBuffer<U>> m_output = nullptr;
+public:
+    ConvertOutputBuffer() {
+        static_assert(sizeof(T) % sizeof(U) == 0, "Converted type must be a multiple of original type");
+    }
+    ~ConvertOutputBuffer() override = default;
+    void set_output_stream(std::shared_ptr<OutputBuffer<U>> output) { 
+        m_output = output;
+    }
+    size_t write(tcb::span<const T> src) override {
+        if (m_output == nullptr) return 0;
+        constexpr size_t stride = sizeof(T)/sizeof(U);
+        const auto converted_src = tcb::span<U>(
+            reinterpret_cast<const U*>(src.data()),
+            src.size()*stride
+        );
+        const size_t length = m_output->write(converted_src);
+        return length/stride;
+    }
 };
 
 class FileWrapper {

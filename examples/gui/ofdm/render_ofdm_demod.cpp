@@ -39,7 +39,7 @@ void RenderSourceBuffer(tcb::span<const std::complex<float>> buf_raw)
     if (ImGui::Begin("Sampling buffer")) {
         if (ImPlot::BeginPlot("Block")) {
             const auto* buf = reinterpret_cast<const float*>(buf_raw.data());
-            ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -1.0, 1.0, ImPlotCond_Once);
             ImPlot::PlotLine("Real", &buf[0], (int)block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
             ImPlot::PlotLine("Imag", &buf[1], (int)block_size, 1.0f, 0, 0, 0, 2*sizeof(float));
             ImPlot::EndPlot();
@@ -124,7 +124,7 @@ void RenderDemodulatedSymbols(const OFDM_Demod& demod) {
                 auto syms_vec_data = demod.GetFrameDataVec();
                 // vec[0:1] = [real, imag]
                 auto sym_vec = syms_vec_data.subspan(symbol_index*N, N);
-                const double A = 4e6;
+                const double A = 500.0;
                 if (ImPlot::BeginPlot("IQ", ImVec2(-1,0), ImPlotFlags_Equal)) {
                     ImPlot::SetupAxisLimits(ImAxis_X1, -A, A, ImPlotCond_Once);
                     ImPlot::SetupAxisLimits(ImAxis_Y1, -A, A, ImPlotCond_Once);
@@ -232,7 +232,7 @@ void RenderSynchronisation(const OFDM_Demod& demod) {
     if (ImGui::Begin("Fine time synchronisation")) {
         if (ImPlot::BeginPlot("Fine time response")) {
             auto buf = demod.GetImpulseResponse();
-            ImPlot::SetupAxisLimits(ImAxis_Y1, 60, 150, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -10, 90, ImPlotCond_Once);
             ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
             // Plot useful markers for fine time sync using time correlation
             int marker_id = 0;
@@ -250,7 +250,7 @@ void RenderSynchronisation(const OFDM_Demod& demod) {
     if (ImGui::Begin("Coarse frequency response")) {
         if (ImPlot::BeginPlot("Coarse frequency response")) {
             auto buf = demod.GetCoarseFrequencyResponse();
-            ImPlot::SetupAxisLimits(ImAxis_Y1, 180, 260, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 90, 170, ImPlotCond_Once);
             ImPlot::PlotLine("Impulse response", buf.data(), (int)buf.size());
 
             // Plot useful markers for coarse freq sync using freq correlation
@@ -285,7 +285,7 @@ void RenderSynchronisation(const OFDM_Demod& demod) {
         const size_t N = buf_raw.size();
         if (ImPlot::BeginPlot("NULL+PRS")) {
             const auto* buf = reinterpret_cast<const float*>(buf_raw.data());
-            ImPlot::SetupAxisLimits(ImAxis_Y1, -128, 128, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -1, 1, ImPlotCond_Once);
             ImPlot::PlotLine("Real", &buf[0], (int)N, 1.0f, 0, 0, 0, 2*sizeof(float));
             ImPlot::PlotLine("Imag", &buf[1], (int)N, 1.0f, 0, 0, 0, 2*sizeof(float));
 
@@ -318,7 +318,7 @@ void RenderMagnitudeSpectrum(const OFDM_Demod& demod) {
 
             CalculateMagnitude(null_fft, mag_buf);
 
-            ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -30, 40, ImPlotCond_Once);
             ImPlot::PlotLine("Null symbol", mag_buf.data(), N);
             ImPlot::EndPlot();
         }
@@ -344,7 +344,7 @@ void RenderMagnitudeSpectrum(const OFDM_Demod& demod) {
             auto sym_fft_buf = syms_fft_buf.subspan(symbol_index*N, N);
             CalculateMagnitude(sym_fft_buf, mag_buf);
 
-            ImPlot::SetupAxisLimits(ImAxis_Y1, 20, 90, ImPlotCond_Once);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, -30, 40, ImPlotCond_Once);
             ImPlot::PlotLine("Data symbol", mag_buf.data(), N);
             ImPlot::EndPlot();
         }

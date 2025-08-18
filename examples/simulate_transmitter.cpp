@@ -13,6 +13,7 @@
 #endif
 
 #include <argparse/argparse.hpp>
+#include "app_helpers/app_readers.h"
 #include "ofdm/dab_mapper_ref.h"
 #include "ofdm/dab_ofdm_params_ref.h"
 #include "ofdm/dab_prs_ref.h"
@@ -36,19 +37,6 @@ public:
         reg = (reg << 8) | v;
         return v;
     }
-};
-
-template <typename T>
-T clamp(T x, const T min, const T max) {
-    T y = x;
-    y = (y > min) ? y : min;
-    y = (y > max) ? max : y;
-    return y;
-}
-
-struct RawIQ {
-    uint8_t I;
-    uint8_t Q;
 };
 
 void init_parser(argparse::ArgumentParser& parser) {
@@ -82,6 +70,42 @@ Args get_args_from_parser(const argparse::ArgumentParser& parser) {
     args.frequency = parser.get<float>("--frequency");
     args.output_filename = parser.get<std::string>("--output");
     return args;
+}
+
+template <typename T>
+void write_frame_to_file(
+    FILE* fp_out,
+    tcb::span<const std::complex<float>> data, float scale,
+    const bool is_little_endian
+) {
+    // rescale for quantisation
+    scale *= RawIQ<T>::MAX_AMPLITUDE;
+
+    // perform quantisation
+    auto quantised = std::vector<RawIQ<T>>(data.size());
+    for (size_t i = 0; i < data.size(); i++) {
+        const float I = data[i].real();
+        const float Q = data[i].imag();
+        quantised[i] = RawIQ<T>::from_iq(I*scale, Q*scale);
+    }
+
+    const bool reverse_endian = get_is_machine_little_endian() != is_little_endian;
+    if (reverse_endian) {
+        auto components = tcb::span<T>(
+            reinterpret_cast<T*>(quantised.data()),
+            2*quantised.size()
+        );
+        reverse_endian_inplace(components);
+    }
+
+    while (true) {
+        const size_t N = quantised.size();
+        const size_t nb_write = fwrite(quantised.data(), sizeof(RawIQ<T>), N, fp_out);
+        if (nb_write != N) {
+            fprintf(stderr, "Failed to write out frame %zu/%zu\n", nb_write, N);
+            break;
+        }
+    }
 }
 
 int main(int argc, char** argv) {
@@ -118,8 +142,6 @@ int main(int argc, char** argv) {
 
     // create our single ofdm frame
     const size_t frame_size = params.nb_null_period + params.nb_symbol_period*params.nb_frame_symbols;
-    auto frame_out_buf = std::vector<std::complex<float>>(frame_size);
-    auto frame_tx_buf = std::vector<RawIQ>(frame_size);
 
     // determine the number of bits that the ofdm frame contains
     // a single carrier contains 2 bits (there are four possible dqpsk phases)
@@ -137,6 +159,7 @@ int main(int argc, char** argv) {
 
     // perform OFDM modulation 
     auto ofdm_mod = OFDM_Modulator(params, prs_fft_ref);
+    auto frame_out_buf = std::vector<std::complex<float>>(frame_size);
     auto res = ofdm_mod.ProcessBlock(frame_out_buf, frame_bytes_buf);
     if (!res) {
         fprintf(stderr, "Failed to create the OFDM frame\n");
@@ -149,25 +172,9 @@ int main(int argc, char** argv) {
         apply_pll_auto(frame_out_buf, frame_out_buf, frequency_norm);
     }
 
-    for (size_t i = 0; i < frame_size; i++) {
-        const float I = frame_out_buf[i].real();
-        const float Q = frame_out_buf[i].imag();
-        const float A = 1.0f/(float)params.nb_data_carriers * 200.0f * 2.0f;
-        const float I0 = clamp(I*A + 128.0f, 0.0f, 255.0f);
-        const float Q0 = clamp(Q*A + 128.0f, 0.0f, 255.0f);
-        const uint8_t I1 = static_cast<uint8_t>(I0);
-        const uint8_t Q1 = static_cast<uint8_t>(Q0);
-        frame_tx_buf[i] = RawIQ{ I1, Q1 };
-    }
-
-    while (true) {
-        const size_t N = frame_tx_buf.size();
-        const size_t nb_write = fwrite(frame_tx_buf.data(), sizeof(RawIQ), N, fp_out);
-        if (nb_write != N) {
-            fprintf(stderr, "Failed to write out frame %zu/%zu\n", nb_write, N);
-            break;
-        }
-    }
+    const float scale = 1.0f/(float)params.nb_data_carriers * 4.0f;
+    const bool is_little_endian = true;
+    write_frame_to_file<uint8_t>(fp_out, frame_out_buf, scale, is_little_endian);
     fclose(fp_out);
     return 0;
 }

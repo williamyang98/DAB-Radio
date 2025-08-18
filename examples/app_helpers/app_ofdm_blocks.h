@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <complex>
 #include <memory>
 #include <vector>
@@ -12,44 +13,6 @@
 #include "ofdm/ofdm_demodulator.h"
 #include "viterbi_config.h"
 #include "./app_io_buffers.h"
-
-struct RawIQ {
-    uint8_t I;
-    uint8_t Q;
-    inline std::complex<float> to_c32() const {
-        constexpr float BIAS = 127.5f;
-        return std::complex<float>(
-            static_cast<float>(I) - BIAS,
-            static_cast<float>(Q) - BIAS
-        );
-    };
-};
-
-class OFDM_Convert_RawIQ: public InputBuffer<std::complex<float>>
-{
-public:
-private:
-    std::shared_ptr<InputBuffer<RawIQ>> m_input = nullptr;
-    std::vector<RawIQ> m_buffer;
-public:
-    OFDM_Convert_RawIQ() {}
-    ~OFDM_Convert_RawIQ() override = default;
-    void reserve(size_t length) {
-        m_buffer.resize(length);
-    }
-    void set_input_stream(std::shared_ptr<InputBuffer<RawIQ>> input) {
-        m_input = input;
-    }
-    size_t read(tcb::span<std::complex<float>> dest) override {
-        if (m_input == nullptr) return 0;
-        m_buffer.resize(dest.size());
-        const size_t length = m_input->read(m_buffer);
-        for (size_t i = 0; i < length; i++) {
-            dest[i] = m_buffer[i].to_c32(); 
-        }
-        return length;
-    }
-};
 
 class OFDM_Block 
 {
