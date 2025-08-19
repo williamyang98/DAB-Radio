@@ -290,7 +290,6 @@ public:
     AMSS_ServiceUpdater& GetAMSS_ServiceUpdater(const amss_id_t amss_code);
     OtherEnsembleUpdater& GetOtherEnsemble(const EnsembleId ensemble_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
-    ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const ServiceId service_id, const subchannel_id_t subchannel_id);
     template <typename Fn>
     void ForEachServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id, Fn&& fn) {
