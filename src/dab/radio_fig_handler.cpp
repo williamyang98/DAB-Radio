@@ -227,14 +227,12 @@ void Radio_FIG_Handler::OnServiceComponent_3_Short_Language(
     const subchannel_id_t subchannel_id, const uint8_t language)
 {
     if (!m_updater) return;
-    auto* sc_u = m_updater->GetServiceComponentUpdater_Subchannel(subchannel_id);
-    if (!sc_u) {
-        return;
-    }
-
-    const auto service_id = sc_u->GetData().service_id;
-    auto& s_u = m_updater->GetServiceUpdater(service_id);
-    s_u.SetLanguage(language);
+    m_updater->ForEachServiceComponentUpdater_Subchannel(
+        subchannel_id,
+        [language](ServiceComponentUpdater& sc_u) {
+            sc_u.SetLanguage(language);
+        }
+    );
 }
 
 // For packet mode service components that have a global id
@@ -243,13 +241,12 @@ void Radio_FIG_Handler::OnServiceComponent_3_Long_Language(
     const uint8_t language)
 {
     if (!m_updater) return;
-    auto* sc_u = m_updater->GetServiceComponentUpdater_GlobalID(service_component_global_id);
-    if (!sc_u) {
-        return;
-    }
-    const auto service_id = sc_u->GetData().service_id;
-    auto& s_u = m_updater->GetServiceUpdater(service_id);
-    s_u.SetLanguage(language);
+    m_updater->ForEachServiceComponentUpdater_GlobalID(
+        service_component_global_id,
+        [language](ServiceComponentUpdater& sc_u) {
+            sc_u.SetLanguage(language);
+        }
+    );
 }
 
 // fig 0/6 - Service linking information
@@ -436,6 +433,7 @@ void Radio_FIG_Handler::OnServiceComponent_5_UserApplication(
 
     auto& s_u = m_updater->GetServiceUpdater(service_id);
     auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_id, service_component_id);
+    sc_u.AddUserApplicationType(app_type);
 
     LOG_MESSAGE("service_id={:X} component_id={} app_type={} N={}", service_id.value, service_component_id, app_type, N);
 
@@ -485,22 +483,12 @@ void Radio_FIG_Handler::OnSubchannel_2_FEC(
 // fig 0/17 - Programme type
 void Radio_FIG_Handler::OnService_1_ProgrammeType(
     const ServiceId service_id,
-    const uint8_t programme_type, 
-    const uint8_t language_type,  const uint8_t closed_caption_type,
-    const bool has_language, const bool has_closed_caption)
+    const uint8_t programme_type)
 {
     if (!m_updater) return;
 
     auto& s_u = m_updater->GetServiceUpdater(service_id);
     s_u.SetProgrammeType(programme_type);
-
-    if (has_language) {
-        s_u.SetLanguage(language_type);
-    }
-
-    if (has_closed_caption) {
-        s_u.SetClosedCaption(closed_caption_type);
-    }
 }
 
 // fig 0/21 - Alternate frequency information
@@ -606,6 +594,11 @@ void Radio_FIG_Handler::OnServiceComponent_6_Label(
     if (!m_updater) return;
 
     auto& s_u = m_updater->GetServiceUpdater(service_id);
+
+    if (service_component_id == 0) {
+        LOG_ERROR("Invalid SCIdS=0 received for a non-primary service component label");
+        return;
+    }
     auto& sc_u = m_updater->GetServiceComponentUpdater_Service(service_id, service_component_id);
     sc_u.SetLabel(label);
     sc_u.SetShortLabel(short_label);

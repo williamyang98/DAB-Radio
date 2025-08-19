@@ -71,9 +71,7 @@ bool EnsembleUpdater::IsComplete() {
 // Service form
 const uint8_t SERVICE_FLAG_LABEL        = 0b00100000;
 const uint8_t SERVICE_FLAG_PROGRAM_TYPE = 0b00010000;
-const uint8_t SERVICE_FLAG_LANGUAGE     = 0b00001000;
-const uint8_t SERVICE_FLAG_CLOSED_CAP   = 0b00000100;
-const uint8_t SERVICE_FLAG_SHORT_LABEL  = 0b00000010;
+const uint8_t SERVICE_FLAG_SHORT_LABEL  = 0b00001000;
 const uint8_t SERVICE_FLAG_REQUIRED     = 0b00000000;
 
 UpdateResult ServiceUpdater::SetLabel(std::string_view label) {
@@ -88,31 +86,25 @@ UpdateResult ServiceUpdater::SetProgrammeType(const programme_id_t programme_typ
     return UpdateField(GetData().programme_type, programme_type, SERVICE_FLAG_PROGRAM_TYPE);
 }
 
-UpdateResult ServiceUpdater::SetLanguage(const language_id_t language) {
-    return UpdateField(GetData().language, language, SERVICE_FLAG_LANGUAGE);
-}
-
-UpdateResult ServiceUpdater::SetClosedCaption(const closed_caption_id_t closed_caption) {
-    return UpdateField(GetData().closed_caption, closed_caption, SERVICE_FLAG_CLOSED_CAP);
-}
-
 bool ServiceUpdater::IsComplete() {
     return GetData().is_complete = ((m_dirty_field & SERVICE_FLAG_REQUIRED) == SERVICE_FLAG_REQUIRED);
 }
 
 // Service component form
-const uint8_t SERVICE_COMPONENT_FLAG_LABEL                 = 0b10000000;
-const uint8_t SERVICE_COMPONENT_FLAG_TRANSPORT_MODE        = 0b01000000;
-const uint8_t SERVICE_COMPONENT_FLAG_AUDIO_TYPE            = 0b00100000;
-const uint8_t SERVICE_COMPONENT_FLAG_DATA_TYPE             = 0b00010000;
-const uint8_t SERVICE_COMPONENT_FLAG_SUBCHANNEL            = 0b00001000;
-const uint8_t SERVICE_COMPONENT_FLAG_GLOBAL_ID             = 0b00000100;
-const uint8_t SERVICE_COMPONENT_FLAG_SHORT_LABEL           = 0b00000010;
-const uint8_t SERVICE_COMPONENT_FLAG_PACKET_ADDRESS        = 0b00000001;
+const uint16_t SERVICE_COMPONENT_FLAG_LABEL                 = 0b1000000000;
+const uint16_t SERVICE_COMPONENT_FLAG_TRANSPORT_MODE        = 0b0100000000;
+const uint16_t SERVICE_COMPONENT_FLAG_AUDIO_TYPE            = 0b0010000000;
+const uint16_t SERVICE_COMPONENT_FLAG_DATA_TYPE             = 0b0001000000;
+const uint16_t SERVICE_COMPONENT_FLAG_SUBCHANNEL            = 0b0000100000;
+const uint16_t SERVICE_COMPONENT_FLAG_GLOBAL_ID             = 0b0000010000;
+const uint16_t SERVICE_COMPONENT_FLAG_SHORT_LABEL           = 0b0000001000;
+const uint16_t SERVICE_COMPONENT_FLAG_PACKET_ADDRESS        = 0b0000000100;
+const uint16_t SERVICE_COMPONENT_FLAG_LANGUAGE              = 0b0000000010;
+const uint16_t SERVICE_COMPONENT_FLAG_APPLICATION_TYPE      = 0b0000000001;
 // A different set of required fields applies to stream audio, stream data, and packet data components.
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO = 0b01101000;
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA  = 0b01011000;
-const uint8_t SERVICE_COMPONENT_FLAG_REQUIRED_PACKET_DATA  = 0b01011001;
+const uint16_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_AUDIO = 0b0110100000;
+const uint16_t SERVICE_COMPONENT_FLAG_REQUIRED_STREAM_DATA  = 0b0101100000;
+const uint16_t SERVICE_COMPONENT_FLAG_REQUIRED_PACKET_DATA  = 0b0101100101;
 
 UpdateResult ServiceComponentUpdater::SetLabel(std::string_view label) {
     return UpdateField(GetData().label, label, SERVICE_COMPONENT_FLAG_LABEL);
@@ -148,6 +140,18 @@ UpdateResult ServiceComponentUpdater::SetSubchannel(const subchannel_id_t subcha
 
 UpdateResult ServiceComponentUpdater::SetPacketAddr(const packet_addr_t packet_addr) {
     return UpdateField(GetData().packet_address, packet_addr, SERVICE_COMPONENT_FLAG_PACKET_ADDRESS);
+}
+
+UpdateResult ServiceComponentUpdater::SetLanguage(const language_id_t language) {
+    return UpdateField(GetData().language, language, SERVICE_COMPONENT_FLAG_LANGUAGE);
+}
+
+UpdateResult ServiceComponentUpdater::AddUserApplicationType(const user_application_type_t application_type) {
+    if (!insert_if_unique(GetData().application_types, application_type)) return UpdateResult::NO_CHANGE;
+    m_dirty_field |= SERVICE_COMPONENT_FLAG_APPLICATION_TYPE;
+    OnComplete();
+    OnUpdate();
+    return UpdateResult::SUCCESS;
 }
 
 UpdateResult ServiceComponentUpdater::SetGlobalID(const service_component_global_id_t global_id) {

@@ -123,9 +123,7 @@ public:
     // fig 0/17 - Programme type
     void OnService_1_ProgrammeType(
         const ServiceId service_id,
-        const uint8_t programme_type, 
-        const uint8_t language_type,  const uint8_t closed_caption_type,
-        const bool has_language=false, const bool has_closed_caption=false) override;
+        const uint8_t programme_type) override;
     // fig 0/21 - Alternate frequency information
     void OnFrequencyInformation_1_Ensemble(
         const EnsembleId ensemble_id,

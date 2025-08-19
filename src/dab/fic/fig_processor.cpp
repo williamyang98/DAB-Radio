@@ -1281,12 +1281,9 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
     const int N = (int)buf.size();
     const int nb_min_bytes = 4;
 
-    // NOTE: Referring to the welle.io code
-    // This fig 0/17 has been expanded with additional parameters
+    // NOTE: Fields according to ETSI EN 300 401 V1.4.1 2006
+    // This fig 0/17 has additional parameters
     // This includes CC and language flags, which also changes the byte length to between 4 and 6
-
-    // TODO: find the documentation that actually explicitly states this
-    // The current document EN 300 401 v2.1.1 doesn't have this properly documented
 
     int curr_byte = 0;
     int curr_programme = 0;
@@ -1301,7 +1298,8 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
 
         const auto sid = get_service_id(b.first(2));
 
-        // NOTE: Fields according to ETSI EN 300 401
+        // NOTE: Fields according to ETSI EN 300 401 V2.1.1 2017
+        // CC and language field are removed.
         // const uint8_t SD =    (b[2] & 0b10000000) >> 7;
         // const uint8_t Rfa1 =  (b[2] & 0b01000000) >> 6;
         // const uint8_t Rfu1 =  (b[2] & 0b00110000) >> 4;
@@ -1311,9 +1309,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         // const uint8_t international_code = 
         //                       (b[4] & 0b00011111) >> 0;
 
-        // NOTE: Fields according to 
-        // Source: https://github.com/AlbrechtL/welle.io
-        // Reference: src/backend/fib-processor.cpp 
+        // NOTE: Fields according to ETSI EN 300 401 V1.4.1 2006
         const uint8_t SD =            (b[2] & 0b10000000) >> 7;
         const uint8_t language_flag = (b[2] & 0b00100000) >> 5;
         const uint8_t cc_flag =       (b[2] & 0b00010000) >> 4;
@@ -1325,7 +1321,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         int data_index = 3;
 
         if (nb_remain_bytes < nb_bytes) {
-            LOG_ERROR("fig 0/17 Insufficient bytes for langugage ({}) and caption ({}) field ({}/{})",
+            LOG_ERROR("fig 0/17 Insufficient bytes for langugage ({}) and complementary code ({}) field ({}/{})",
                 language_flag, cc_flag,
                 nb_bytes, nb_remain_bytes);
             return;
@@ -1335,11 +1331,11 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
             language_type = b[data_index++];
         }
 
+        const uint8_t international_code = (b[data_index++] & 0b00011111) >> 0;
+
         if (cc_flag) {
             cc_type = b[data_index++];
         }
-
-        const uint8_t international_code = (b[data_index++] & 0b00011111) >> 0;
         
         // LOG_MESSAGE("fig 0/17 pd={} country_id={} service_ref={:>4} ecc={} i={}/{} SD={} Rfa1={} Rfu1={} Rfa2={} Rfu2={} inter_code={}",
         //     //     header.pd,
@@ -1358,8 +1354,7 @@ void FIG_Processor::ProcessFIG_Type_0_Ext_17(
         
         m_handler->OnService_1_ProgrammeType(
             sid,
-            international_code, language_type, cc_type,
-            language_flag, cc_flag);
+            international_code);
 
         curr_byte += nb_bytes; 
         curr_programme++;
