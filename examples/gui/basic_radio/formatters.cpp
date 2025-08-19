@@ -74,6 +74,28 @@ const char* GetLanguageTypeString(language_id_t language_id) {
     return GetLanguageName(language_id).c_str();
 }
 
+const char* GetUserApplicationTypeString(const user_application_type_t application_type)
+{
+    switch (static_cast<UserApplicationType>(application_type)) {
+    case UserApplicationType::SLIDESHOW:
+        return "SlideShow";
+    case UserApplicationType::TPEG:
+        return "TPEG";
+    case UserApplicationType::SPI:
+        return "SPI";
+    case UserApplicationType::DMB:
+        return "DMB";
+    case UserApplicationType::FILE_CASTING:
+        return "Filecasting";
+    case UserApplicationType::FIS:
+        return "FIS";
+    case UserApplicationType::JOURNALINE:
+        return "Journaline®";
+    default:
+        return "Unknown";
+    }
+}
+
 const char* GetCountryString(extended_country_id_t ecc, country_id_t country_id) {
     return GetCountryName(ecc, country_id).c_str();
 }

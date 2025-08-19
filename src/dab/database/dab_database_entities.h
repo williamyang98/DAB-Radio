@@ -45,6 +45,17 @@ enum class FEC_Scheme: uint8_t {        // Value passed in 4bit field
     UNDEFINED = 0xFF,
 };
 
+enum class UserApplicationType: uint16_t {  // Value passed in 11bit field
+    SLIDESHOW = 0x002,
+    TPEG = 0x004,
+    SPI = 0x007,
+    DMB = 0x009,
+    FILE_CASTING = 0x00D,
+    FIS = 0x00E,
+    JOURNALINE = 0x44A,
+    UNDEFINED = 0xFFFF,
+};
+
 // NOTE: A valid database entry exists when all the required fields are set
 // The required fields constraint is also followed in the dab_database_updater.cpp
 // when we are regenerating the database from the FIC (fast information channel)
@@ -138,8 +149,6 @@ struct Service {
     std::string label;
     std::string short_label;
     programme_id_t programme_type = 0;    
-    language_id_t language = 0;          
-    closed_caption_id_t closed_caption = 0;       
     bool is_complete = false;
     explicit Service(const ServiceId _id) : id(_id) {}
 };
@@ -155,9 +164,11 @@ struct ServiceComponent {
     packet_addr_t packet_address = 0;                                   // required for transport packet data
     std::string label;
     std::string short_label;
+    language_id_t language = 0;
+    std::vector<user_application_type_t> application_types;             // required for transport stream/packet data. (optional) for stream audio (XPAD often used for slideshows)
     TransportMode transport_mode = TransportMode::UNDEFINED;            // required
     AudioServiceType audio_service_type = AudioServiceType::UNDEFINED;  // required for transport stream audio
-    DataServiceType data_service_type = DataServiceType::UNDEFINED;     // (optional) for transport stream/packet data - we expect this to be provided but real world data doesn't
+    DataServiceType data_service_type = DataServiceType::UNDEFINED;     // required for transport stream/packet data
     bool is_complete = false;
     explicit ServiceComponent(
         const ServiceId _service_id, 

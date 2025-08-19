@@ -175,8 +175,6 @@ void RenderSimple_Service(BasicRadio& radio, BasicRadioViewController& controlle
             FIELD_MACRO("Programme Type", "%s (%u)", 
                 GetProgrammeTypeString(ensemble.international_table_id, service->programme_type),
                 service->programme_type);
-            FIELD_MACRO("Language", "%s (%u)", GetLanguageTypeString(service->language), service->language);
-            FIELD_MACRO("Closed Caption", "%u", service->closed_caption);
 
             #undef FIELD_MACRO
 
@@ -253,11 +251,24 @@ void RenderSimple_ServiceComponent(BasicRadio& radio, BasicRadioViewController& 
             FIELD_MACRO("Label", "%.*s", int(component.label.length()), component.label.c_str());
             FIELD_MACRO("Short Label", "%.*s", int(component.short_label.length()), component.short_label.c_str());
             FIELD_MACRO("Component ID", "%u (0x%01X)", component.component_id, component.component_id);
-            if(component.global_id != 0xFFFF)
+            if(!is_audio_type)
                 FIELD_MACRO("Global ID", "%u (0x%03X)", component.global_id, component.global_id);
             FIELD_MACRO("Subchannel ID", "%u (0x%02X)", component.subchannel_id, component.subchannel_id);
             FIELD_MACRO("Transport Mode", "%s", GetTransportModeString(component.transport_mode));
             FIELD_MACRO("Type", "%s", type_str);
+            FIELD_MACRO("Language", "%s (%u)", GetLanguageTypeString(component.language), component.language);
+            if (!component.application_types.empty()) {
+                std::string formatted_types;
+                for (const auto& app_type : component.application_types) {
+                    if (!formatted_types.empty()) {
+                        formatted_types += ", ";
+                    }
+                    formatted_types += fmt::format("{} ({})",
+                        GetUserApplicationTypeString(app_type),
+                        app_type);
+                }
+                FIELD_MACRO("User Application Types", "%s", formatted_types.c_str());
+            }
 
             ImGui::EndTable();
         }

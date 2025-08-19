@@ -135,21 +135,19 @@ public:
     UpdateResult SetLabel(std::string_view label);
     UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetProgrammeType(const programme_id_t programme_type);
-    UpdateResult SetLanguage(const language_id_t language);
-    UpdateResult SetClosedCaption(const closed_caption_id_t closed_caption);
     auto& GetData() { return m_db.services[m_index]; }
 private:
     bool IsComplete() override;
 };
 
-class ServiceComponentUpdater: private DatabaseEntityUpdater<uint8_t>
+class ServiceComponentUpdater: private DatabaseEntityUpdater<uint16_t>
 {
 private:
     DAB_Database& m_db;
     const size_t m_index;
 public:
     explicit ServiceComponentUpdater(DAB_Database& db, size_t index, DatabaseUpdaterGlobalStatistics& stats)
-        : DatabaseEntityUpdater<uint8_t>(stats), m_db(db), m_index(index) { OnCreate(); }
+        : DatabaseEntityUpdater<uint16_t>(stats), m_db(db), m_index(index) { OnCreate(); }
     UpdateResult SetLabel(std::string_view label);
     UpdateResult SetShortLabel(std::string_view short_label);
     UpdateResult SetTransportMode(const TransportMode transport_mode);
@@ -157,6 +155,8 @@ public:
     UpdateResult SetDataServiceType(const DataServiceType data_service_type);
     UpdateResult SetSubchannel(const subchannel_id_t subchannel_id);
     UpdateResult SetPacketAddr(const packet_addr_t packet_addr);
+    UpdateResult SetLanguage(const language_id_t language);
+    UpdateResult AddUserApplicationType(const user_application_type_t application_type);
     UpdateResult SetGlobalID(const service_component_global_id_t global_id);
     auto& GetData() { return m_db.service_components[m_index]; }
 private:
@@ -292,6 +292,22 @@ public:
     ServiceComponentUpdater* GetServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id);
     ServiceComponentUpdater* GetServiceComponentUpdater_Subchannel(const ServiceId service_id, const subchannel_id_t subchannel_id);
+    template <typename Fn>
+    void ForEachServiceComponentUpdater_Subchannel(const subchannel_id_t subchannel_id, Fn&& fn) {
+        for_each_updater(
+            m_db->service_components, m_service_component_updaters,
+            [subchannel_id](const auto& e) { return e.subchannel_id == subchannel_id; },
+            std::forward<Fn>(fn)
+        );
+    }
+    template <typename Fn>
+    void ForEachServiceComponentUpdater_GlobalID(const service_component_global_id_t global_id, Fn&& fn) {
+        for_each_updater(
+            m_db->service_components, m_service_component_updaters,
+            [global_id](const auto& e) { return e.global_id == global_id; },
+            std::forward<Fn>(fn)
+        );
+    }
     const auto& GetDatabase() const { return *(m_db.get()); }
     const auto& GetStatistics() const { return *(m_stats.get()); }
 private:
@@ -322,5 +338,16 @@ private:
             return nullptr;
         }
         return &updaters[index];
+    }
+
+    template <typename T, typename U, typename F, typename Fn>
+    void for_each_updater(std::vector<T>& entries, std::vector<U>& updaters, F&& match_func, Fn&& action_func) {
+        assert(entries.size() == updaters.size());
+        const size_t N = entries.size();
+        for (size_t i = 0; i < N; i++) {
+            if (match_func(entries[i])) {
+                action_func(updaters[i]);
+            }
+        }
     }
 };
