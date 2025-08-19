@@ -464,17 +464,6 @@ ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Global
 }
 
 ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subchannel(
-    const subchannel_id_t subchannel_id) 
-{
-    return find_updater(
-        m_db->service_components, m_service_component_updaters,
-        [subchannel_id](const auto& e) {
-            return e.subchannel_id == subchannel_id;
-        }
-    );
-}
-
-ServiceComponentUpdater* DAB_Database_Updater::GetServiceComponentUpdater_Subchannel(
     const ServiceId service_id, const subchannel_id_t subchannel_id) 
 {
     const auto service_uuid = service_id.get_unique_identifier();
