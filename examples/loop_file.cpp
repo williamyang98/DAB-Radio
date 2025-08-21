@@ -170,23 +170,22 @@ int main(int argc, char** argv) {
     while (is_reading) {
         // check if reaching maximum loop size
         bool should_loop = false;
+        auto dst_buf = tcb::span<uint8_t>(block);
         if (loop_size.has_value()) {
             size_t remaining_bytes = loop_size.value() - total_read;
-            if (block_size > remaining_bytes) {
+            if (dst_buf.size() > remaining_bytes) {
+                dst_buf = dst_buf.first(remaining_bytes);
                 should_loop = true;
             }
         }
 
-        // try to read if block fits within remaining file
-        if (!should_loop) {
-            const size_t nb_read = read_bytes(block);
-            total_read += nb_read;
-            if (nb_read != block_size) {
-                should_loop = true;
-            }
+        // try to fill destination buffer
+        const size_t nb_read = read_bytes(dst_buf);
+        total_read += nb_read;
+        if (nb_read != dst_buf.size()) {
+            should_loop = true;
         }
 
-        // loop around
         if (should_loop) {
             total_read = 0;
             const bool is_success = loop_file();
@@ -197,9 +196,10 @@ int main(int argc, char** argv) {
             }
         }
 
-        const size_t nb_write = fwrite(block.data(), sizeof(uint8_t), block.size(), fp_out);
-        if (nb_write != block.size()) {
-            fprintf(stderr, "Failed to write out block %zu/%zu bytes. Exiting...\n", nb_write, block.size());
+        const auto src_buf = dst_buf.first(nb_read);
+        const size_t nb_write = fwrite(src_buf.data(), sizeof(uint8_t), src_buf.size(), fp_out);
+        if (nb_write != src_buf.size()) {
+            fprintf(stderr, "Failed to write out block %zu/%zu bytes. Exiting...\n", nb_write, src_buf.size());
             break;
         }
     }
