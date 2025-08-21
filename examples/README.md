@@ -8,11 +8,10 @@ Applications that use the OFDM and DAB code.
 | rtl_sdr | Reads raw 8bit IQ values from your rtl-sdr dongle to stdout |
 | basic_radio_app | OFDM demodulator and/or radio decoder that reads from a file with a gui |
 | basic_radio_app_cli | OFDM demodulator and/or radio decoder that reads from a file without a gui |
-| read_wav | Reads in a wav file which can be 8bit or 16bit PCM and dumps raw data to output as 8bit |
 | apply_frequency_shift | Applies a frequency shift to a 8bit IQ stream |
 | convert_viterbi | Decodes/encodes between a viterbi_bit_t array of soft decision bits to a packed byte |
-| simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an 8bit IQ stream to stdout. |
-| loop_file | Loop file infinitely |
+| simulate_transmitter | Simulates a OFDM signal with a defined transmission mode, but doesn't contain any meaningful digital data. Outputs an unsigned 8bit IQ stream to stdout. |
+| loop_file | Loop file infinitely (can be a raw binary file or .wav file) |
 
 ## Example usage scenarios (using git-bash on Windows)
 Refer to ```-h``` or ```--help``` for more information on each application.

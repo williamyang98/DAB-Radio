@@ -23,18 +23,20 @@ struct OutputBuffer {
 };
 
 template <typename T, typename U>
-class ConvertInputBuffer: public InputBuffer<T>
+class ReinterpretCastInputBuffer: public InputBuffer<T>
 {
 private:
     std::shared_ptr<InputBuffer<U>> m_input = nullptr;
 public:
-    ConvertInputBuffer() {
-        static_assert(sizeof(T) % sizeof(U) == 0 || sizeof(U) % sizeof(T) == 0, "Converted type must be a multiple/divisor of original type");
+    ReinterpretCastInputBuffer(std::shared_ptr<InputBuffer<U>> input)
+    : m_input(input) 
+    {
+        static_assert(
+            sizeof(T) % sizeof(U) == 0 || sizeof(U) % sizeof(T) == 0,
+            "Converted type must be a multiple/divisor of original type"
+        );
     }
-    ~ConvertInputBuffer() override = default;
-    void set_input_stream(std::shared_ptr<InputBuffer<U>> input) { 
-        m_input = input;
-    }
+    ~ReinterpretCastInputBuffer() override = default;
     size_t read(tcb::span<T> dest) override {
         if (m_input == nullptr) return 0;
         if constexpr (sizeof(T) >= sizeof(U)) {
@@ -58,22 +60,40 @@ public:
 };
 
 template <typename T, typename U>
-class ConvertOutputBuffer: public OutputBuffer<T>
+class StaticCastInputBuffer: public InputBuffer<T>
+{
+private:
+    std::shared_ptr<InputBuffer<U>> m_input = nullptr;
+    std::vector<U> m_buffer;
+public:
+    StaticCastInputBuffer(std::shared_ptr<InputBuffer<U>> input): m_input(input) {}
+    ~StaticCastInputBuffer() override = default;
+    size_t read(tcb::span<T> dest) override {
+        m_buffer.resize(dest.size());
+        const size_t length = m_input->read(m_buffer);
+        for (size_t i = 0; i < length; i++) {
+            dest[i] = static_cast<T>(m_buffer[i]);
+        }
+        return length;
+    }
+};
+
+template <typename T, typename U>
+class ReinterpretCastOutputBuffer: public OutputBuffer<T>
 {
 private:
     std::shared_ptr<OutputBuffer<U>> m_output = nullptr;
 public:
-    ConvertOutputBuffer() {
+    ReinterpretCastOutputBuffer(std::shared_ptr<OutputBuffer<U>> output)
+    : m_output(output)
+    {
         static_assert(sizeof(T) % sizeof(U) == 0, "Converted type must be a multiple of original type");
     }
-    ~ConvertOutputBuffer() override = default;
-    void set_output_stream(std::shared_ptr<OutputBuffer<U>> output) { 
-        m_output = output;
-    }
+    ~ReinterpretCastOutputBuffer() override = default;
     size_t write(tcb::span<const T> src) override {
         if (m_output == nullptr) return 0;
         constexpr size_t stride = sizeof(T)/sizeof(U);
-        const auto converted_src = tcb::span<U>(
+        const auto converted_src = tcb::span<const U>(
             reinterpret_cast<const U*>(src.data()),
             src.size()*stride
         );
@@ -86,6 +106,12 @@ class FileWrapper {
 private:
     FILE* m_file = nullptr;
     std::shared_mutex m_mutex;
+public:
+    enum class SeekMode {
+        START,
+        CURRENT,
+        END,
+    };
 public:
     explicit FileWrapper(FILE* file): m_file(file) {}
     virtual ~FileWrapper() { close(); }
@@ -108,6 +134,20 @@ public:
         if (m_file == nullptr) return 0;
         return fread(dest.data(), sizeof(T), dest.size(), m_file);
     }
+    bool seek(const long offset, const SeekMode mode) {
+        auto lock = std::shared_lock(m_mutex);
+        if (m_file == nullptr) return false;
+        int mode_id = SEEK_SET;
+        switch (mode) {
+        case SeekMode::START: mode_id = SEEK_SET; break;
+        case SeekMode::CURRENT: mode_id = SEEK_CUR; break;
+        case SeekMode::END: mode_id = SEEK_END; break;
+        default: break;
+        }
+        const int rv = fseek(m_file, offset, mode_id);
+        return rv == 0;
+    }
+    FILE* get_handle() const { return m_file; }
 };
 
 template <typename T>
@@ -224,3 +264,47 @@ public:
         return max_length;
     };
 };
+
+template <typename T>
+static void reverse_endian_inplace(tcb::span<T> dest) {
+    constexpr size_t stride = sizeof(T);
+    auto dest_bytes = tcb::span<uint8_t>(
+        reinterpret_cast<uint8_t*>(dest.data()),
+        dest.size()*stride
+    );
+    constexpr size_t total_flip = stride/2;
+    for (size_t i = 0; i < dest_bytes.size(); i+=stride) {
+        for (size_t j_src = 0; j_src < total_flip; j_src++) {
+            const size_t j_dst = stride-j_src-1;
+            const uint8_t tmp_src = dest_bytes[i+j_src];
+            dest_bytes[i+j_src] = dest_bytes[i+j_dst];
+            dest_bytes[i+j_dst] = tmp_src;
+        }
+    }
+}
+
+static bool get_is_machine_little_endian() {
+    volatile union {
+        uint32_t value;
+        uint8_t data[4];
+    } e;
+    e.value = 0x00000001;
+    return e.data[0] == 0x01;
+}
+
+template <typename T>
+class ReverseEndian: public InputBuffer<T>
+{
+private:
+    std::shared_ptr<InputBuffer<T>> m_input = nullptr;
+public:
+    ReverseEndian(std::shared_ptr<InputBuffer<T>> input): m_input(input) {}
+    ~ReverseEndian() override = default;
+    size_t read(tcb::span<T> dest) override {
+        if (m_input == nullptr) return 0;
+        const size_t length = m_input->read(dest);
+        reverse_endian_inplace(dest.first(length));
+        return length;
+    }
+};
+

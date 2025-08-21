@@ -15,6 +15,8 @@
 
 #include <argparse/argparse.hpp>
 #include <easylogging++.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include "basic_radio/basic_audio_channel.h"
 #include "basic_radio/basic_radio.h"
 #include "basic_scraper/basic_scraper.h"
@@ -22,7 +24,7 @@
 #include "dab/database/dab_database_types.h"
 #include "viterbi_config.h"
 #include "./app_helpers/app_io_buffers.h"
-#include "./app_helpers/app_readers.h"
+#include "./app_helpers/app_iq_readers.h"
 #include "./app_helpers/app_logging.h"
 #include "./app_helpers/app_ofdm_blocks.h"
 #include "./app_helpers/app_radio_blocks.h"
@@ -31,7 +33,6 @@
 #if !BUILD_COMMAND_LINE
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
-#include <fmt/format.h>
 #include <portaudio.h>
 #include "./app_helpers/app_audio.h"
 #include "./app_helpers/app_common_gui.h"
@@ -63,6 +64,16 @@ void init_parser(argparse::ArgumentParser& parser) {
         .nargs(1).required()
         .help("Use OFDM demodulator or/and DAB radio (dab+ofdm, ofdm, dab)");
     // ofdm settings
+    {
+        auto arg = parser.add_argument("--ofdm-input-mode")
+            .default_value(std::string("raw_u8"))
+            .metavar("MODE")
+            .nargs(1).required()
+            .help(fmt::format("Format of IQ recording for OFDM baseband signal ({})", fmt::join(iq_read_modes, ", ")));
+        for (const auto& choice: iq_read_modes) {
+            arg.add_choice(choice);
+        }
+    }
     parser.add_argument("--ofdm-block-size")
         .default_value(size_t(65536)).scan<'u', size_t>()
         .metavar("BLOCK_SIZE")
@@ -132,6 +143,7 @@ struct Args {
     bool is_ofdm_used;
     bool is_dab_used;
     // ofdm settings
+    std::string ofdm_input_mode;
     size_t ofdm_block_size;
     size_t ofdm_total_threads;
     bool ofdm_disable_coarse_freq;
@@ -168,6 +180,7 @@ Args get_args_from_parser(const argparse::ArgumentParser& parser) {
         args.is_ofdm_used = false;
     }
     // ofdm settings
+    args.ofdm_input_mode = parser.get<std::string>("--ofdm-input-mode");
     args.ofdm_block_size = parser.get<size_t>("--ofdm-block-size");
     args.ofdm_total_threads = parser.get<size_t>("--ofdm-total-threads");
     args.ofdm_disable_coarse_freq = parser.get<bool>("--ofdm-disable-coarse-freq");
@@ -263,10 +276,16 @@ int main(int argc, char** argv) {
     // setup input
     std::shared_ptr<FileWrapper> file_in = nullptr;
     if (args.is_ofdm_used) {
-        auto raw_iq_in = std::make_shared<InputFile<uint8_t>>(fp_in);
-        auto ofdm_reader = get_raw_iq_file_reader<uint8_t>(raw_iq_in, true);
-        ofdm_block->set_input_stream(ofdm_reader);
-        file_in = raw_iq_in;
+        try {
+            auto raw_iq_in = std::make_shared<InputFile<uint8_t>>(fp_in);
+            auto iq_stream = get_iq_file_reader_from_mode_string(raw_iq_in, args.ofdm_input_mode);
+            ofdm_block->set_input_stream(iq_stream);
+            file_in = raw_iq_in;
+        } catch (const std::exception& ex) {
+            std::cerr << "Failed to parse OFDM IQ file with format: " << args.ofdm_input_mode << std::endl;
+            std::cerr << ex.what() << std::endl;
+            return 1;
+        }
     } else {
         if (args.radio_input_hard_bytes) {
             auto hard_bytes_in = std::make_shared<InputFile<uint8_t>>(fp_in);

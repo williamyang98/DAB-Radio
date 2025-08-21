@@ -30,7 +30,7 @@
 #include "./app_helpers/app_audio.h"
 #include "./app_helpers/app_common_gui.h"
 #include "./app_helpers/app_io_buffers.h"
-#include "./app_helpers/app_readers.h"
+#include "./app_helpers/app_iq_readers.h"
 #include "./app_helpers/app_logging.h"
 #include "./app_helpers/app_ofdm_blocks.h"
 #include "./audio/audio_pipeline.h"
@@ -350,11 +350,8 @@ int main(int argc, char** argv) {
         }
     );
     // ofdm input
-    auto device_output_buffer = std::make_shared<ThreadedRingBuffer<RawIQ<uint8_t>>>(args.ofdm_block_size*sizeof(RawIQ<uint8_t>));
-    // handle component level transformations (endianess, scaling)
-    auto device_component_stream = std::make_shared<ConvertInputBuffer<uint8_t, RawIQ<uint8_t>>>();
-    device_component_stream->set_input_stream(device_output_buffer);
-    auto raw_iq_to_float = get_raw_iq_file_reader<uint8_t>(device_component_stream, true);
+    auto iq_ring_buffer = std::make_shared<ThreadedRingBuffer<uint8_t>>(args.ofdm_block_size*sizeof(QuantisedIQ<uint8_t>));
+    auto raw_iq_to_float = get_quantised_iq_file_reader<uint8_t>(iq_ring_buffer, true);
     ofdm_block->set_input_stream(raw_iq_to_float);
     // connect ofdm to radio_switcher
     auto ofdm_to_radio_buffer = std::make_shared<ThreadedRingBuffer<viterbi_bit_t>>(dab_params.nb_frame_bits*2);
@@ -363,7 +360,7 @@ int main(int argc, char** argv) {
     // device to ofdm
     auto device_list = std::make_shared<DeviceList>();
     auto device_source = std::make_shared<DeviceSource>(
-        [device_output_buffer, radio_switcher, args]
+        [iq_ring_buffer, radio_switcher, args]
         (std::shared_ptr<Device> device) {
             radio_switcher->flush_input_stream();
             if (device == nullptr) return;
@@ -372,17 +369,8 @@ int main(int argc, char** argv) {
             } else {
                 device->SetNearestGain(args.tuner_manual_gain);
             }
-            device->SetDataCallback([device_output_buffer](tcb::span<const uint8_t> bytes) {
-                constexpr size_t BYTES_PER_SAMPLE = sizeof(RawIQ<uint8_t>);
-                const size_t total_bytes = bytes.size() - (bytes.size() % BYTES_PER_SAMPLE);
-                const size_t total_samples = total_bytes / BYTES_PER_SAMPLE;
-                auto raw_iq = tcb::span(
-                    reinterpret_cast<const RawIQ<uint8_t>*>(bytes.data()),
-                    total_samples
-                );
-                const size_t total_read_samples = device_output_buffer->write(raw_iq);
-                const size_t total_read_bytes = total_read_samples * BYTES_PER_SAMPLE;
-                return total_read_bytes;
+            device->SetDataCallback([iq_ring_buffer](tcb::span<const uint8_t> bytes) {
+                return iq_ring_buffer->write(bytes);
             });
             device->SetFrequencyChangeCallback([radio_switcher](const std::string& label, const uint32_t freq) {
                 radio_switcher->switch_instance(label);
@@ -475,7 +463,7 @@ int main(int argc, char** argv) {
     });
     // shutdown
     const int gui_retval = render_common_gui_blocking(gui);
-    device_output_buffer->close();
+    iq_ring_buffer->close();
     ofdm_to_radio_buffer->close();
     if (thread_select_default_audio != nullptr) thread_select_default_audio->join();
     if (thread_select_default_tuner != nullptr) thread_select_default_tuner->join();

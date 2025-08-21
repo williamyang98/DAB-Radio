@@ -74,7 +74,6 @@ add_project_target_flags(rtl_sdr)
 add_project_target_flags(simulate_transmitter)
 add_project_target_flags(convert_viterbi)
 add_project_target_flags(apply_frequency_shift)
-add_project_target_flags(read_wav)
 # examples/
 add_project_target_flags(audio_lib)
 add_project_target_flags(device_lib)

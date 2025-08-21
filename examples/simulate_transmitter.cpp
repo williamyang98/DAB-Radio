@@ -13,7 +13,8 @@
 #endif
 
 #include <argparse/argparse.hpp>
-#include "app_helpers/app_readers.h"
+#include "app_helpers/app_iq_readers.h"
+#include "app_helpers/app_io_buffers.h"
 #include "ofdm/dab_mapper_ref.h"
 #include "ofdm/dab_ofdm_params_ref.h"
 #include "ofdm/dab_prs_ref.h"
@@ -79,14 +80,14 @@ void write_frame_to_file(
     const bool is_little_endian
 ) {
     // rescale for quantisation
-    scale *= RawIQ<T>::MAX_AMPLITUDE;
+    scale *= QuantisedIQ<T>::MAX_AMPLITUDE;
 
     // perform quantisation
-    auto quantised = std::vector<RawIQ<T>>(data.size());
+    auto quantised = std::vector<QuantisedIQ<T>>(data.size());
     for (size_t i = 0; i < data.size(); i++) {
         const float I = data[i].real();
         const float Q = data[i].imag();
-        quantised[i] = RawIQ<T>::from_iq(I*scale, Q*scale);
+        quantised[i] = QuantisedIQ<T>::from_iq(I*scale, Q*scale);
     }
 
     const bool reverse_endian = get_is_machine_little_endian() != is_little_endian;
@@ -100,7 +101,7 @@ void write_frame_to_file(
 
     while (true) {
         const size_t N = quantised.size();
-        const size_t nb_write = fwrite(quantised.data(), sizeof(RawIQ<T>), N, fp_out);
+        const size_t nb_write = fwrite(quantised.data(), sizeof(QuantisedIQ<T>), N, fp_out);
         if (nb_write != N) {
             fprintf(stderr, "Failed to write out frame %zu/%zu\n", nb_write, N);
             break;

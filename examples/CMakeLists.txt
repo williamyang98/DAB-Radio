@@ -38,7 +38,7 @@ install_dlls(rtl_sdr)
 
 add_executable(simulate_transmitter ${SRC_DIR}/simulate_transmitter.cpp)
 init_example(simulate_transmitter)
-target_link_libraries(simulate_transmitter PRIVATE ofdm_core argparse::argparse)
+target_link_libraries(simulate_transmitter PRIVATE ofdm_core argparse::argparse fmt)
 
 add_executable(convert_viterbi ${SRC_DIR}/convert_viterbi.cpp)
 init_example(convert_viterbi)
@@ -48,13 +48,9 @@ add_executable(apply_frequency_shift ${SRC_DIR}/apply_frequency_shift.cpp)
 init_example(apply_frequency_shift)
 target_link_libraries(apply_frequency_shift PRIVATE argparse::argparse ofdm_core)
 
-add_executable(read_wav ${SRC_DIR}/read_wav.cpp)
-init_example(read_wav)
-target_link_libraries(read_wav PRIVATE argparse::argparse)
-
 add_executable(loop_file ${SRC_DIR}/loop_file.cpp)
 init_example(loop_file)
-target_link_libraries(loop_file PRIVATE argparse::argparse)
+target_link_libraries(loop_file PRIVATE argparse::argparse fmt)
 
 # Example applications
 add_executable(basic_radio_app_cli ${SRC_DIR}/basic_radio_app.cpp)
