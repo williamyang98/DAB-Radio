@@ -350,7 +350,7 @@ int main(int argc, char** argv) {
         }
     );
     // ofdm input
-    auto iq_ring_buffer = std::make_shared<ThreadedRingBuffer<uint8_t>>(args.ofdm_block_size*sizeof(QuantisedIQ<uint8_t>));
+    auto iq_ring_buffer = std::make_shared<ThreadedRingBuffer<uint8_t>>(args.ofdm_block_size*sizeof(QuantisedIQ<uint8_t>)*2);
     auto raw_iq_to_float = get_quantised_iq_file_reader<uint8_t>(iq_ring_buffer, true);
     ofdm_block->set_input_stream(raw_iq_to_float);
     // connect ofdm to radio_switcher
