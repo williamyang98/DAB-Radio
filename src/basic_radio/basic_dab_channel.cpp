@@ -26,18 +26,12 @@
 Basic_DAB_Channel::Basic_DAB_Channel(const DAB_Parameters& params, const Subchannel subchannel, const AudioServiceType audio_service_type)
 : Basic_Audio_Channel(params, subchannel, audio_service_type) 
 {
-    m_plm_buffer = plm_buffer_create_with_capacity(32);
-    m_plm_audio = plm_audio_create_with_buffer(m_plm_buffer);
     m_pad_processor = std::make_unique<PAD_Processor>();
+    m_mp2_decoder = std::make_unique<MP2_Audio_Decoder>();
     SetupCallbacks();
 }
 
-Basic_DAB_Channel::~Basic_DAB_Channel() {
-    plm_audio_destroy(m_plm_audio);
-    plm_buffer_destroy(m_plm_buffer);
-    m_plm_audio = nullptr;
-    m_plm_buffer = nullptr;
-};
+Basic_DAB_Channel::~Basic_DAB_Channel() {}
 
 void Basic_DAB_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
     BASIC_RADIO_SET_THREAD_NAME(fmt::format("MSC-dab-subchannel-{}", m_subchannel.id));
@@ -67,64 +61,46 @@ void Basic_DAB_Channel::Process(tcb::span<const viterbi_bit_t> msc_bits_buf) {
         if (!m_controls.GetAnyEnabled()) { 
             continue;
         }
- 
-        plm_buffer_rewind(m_plm_buffer); // we can assume full frames are decoded each time
-        plm_buffer_write(m_plm_buffer, decoded_bytes.data(), decoded_bytes.size());
-        const int total_data_bytes = plm_audio_decode_header(m_plm_audio);
-        if (total_data_bytes == 0) {
+
+        const auto res = m_mp2_decoder->decode_frame(decoded_bytes);
+        if (!res.has_value()) {
             m_is_error = true;
             continue;
         }
 
-        plm_samples_t* samples = plm_audio_decode(m_plm_audio, total_data_bytes);
-        if (samples == nullptr) {
-            m_is_error = true;
-            continue;
-        }
         m_is_error = false;
-
-        const int bitrate_kbps = plm_audio_get_bitrate(m_plm_audio);
-        const int total_channels = plm_audio_get_channels(m_plm_audio);
-        const int sample_rate = plm_audio_get_samplerate(m_plm_audio);
-        const bool is_stereo = (total_channels == 2);
-        m_audio_params = std::optional<AudioParams>({ is_stereo, bitrate_kbps, sample_rate });
+        const auto& frame = res.value();
  
-        // TODO: In order to decode the PAD we need to determine where the mp2 decoder stops reading
-        //       Is there a more sensible way to do this?
+        m_audio_params = frame.frame_header;
+ 
         if (m_controls.GetIsDecodeData()) {
-            const int bitrate_per_channel = bitrate_kbps/total_channels;
-            // DOC: ETSI TS 103 466
-            // Figure 6: DAB audio frame structure
-            const int total_crc_bytes = (bitrate_per_channel >= 56) ? 4 : 2;
-            const int total_fpad_bytes = 2;
-            // Determine number of xpad bytes
-            const int total_audio_frame_bytes = int(plm_buffer_get_read_head_bytes(m_plm_buffer));
-            const int total_pad_bytes = int(decoded_bytes.size()) - total_audio_frame_bytes;
-            const int total_xpad_bytes = total_pad_bytes-total_crc_bytes-total_fpad_bytes;
-            if (total_xpad_bytes >= 0) {
-                auto pad = decoded_bytes.subspan(size_t(total_audio_frame_bytes));
-                auto fpad = pad.last(size_t(total_fpad_bytes));
-                auto xpad = pad.first(size_t(total_xpad_bytes));
-                m_pad_processor->Process(fpad, xpad);
-            }
+            m_pad_processor->Process(frame.fpad_data, frame.xpad_data);
         }
 
         if (m_controls.GetIsPlayAudio()) {
-            constexpr float gain = float(std::numeric_limits<int16_t>::max()-1);
-            const size_t N = size_t(samples->count*2);
-            m_audio_data.resize(N);
-            for (size_t j = 0; j < N; j++) {
-                float v = samples->interleaved[j];
-                if (v > 1.0) v = 1.0;
-                else if (v < -1.0) v = -1.0;
-                int16_t v_scale = int16_t(v*gain);
-                m_audio_data[j] = v_scale;
+            const auto audio_data = frame.audio_data;
+            if (frame.frame_header.is_stereo) {
+                const size_t N = audio_data.size();
+                m_audio_data.resize(N);
+                for (size_t j = 0; j < N; j++) {
+                    m_audio_data[j] = audio_data[j];
+                }
+            } else {
+                // split out mono data
+                const size_t N = audio_data.size();
+                m_audio_data.resize(2*N);
+                for (size_t j = 0; j < N; j++) {
+                    const int16_t v = audio_data[j];
+                    const size_t k = 2*j;
+                    m_audio_data[k] = v;
+                    m_audio_data[k+1] = v;
+                }
             }
 
-            const size_t total_bytes = N*sizeof(int16_t);
-            auto data = tcb::span(reinterpret_cast<const uint8_t*>(m_audio_data.data()), total_bytes);
+            const size_t total_bytes = m_audio_data.size()*sizeof(int16_t);
+            const auto data = tcb::span(reinterpret_cast<const uint8_t*>(m_audio_data.data()), total_bytes);
             BasicAudioParams params;
-            params.frequency = uint32_t(sample_rate);
+            params.frequency = uint32_t(frame.frame_header.sample_rate);
             params.bytes_per_sample = 2;
             params.is_stereo = true;
             m_obs_audio_data.Notify(params, data);

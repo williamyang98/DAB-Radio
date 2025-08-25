@@ -8,6 +8,7 @@ find_package(easyloggingpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(imgui REQUIRED)
 find_package(implot REQUIRED)
+find_package(mpg123 REQUIRED)
 
 set(viterbi_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/viterbi_decoder)
 find_package(viterbi CONFIG REQUIRED)

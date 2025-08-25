@@ -10,27 +10,20 @@
 #include "utility/span.h"
 #include "viterbi_config.h"
 #include "./basic_audio_channel.h"
+#include "dab/audio/mp2_audio_decoder.h"
 
 class PAD_Processor;
-struct plm_buffer_t;
-struct plm_audio_t;
+class MP2_Audio_Decoder;
 
 // Audio channel player for DAB+
 class Basic_DAB_Channel: public Basic_Audio_Channel
 {
-public:
-    struct AudioParams {
-        bool is_stereo = false;
-        int bitrate_kbps = 0;
-        int sample_rate = 0;
-    };
 private:
-    plm_buffer_t* m_plm_buffer;
-    plm_audio_t* m_plm_audio;
     std::vector<int16_t> m_audio_data;
     std::unique_ptr<PAD_Processor> m_pad_processor;
-    bool m_is_error = false;
-    std::optional<AudioParams> m_audio_params = std::nullopt;
+    std::unique_ptr<MP2_Audio_Decoder> m_mp2_decoder;
+    bool m_is_error = true;
+    std::optional<MP2_Audio_Decoder::FrameHeader> m_audio_params = std::nullopt;
     Observable<tcb::span<const uint8_t>> m_obs_mp2_data;
 public:
     explicit Basic_DAB_Channel(const DAB_Parameters& params, const Subchannel subchannel, const AudioServiceType audio_service_type);

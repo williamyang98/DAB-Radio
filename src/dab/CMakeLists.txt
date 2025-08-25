@@ -34,7 +34,7 @@ add_library(dab_core STATIC
     ${SRC_DIR}/radio_fig_handler.cpp)
 set_target_properties(dab_core PROPERTIES CXX_STANDARD 17)
 target_include_directories(dab_core PRIVATE ${SRC_DIR} ${ROOT_DIR})
-target_link_libraries(dab_core PRIVATE faad2 viterbi fmt)
+target_link_libraries(dab_core PRIVATE faad2 mpg123 viterbi fmt)
 
 if(DAB_CORE_USE_EASYLOGGING)
     target_sources(dab_core PRIVATE ${SRC_DIR}/dab_logging.cpp)

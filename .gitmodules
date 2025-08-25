@@ -25,3 +25,7 @@
 [submodule "vendor/argparse"]
 	path = vendor/argparse
 	url = https://github.com/p-ranav/argparse.git
+[submodule "vendor/mpg123"]
+	path = vendor/mpg123
+	url = https://github.com/madebr/mpg123.git
+	branch = master
