@@ -96,7 +96,10 @@ void RenderSimple_ServiceList(BasicRadio& radio, BasicRadioViewController& contr
                 const bool is_selected = (
                     controller.selected_service.has_value() &&
                     controller.selected_service.value().get_unique_identifier() == service.id.get_unique_identifier());
-                auto label = fmt::format("{}###{}", service.label.empty() ? "[Unknown]" : service.label, service.id.get_unique_identifier());
+                if (service.label.empty()) {
+                    continue;
+                }
+                auto label = fmt::format("{}###{}", service.label, service.id.get_unique_identifier());
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
                     controller.selected_service = is_selected ? std::nullopt : std::optional(service.id);
                 }
