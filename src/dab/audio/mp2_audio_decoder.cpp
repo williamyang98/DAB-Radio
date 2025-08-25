@@ -22,6 +22,9 @@ MP2_Audio_Decoder::MP2_Audio_Decoder() {
         MPG123_STEREO | MPG123_MONO,
         MPG123_ENC_SIGNED_16
     );
+#if NDEBUG
+    mpg123_param(m_handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0.0);
+#endif
 }
 
 // DOC: ETSI TS 103 466
